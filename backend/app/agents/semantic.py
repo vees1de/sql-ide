@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from app.schemas.dictionary import DictionaryEntryRead
 from app.schemas.query import (
     DimensionMapping,
@@ -26,10 +28,11 @@ class SemanticMappingAgent:
         dictionary_entries: list[DictionaryEntryRead],
         dialect: str,
     ) -> SemanticMappingPayload:
-        dictionary_map = {
-            entry.term.lower(): entry.mapped_expression
-            for entry in dictionary_entries
-        }
+        dictionary_map: dict[str, DictionaryEntryRead] = {}
+        for entry in dictionary_entries:
+            dictionary_map[entry.term.lower()] = entry
+            for synonym in entry.synonyms:
+                dictionary_map[synonym.lower()] = entry
 
         metric_expression = None
         metric_alias = None
@@ -37,16 +40,30 @@ class SemanticMappingAgent:
             metric_expression = self.METRICS[intent.metric]["expression"]
             metric_alias = self.METRICS[intent.metric]["alias"]
         elif intent.metric and intent.metric.lower() in dictionary_map:
-            metric_expression = dictionary_map[intent.metric.lower()]
+            metric_expression = dictionary_map[intent.metric.lower()].mapped_expression
             metric_alias = "metric_value"
 
         dimensions: list[DimensionMapping] = []
         joins: list[str] = []
         tables = {"orders"}
         warnings: list[str] = []
+        base_table = "orders"
+
+        if metric_expression:
+            metric_tables = self._extract_tables(metric_expression)
+            if metric_tables:
+                base_table = sorted(metric_tables)[0]
+                tables.update(metric_tables)
 
         for dimension in intent.dimensions:
             expression, alias, join_key = self._resolve_dimension(dimension, dialect)
+            if expression is None:
+                mapped = dictionary_map.get(dimension.lower())
+                if mapped and mapped.object_type == "column":
+                    expression = mapped.mapped_expression
+                    alias = mapped.column_name or dimension.replace(".", "_")
+                    join_key = None
+                    tables.update(self._extract_tables(expression))
             if expression is None:
                 warnings.append(f"Dimension '{dimension}' is not supported in the MVP semantic layer.")
                 continue
@@ -69,6 +86,12 @@ class SemanticMappingAgent:
         filter_mappings: list[FilterMapping] = []
         for item in intent.filters:
             expression, join_key = self._resolve_filter_expression(item.field)
+            if expression is None:
+                mapped = dictionary_map.get(item.field.lower())
+                if mapped and mapped.object_type == "column":
+                    expression = mapped.mapped_expression
+                    join_key = None
+                    tables.update(self._extract_tables(expression))
             if expression is None:
                 warnings.append(f"Filter '{item.field}' is not supported in the MVP semantic layer.")
                 continue
@@ -96,6 +119,7 @@ class SemanticMappingAgent:
             dimension_mappings=dimensions,
             filter_mappings=filter_mappings,
             tables=sorted(tables),
+            base_table=base_table,
             joins=unique_joins,
             warnings=warnings,
             dialect=dialect,
@@ -141,3 +165,8 @@ class SemanticMappingAgent:
         if grain == "week":
             return "date(o.order_date, 'weekday 1', '-7 days')"
         return "date(o.order_date, 'start of month')"
+
+    def _extract_tables(self, expression: str) -> set[str]:
+        matches = re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\.", expression)
+        aliases = {"o", "c", "cp"}
+        return {name for name in matches if name not in aliases}

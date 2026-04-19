@@ -31,6 +31,7 @@ class SQLGenerationAgent:
 
         where_clauses = self._build_where_clauses(semantic, date_range)
         joins = "\n".join(semantic.joins)
+        from_clause, joins = self._source_sql(semantic, joins)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         group_sql = f"GROUP BY {', '.join(group_indices)}" if group_indices else ""
         order_sql = f"ORDER BY {', '.join(group_indices)}" if group_indices else ""
@@ -39,7 +40,7 @@ class SQLGenerationAgent:
             part
             for part in [
                 f"SELECT {', '.join(select_parts)}",
-                "FROM orders o",
+                from_clause,
                 joins,
                 where_sql,
                 group_sql,
@@ -105,6 +106,7 @@ class SQLGenerationAgent:
 
         where_clauses = self._build_where_clauses(semantic, date_range)
         joins = "\n".join(semantic.joins)
+        from_clause, joins = self._source_sql(semantic, joins)
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         group_sql = f"GROUP BY {', '.join(group_indices + [str(label_index)])}" if group_indices else f"GROUP BY {label_index}"
 
@@ -112,7 +114,7 @@ class SQLGenerationAgent:
             part
             for part in [
                 f"SELECT {', '.join(select_parts)}",
-                "FROM orders o",
+                from_clause,
                 joins,
                 where_sql,
                 group_sql,
@@ -122,10 +124,11 @@ class SQLGenerationAgent:
 
     def _build_where_clauses(self, semantic: SemanticMappingPayload, date_range: DateRange | None) -> list[str]:
         clauses: list[str] = []
-        if date_range and date_range.start:
-            clauses.append(f"o.order_date >= {self._quote(date_range.start.isoformat())}")
-        if date_range and date_range.end:
-            clauses.append(f"o.order_date <= {self._quote(date_range.end.isoformat())}")
+        if semantic.base_table == "orders":
+            if date_range and date_range.start:
+                clauses.append(f"o.order_date >= {self._quote(date_range.start.isoformat())}")
+            if date_range and date_range.end:
+                clauses.append(f"o.order_date <= {self._quote(date_range.end.isoformat())}")
 
         for filter_mapping in semantic.filter_mappings:
             operator = filter_mapping.operator or "="
@@ -154,3 +157,8 @@ class SQLGenerationAgent:
 
     def _quote(self, value: object) -> str:
         return "'" + str(value).replace("'", "''") + "'"
+
+    def _source_sql(self, semantic: SemanticMappingPayload, joins: str) -> tuple[str, str]:
+        if semantic.base_table == "orders":
+            return ("FROM orders o", joins)
+        return (f"FROM {semantic.base_table}", "")

@@ -1,4 +1,5 @@
 import type {
+  ApiDictionaryEntryCreate,
   ApiDatabaseConnectionCreate,
   ApiDatabaseDescriptor,
   ApiSchemaPreviewResponse,
@@ -99,6 +100,33 @@ export const api = {
   },
   getDictionary() {
     return request<ApiDictionaryEntryRead[]>('/api/semantic-dictionary');
+  },
+  createDictionaryEntry(payload: ApiDictionaryEntryCreate) {
+    return request<ApiDictionaryEntryRead>('/api/semantic-dictionary', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateDictionaryEntry(entryId: string, payload: Partial<ApiDictionaryEntryCreate>) {
+    return request<ApiDictionaryEntryRead>(`/api/semantic-dictionary/${entryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteDictionaryEntry(entryId: string) {
+    return request<void>(`/api/semantic-dictionary/${entryId}`, {
+      method: 'DELETE'
+    });
+  },
+  importDictionaryFromSchema(payload: {
+    database_label: string;
+    tables: Array<{ name: string; columns: Array<{ name: string; type: string }> }>;
+    max_entries?: number;
+  }) {
+    return request<{ imported: number }>('/api/semantic-dictionary/import-schema', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
   getNotebook(notebookId: string) {
     return request<ApiNotebookDetail>(`/api/notebooks/${notebookId}`);

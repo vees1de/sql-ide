@@ -124,6 +124,17 @@ export interface ApiDictionaryEntryRead {
   updated_at: string;
 }
 
+export interface ApiDictionaryEntryCreate {
+  term: string;
+  synonyms: string[];
+  mapped_expression: string;
+  description?: string;
+  object_type?: string | null;
+  table_name?: string | null;
+  column_name?: string | null;
+  source_database?: string | null;
+}
+
 export interface ApiQueryTemplate {
   id: string;
   title: string;

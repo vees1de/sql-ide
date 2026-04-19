@@ -115,7 +115,7 @@
           v-if="turn.clarificationCell"
           class="turn__section"
           :class="{ 'turn__section--selected': selectedCellId === turn.clarificationCell.id }"
-          @click="$emit('select-cell', turn.clarificationCell.id)"
+          @click.self="$emit('select-cell', turn.clarificationCell.id)"
         >
           <div class="turn__section-label">Уточнение</div>
           <ClarificationCell

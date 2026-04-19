@@ -31,9 +31,31 @@ def _ensure_database_connections_allowed_tables_column(engine: Engine) -> None:
         pass
 
 
+def _ensure_semantic_dictionary_context_columns(engine: Engine) -> None:
+    try:
+        inspector = inspect(engine)
+        if "semantic_dictionary" not in inspector.get_table_names():
+            return
+        columns = {col["name"] for col in inspector.get_columns("semantic_dictionary")}
+        required = {
+            "object_type": "VARCHAR(32)",
+            "table_name": "VARCHAR(255)",
+            "column_name": "VARCHAR(255)",
+            "source_database": "VARCHAR(255)",
+        }
+        with engine.begin() as connection:
+            for name, sql_type in required.items():
+                if name in columns:
+                    continue
+                connection.execute(text(f"ALTER TABLE semantic_dictionary ADD COLUMN {name} {sql_type}"))
+    except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
+        pass
+
+
 def bootstrap_application() -> None:
     Base.metadata.create_all(bind=service_engine)
     _ensure_database_connections_allowed_tables_column(service_engine)
+    _ensure_semantic_dictionary_context_columns(service_engine)
     if settings.analytics_uses_demo_data:
         ensure_demo_analytics_database(analytics_engine)
     with Session(service_engine) as session:

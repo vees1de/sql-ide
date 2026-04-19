@@ -10,15 +10,29 @@
             автоматически добавить таблицы и колонки.
           </p>
         </div>
-        <button
-          class="app-button app-button--ghost"
-          type="button"
-          :disabled="store.isBootstrapping"
-          @click="reload"
-        >
-          Обновить
-        </button>
+        <div class="data-view__actions">
+          <button class="app-button app-button--ghost" type="button" :disabled="store.isBootstrapping" @click="reload">
+            Обновить
+          </button>
+          <button
+            class="app-button app-button--ghost"
+            type="button"
+            :disabled="importingSchema || !schema?.tables?.length"
+            @click="importCurrentSchema"
+          >
+            {{ importingSchema ? 'Импорт…' : 'Импортировать metadata в Dictionary' }}
+          </button>
+        </div>
       </header>
+      <form class="data-view__create" @submit.prevent="createTerm">
+        <input v-model="draft.term" type="text" placeholder="Термин (например revenue_total)" required />
+        <input v-model="draft.mappedExpression" type="text" placeholder="SQL-выражение (например SUM(orders.amount))" required />
+        <input v-model="draft.synonyms" type="text" placeholder="Синонимы через запятую" />
+        <button class="app-button" type="submit" :disabled="isCreatingTerm">
+          {{ isCreatingTerm ? 'Сохранение…' : 'Добавить термин' }}
+        </button>
+      </form>
+      <p v-if="feedback" class="data-view__feedback">{{ feedback }}</p>
 
       <div v-if="!store.workspace.dictionary.length" class="data-view__empty">
         Словарь пуст. Подключите базу с опцией «Заполнить Dictionary из схемы» или добавьте термины через API.
@@ -29,6 +43,7 @@
             <th>Термин</th>
             <th>Выражение</th>
             <th>Описание</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -41,6 +56,11 @@
             </td>
             <td><code>{{ term.mappedExpression }}</code></td>
             <td>{{ term.description }}</td>
+            <td>
+              <button class="app-button app-button--link app-button--tiny" type="button" @click="removeTerm(term.id)">
+                Удалить
+              </button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -67,13 +87,21 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import { api } from '@/api/client';
 import type { ApiSchemaMetadataResponse } from '@/api/types';
 import { useWorkspaceStore } from '@/stores/workspace';
 
 const store = useWorkspaceStore();
 const schema = ref<ApiSchemaMetadataResponse | null>(null);
+const isCreatingTerm = ref(false);
+const importingSchema = ref(false);
+const feedback = ref('');
+const draft = reactive({
+  term: '',
+  mappedExpression: '',
+  synonyms: ''
+});
 
 async function reload() {
   await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
@@ -81,6 +109,56 @@ async function reload() {
     schema.value = await api.getSchema();
   } catch {
     schema.value = null;
+  }
+}
+
+async function createTerm() {
+  isCreatingTerm.value = true;
+  feedback.value = '';
+  try {
+    const synonyms = draft.synonyms
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    await api.createDictionaryEntry({
+      term: draft.term.trim(),
+      synonyms,
+      mapped_expression: draft.mappedExpression.trim(),
+      description: 'Добавлено вручную из Data View',
+      object_type: 'manual'
+    });
+    draft.term = '';
+    draft.mappedExpression = '';
+    draft.synonyms = '';
+    feedback.value = 'Термин добавлен.';
+    await reload();
+  } finally {
+    isCreatingTerm.value = false;
+  }
+}
+
+async function removeTerm(id: string) {
+  await api.deleteDictionaryEntry(id);
+  await reload();
+}
+
+async function importCurrentSchema() {
+  if (!schema.value?.tables?.length) return;
+  importingSchema.value = true;
+  feedback.value = '';
+  try {
+    const payload = {
+      database_label: schema.value.database_id || 'analytics',
+      tables: schema.value.tables.map((t) => ({
+        name: t.name,
+        columns: t.columns.map((c) => ({ name: c.name, type: c.type }))
+      }))
+    };
+    const result = await api.importDictionaryFromSchema(payload);
+    feedback.value = `Импорт завершён: +${result.imported} терминов.`;
+    await reload();
+  } finally {
+    importingSchema.value = false;
   }
 }
 
@@ -114,6 +192,32 @@ onMounted(() => {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.data-view__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.data-view__create {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.data-view__create input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.data-view__feedback {
+  margin: 0 0 0.8rem;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 .data-view__head h1 {
