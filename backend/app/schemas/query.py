@@ -58,6 +58,7 @@ class SemanticMappingPayload(BaseModel):
     dimension_mappings: list[DimensionMapping] = Field(default_factory=list)
     filter_mappings: list[FilterMapping] = Field(default_factory=list)
     tables: list[str] = Field(default_factory=list)
+    base_table: str = "orders"
     joins: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     dialect: str

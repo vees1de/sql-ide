@@ -12,7 +12,7 @@
           'clarification-option--recommended': content.recommended === option.id
         }"
         type="button"
-        @click.stop="$emit('answer', option.id)"
+        @click.prevent.stop="$emit('answer', option.id)"
       >
         <div class="clarification-option__head">
           <strong>{{ option.label }}</strong>
@@ -54,15 +54,17 @@ defineEmits<{
 .clarification-option {
   padding: 0.65rem 0.7rem;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 12px;
   background: var(--canvas);
   color: var(--ink);
   text-align: left;
-  transition: border-color 160ms ease, background 160ms ease;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 120ms ease;
 }
 
 .clarification-option:hover {
   border-color: var(--link-strong);
+  transform: translateY(-1px);
 }
 
 .clarification-option--active {
@@ -82,14 +84,14 @@ defineEmits<{
 }
 
 .clarification-option__head strong {
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--ink);
 }
 
 .clarification-option__head span,
 .clarification-option p {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
 }
 
 .clarification-option p {
