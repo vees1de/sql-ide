@@ -1,8 +1,5 @@
 <template>
-  <main
-    ref="canvasRef"
-    class="notebook-canvas"
-  >
+  <main ref="canvasRef" class="notebook-canvas">
     <section class="notebook-header">
       <div class="notebook-header__identity">
         <div class="notebook-header__icon" aria-hidden="true">
@@ -18,70 +15,80 @@
       </div>
 
       <div class="notebook-header__meta">
-        <span class="pill pill--ghost">{{ conversationTurns.length }} запросов</span>
+        <span class="pill pill--ghost">{{ queryBlocks.length }} блоков</span>
         <span class="pill pill--ghost">{{ notebook.summary.lastRunLabel }}</span>
       </div>
     </section>
 
-    <section class="notebook-stream">
-      <div
-        v-if="conversationTurns.length === 0"
-        class="notebook-empty"
-      >
-        <span class="pill pill--accent">Empty notebook</span>
-        <p>
-          Введите запрос ниже. Notebook покажет prompt пользователя, затем
-          сгенерированный SQL и результат с переключением между таблицей и
-          графиком.
-        </p>
-      </div>
-
-      <div
-        v-for="turn in conversationTurns"
-        :key="turn.id"
-        class="notebook-stream__turn"
-        :data-turn-id="turn.id"
-      >
-        <NotebookTurn
-          :clarification-answers="clarificationAnswers"
-          :running="isRunning && turn.cellIds.includes(selectedCellId)"
-          :selected-cell-id="selectedCellId"
-          :turn="turn"
-          @answer-clarification="onAnswerClarification"
-          @select-cell="$emit('select-cell', $event)"
-        />
-      </div>
+    <section class="notebook-toolbar">
+      <button class="app-button" type="button" @click="$emit('create-input-cell', 'prompt')">
+        + Prompt
+      </button>
+      <button class="app-button app-button--link" type="button" @click="$emit('create-input-cell', 'sql')">
+        + SQL
+      </button>
+      <p>
+        Notebook работает как Colab: блоки можно редактировать, запускать и переставлять drag-and-drop.
+      </p>
     </section>
 
-    <section class="composer">
-      <div class="composer__inner">
-        <div class="composer__gutter">
-          <button
-            class="composer__run"
-            type="button"
-            :disabled="!canSubmitPrompt || isSubmittingPrompt"
-            @click="$emit('submit-prompt')"
-            :title="isSubmittingPrompt ? 'Running…' : 'Run prompt'"
-          >
-            <svg v-if="!isSubmittingPrompt" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 4.5v15l13-7.5z"/></svg>
-            <span v-else class="composer__spinner" aria-hidden="true"></span>
-          </button>
-          <span class="composer__label">prompt</span>
-        </div>
+    <section v-if="queryBlocks.length" class="notebook-blocks">
+      <template v-for="(block, index) in queryBlocks" :key="block.id">
+        <button
+          class="drop-slot"
+          :class="{ 'drop-slot--active': activeDropIndex === index }"
+          type="button"
+          aria-hidden="true"
+          tabindex="-1"
+          @dragover.prevent="activeDropIndex = index"
+          @drop.prevent="dropAt(index)"
+        ></button>
 
-        <textarea
-          :value="draftPrompt"
-          class="composer__input"
-          rows="2"
-          placeholder="Например: Покажи выручку по регионам за текущий квартал"
-          @input="onDraftInput"
-          @keydown.enter.meta="onEnterSubmit"
-          @keydown.enter.ctrl="onEnterSubmit"
-        ></textarea>
-      </div>
-      <div class="composer__hint">
-        <span>⌘/Ctrl + Enter чтобы запустить</span>
-        <span>{{ conversationTurns.length }} запросов в notebook</span>
+        <NotebookQueryBlock
+          :data-block-id="block.id"
+          :block="block"
+          :can-move-down="index < queryBlocks.length - 1"
+          :can-move-up="index > 0"
+          :clarification-answers="clarificationAnswers"
+          :running="runningCellIds.includes(block.inputCell.id)"
+          :selected-cell-id="selectedCellId"
+          @answer-clarification="onAnswerClarification"
+          @drag-end="clearDragState"
+          @drag-start="onDragStart"
+          @format-sql-cell="onFormatSqlCell"
+          @move-down="onMoveDown"
+          @move-up="onMoveUp"
+          @run-input-cell="onRunInputCell"
+          @save-input-cell="onSaveInputCell"
+          @select-cell="$emit('select-cell', $event)"
+        />
+      </template>
+
+      <button
+        class="drop-slot"
+        :class="{ 'drop-slot--active': activeDropIndex === queryBlocks.length }"
+        type="button"
+        aria-hidden="true"
+        tabindex="-1"
+        @dragover.prevent="activeDropIndex = queryBlocks.length"
+        @drop.prevent="dropAt(queryBlocks.length)"
+      ></button>
+    </section>
+
+    <section v-else class="notebook-empty">
+      <span class="pill pill--accent">Empty notebook</span>
+      <h3>Создайте первый блок</h3>
+      <p>
+        Начните с `prompt`-ячейки для NL→SQL или сразу добавьте SQL-блок и
+        пишите запрос вручную.
+      </p>
+      <div class="notebook-empty__actions">
+        <button class="app-button" type="button" @click="$emit('create-input-cell', 'prompt')">
+          Добавить prompt
+        </button>
+        <button class="app-button app-button--link" type="button" @click="$emit('create-input-cell', 'sql')">
+          Добавить SQL
+        </button>
       </div>
     </section>
   </main>
@@ -89,35 +96,70 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import NotebookTurn from '@/components/notebook/NotebookTurn.vue';
-import type {
-  Notebook,
-  NotebookCell,
-  NotebookConversationTurn
-} from '@/types/app';
+import NotebookQueryBlock from '@/components/notebook/NotebookQueryBlock.vue';
+import type { Notebook, NotebookCell, NotebookQueryBlock as QueryBlock } from '@/types/app';
 
 const props = defineProps<{
-  canSubmitPrompt: boolean;
   clarificationAnswers: Record<string, string>;
   databaseName: string;
-  draftPrompt: string;
-  isRunning: boolean;
-  isSubmittingPrompt: boolean;
   notebook: Notebook;
+  runningCellIds: string[];
   selectedCellId: string;
-  visibleCells: NotebookCell[];
 }>();
 
 const emit = defineEmits<{
   (event: 'answer-clarification', cellId: string, optionId: string): void;
+  (event: 'create-input-cell', type: 'prompt' | 'sql'): void;
+  (event: 'format-sql-cell', cellId: string, value: string): void;
+  (event: 'move-input-cell', cellId: string, direction: 'up' | 'down'): void;
   (event: 'rename-notebook', title: string): void;
+  (event: 'reorder-input-cells', orderedCellIds: string[]): void;
+  (event: 'run-input-cell', cellId: string, value: string): void;
+  (event: 'save-input-cell', cellId: string, value: string): void;
   (event: 'select-cell', cellId: string): void;
-  (event: 'submit-prompt'): void;
-  (event: 'update-draft-prompt', value: string): void;
 }>();
 
 const canvasRef = ref<HTMLElement | null>(null);
-const conversationTurns = computed(() => groupCellsIntoTurns(props.visibleCells));
+const draggingCellId = ref('');
+const activeDropIndex = ref<number | null>(null);
+
+function isInputCell(cell: NotebookCell) {
+  return !cell.queryRunId && (cell.type === 'prompt' || cell.type === 'sql');
+}
+
+const queryBlocks = computed<QueryBlock[]>(() => {
+  const inputCells = props.notebook.cells
+    .filter(isInputCell)
+    .slice()
+    .sort((left, right) => left.order - right.order);
+
+  return inputCells.map((inputCell) => {
+    const relatedCells = props.notebook.cells
+      .filter(
+        (cell) =>
+          cell.id !== inputCell.id &&
+          cell.sourceCellId === inputCell.id &&
+          Boolean(cell.queryRunId)
+      )
+      .slice()
+      .sort((left, right) => left.order - right.order);
+
+    return {
+      id: inputCell.id,
+      inputCell,
+      sqlCell: inputCell.type === 'prompt'
+        ? relatedCells.find((cell) => cell.type === 'sql')
+        : undefined,
+      tableCell: relatedCells.find((cell) => cell.type === 'table'),
+      chartCell: relatedCells.find((cell) => cell.type === 'chart'),
+      insightCell: relatedCells.find((cell) => cell.type === 'insight'),
+      clarificationCell: relatedCells.find((cell) => cell.type === 'clarification'),
+      otherCells: relatedCells.filter(
+        (cell) => !['sql', 'table', 'chart', 'insight', 'clarification'].includes(cell.type)
+      )
+    };
+  });
+});
 
 function onTitleChange(event: Event) {
   const target = event.target as HTMLInputElement;
@@ -126,102 +168,69 @@ function onTitleChange(event: Event) {
   }
 }
 
-function onDraftInput(event: Event) {
-  const target = event.target as HTMLTextAreaElement;
-  emit('update-draft-prompt', target.value);
-}
-
-function onEnterSubmit(event: KeyboardEvent) {
-  if (props.canSubmitPrompt && !props.isSubmittingPrompt) {
-    event.preventDefault();
-    emit('submit-prompt');
-  }
-}
-
 function onAnswerClarification(cellId: string, optionId: string) {
   emit('answer-clarification', cellId, optionId);
 }
 
-function createTurn(id: string, order: number): NotebookConversationTurn {
-  return {
-    id,
-    order,
-    cellIds: [],
-    prompt: null,
-    otherCells: []
-  };
+function onDragStart(cellId: string) {
+  draggingCellId.value = cellId;
 }
 
-function attachCellToTurn(turn: NotebookConversationTurn, cell: NotebookCell) {
-  turn.cellIds.push(cell.id);
-
-  if (cell.type === 'prompt') {
-    turn.prompt = cell;
-    return;
-  }
-
-  if (cell.type === 'sql' && !turn.sqlCell) {
-    turn.sqlCell = cell;
-    return;
-  }
-
-  if (cell.type === 'table' && !turn.tableCell) {
-    turn.tableCell = cell;
-    return;
-  }
-
-  if (cell.type === 'chart' && !turn.chartCell) {
-    turn.chartCell = cell;
-    return;
-  }
-
-  if (cell.type === 'insight' && !turn.insightCell) {
-    turn.insightCell = cell;
-    return;
-  }
-
-  if (cell.type === 'clarification' && !turn.clarificationCell) {
-    turn.clarificationCell = cell;
-    return;
-  }
-
-  turn.otherCells.push(cell);
+function onSaveInputCell(cellId: string, value: string) {
+  emit('save-input-cell', cellId, value);
 }
 
-function groupCellsIntoTurns(cells: NotebookCell[]): NotebookConversationTurn[] {
-  const turns: NotebookConversationTurn[] = [];
-  let currentTurn: NotebookConversationTurn | null = null;
+function onRunInputCell(cellId: string, value: string) {
+  emit('run-input-cell', cellId, value);
+}
 
-  for (const cell of cells) {
-    if (cell.type === 'prompt') {
-      currentTurn = createTurn(cell.id, cell.order);
-      attachCellToTurn(currentTurn, cell);
-      turns.push(currentTurn);
-      continue;
-    }
+function onFormatSqlCell(cellId: string, value: string) {
+  emit('format-sql-cell', cellId, value);
+}
 
-    if (!currentTurn) {
-      currentTurn = createTurn(`system-${cell.id}`, cell.order);
-      turns.push(currentTurn);
-    }
+function onMoveUp(cellId: string) {
+  emit('move-input-cell', cellId, 'up');
+}
 
-    attachCellToTurn(currentTurn, cell);
+function onMoveDown(cellId: string) {
+  emit('move-input-cell', cellId, 'down');
+}
+
+function clearDragState() {
+  draggingCellId.value = '';
+  activeDropIndex.value = null;
+}
+
+function dropAt(index: number) {
+  if (!draggingCellId.value) {
+    return;
   }
 
-  return turns;
+  const ordered = queryBlocks.value.map((block) => block.inputCell.id);
+  const fromIndex = ordered.indexOf(draggingCellId.value);
+  if (fromIndex < 0) {
+    clearDragState();
+    return;
+  }
+
+  const [moved] = ordered.splice(fromIndex, 1);
+  const targetIndex = fromIndex < index ? index - 1 : index;
+  ordered.splice(targetIndex, 0, moved);
+  clearDragState();
+  emit('reorder-input-cells', ordered);
 }
 
 watch(
-  () => conversationTurns.value.map((turn) => turn.id).join(','),
+  () => queryBlocks.value.map((block) => block.id).join(','),
   async () => {
     await nextTick();
-    const lastTurn = conversationTurns.value[conversationTurns.value.length - 1];
-    if (!lastTurn || !canvasRef.value) {
+    const lastBlock = queryBlocks.value[queryBlocks.value.length - 1];
+    if (!lastBlock || !canvasRef.value) {
       return;
     }
 
     const element = canvasRef.value.querySelector<HTMLElement>(
-      `[data-turn-id="${lastTurn.id}"]`
+      `[draggable="true"][data-block-id="${lastBlock.id}"]`
     );
     element?.scrollIntoView({
       behavior: 'smooth',
@@ -235,9 +244,8 @@ watch(
 .notebook-canvas {
   height: 100%;
   overflow-y: auto;
-  padding: 1rem 1.25rem 7rem;
+  padding: 1rem 1.25rem 4rem;
   background: var(--canvas);
-  position: relative;
 }
 
 .notebook-header {
@@ -246,7 +254,7 @@ watch(
   justify-content: space-between;
   gap: 1rem;
   padding: 0.25rem 0.25rem 0.9rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -259,188 +267,101 @@ watch(
 }
 
 .notebook-header__icon {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
   background: var(--accent-soft);
   color: var(--accent-strong);
 }
 
 .notebook-header__title {
-  flex: 1;
   min-width: 0;
-  padding: 0.25rem 0.35rem;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  flex: 1;
+  border: none;
+  outline: none;
   background: transparent;
   color: var(--ink-strong);
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-
-.notebook-header__title:hover {
-  border-color: var(--line-strong);
-}
-
-.notebook-header__title:focus {
-  outline: none;
-  border-color: var(--link);
-  background: var(--bg-elev);
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
 .notebook-header__db {
   color: var(--muted);
-  font-size: 0.82rem;
   white-space: nowrap;
 }
 
-.notebook-header__meta {
+.notebook-header__meta,
+.notebook-empty__actions,
+.notebook-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
-.notebook-stream {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  max-width: 1100px;
-  margin: 0 auto;
+.notebook-toolbar {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(249, 171, 0, 0.08), rgba(138, 180, 248, 0.06));
 }
 
-.notebook-stream__turn {
-  width: 100%;
-}
-
-.notebook-empty {
-  padding: 1rem 1.1rem;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
+.notebook-toolbar p {
+  margin: 0;
   color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
-.notebook-empty p {
-  margin: 0.5rem 0 0;
-  font-size: 0.88rem;
-  line-height: 1.55;
-}
-
-.composer {
-  position: sticky;
-  bottom: 1rem;
-  margin: 1.2rem auto 0;
-  max-width: 1100px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow-hover);
-  overflow: hidden;
-  backdrop-filter: blur(8px);
-}
-
-.composer__inner {
-  display: grid;
-  grid-template-columns: 66px 1fr;
-  gap: 0.5rem;
-  padding: 0.6rem 0.7rem 0.5rem;
-  align-items: flex-start;
-}
-
-.composer__gutter {
+.notebook-blocks {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 0.2rem;
-  padding-top: 0.25rem;
 }
 
-.composer__run {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
+.drop-slot {
+  height: 12px;
   border: none;
   border-radius: 999px;
-  background: var(--accent);
-  color: #1a1d24;
+  background: transparent;
   transition: background 140ms ease, transform 140ms ease;
 }
 
-.composer__run:hover:not(:disabled) {
-  background: var(--accent-strong);
+.drop-slot--active {
+  background: var(--accent-soft);
+  transform: scaleY(1.2);
 }
 
-.composer__run:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.composer__label {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--muted-2);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.composer__spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 2px solid rgba(26, 29, 36, 0.25);
-  border-top-color: #1a1d24;
-  animation: spin 700ms linear infinite;
-}
-
-.composer__input {
-  width: 100%;
-  padding: 0.6rem 0.7rem;
-  background: var(--canvas);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: 0.88rem;
-  line-height: 1.55;
-  resize: vertical;
-  min-height: 2.6rem;
-}
-
-.composer__input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.composer__input::placeholder {
-  color: var(--muted-2);
-  font-family: inherit;
-}
-
-.composer__hint {
+.notebook-empty {
   display: flex;
-  justify-content: space-between;
-  padding: 0.3rem 0.8rem 0.5rem 4.8rem;
-  color: var(--muted-2);
-  font-size: 0.72rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.4rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.notebook-empty h3,
+.notebook-empty p {
+  margin: 0;
+}
+
+.notebook-empty p {
+  color: var(--muted);
+  max-width: 42rem;
+  line-height: 1.6;
 }
 
 @media (max-width: 760px) {
   .notebook-header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .composer__hint {
-    padding-left: 0.8rem;
   }
 }
 </style>

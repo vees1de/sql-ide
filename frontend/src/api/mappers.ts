@@ -307,6 +307,27 @@ function buildTrace(run: ApiQueryRunRead | undefined, notebookTitle: string, ins
     ] satisfies NotebookTraceStep[];
   }
 
+  if (run.agent_trace.plan_source === 'manual_sql') {
+    return [
+      {
+        agent: 'Manual SQL',
+        purpose: 'Запуск редактируемой SQL-ячейки notebook.',
+        output: run.sql.split('\n')[0] ?? 'Manual SQL execution',
+        confidence: 1,
+        latencyMs: Math.max(40, Math.round(run.execution_time_ms * 0.2))
+      },
+      {
+        agent: 'SQL Validation Agent',
+        purpose: 'Проверить single-statement, whitelist таблиц и LIMIT.',
+        output:
+          ((run.agent_trace.validation as { warnings?: string[] } | undefined)?.warnings ?? []).join(' ') ||
+          'Validation passed with safe read-only execution.',
+        confidence: 0.99,
+        latencyMs: Math.max(35, Math.round(run.execution_time_ms * 0.08))
+      }
+    ] satisfies NotebookTraceStep[];
+  }
+
   const intent = (run.agent_trace.intent ?? {}) as {
     metric?: string;
     dimensions?: string[];
@@ -412,6 +433,8 @@ function mapCell(
   const warnings = extractWarnings(effectiveRun, cell);
   const businessTerms = extractBusinessTerms(effectiveRun);
   const tablesUsed = extractTables(effectiveRun);
+  const sourceCellId = effectiveRun?.prompt_cell_id ?? (cell.query_run_id ? null : cell.id);
+  const runStatus = effectiveRun?.status ?? null;
 
   if (cell.type === 'prompt') {
     return {
@@ -422,12 +445,49 @@ function mapCell(
       subtitle: 'Natural language request',
       agent: 'Intent Agent',
       tone: 'accent',
+      queryRunId: cell.query_run_id,
+      sourceCellId: cell.id,
+      runStatus,
       content: {
         prompt: String(cell.content.text ?? ''),
         chips: businessTerms.slice(0, 3).map((term) => titleCase(term.replace(/_/g, ' '))),
         context: promptRun?.status ? [`Status: ${promptRun.status}`] : []
       },
       meta: buildPromptMeta(promptRun, String(cell.content.text ?? ''))
+    };
+  }
+
+  if (cell.type === 'sql' && cell.query_run_id === null) {
+    return {
+      id: cell.id,
+      type: 'sql',
+      order: cell.position,
+      title: 'SQL Block',
+      subtitle: 'Editable query',
+      agent: 'Manual SQL',
+      tone: 'accent',
+      queryRunId: cell.query_run_id,
+      sourceCellId: cell.id,
+      runStatus,
+      content: {
+        sql: String(cell.content.sql ?? promptRun?.sql ?? ''),
+        explanation: promptRun
+          ? 'Ручной SQL можно править, форматировать и запускать повторно.'
+          : 'Вставьте SQL, затем отформатируйте или выполните блок.',
+        mode: 'editable',
+        warnings
+      },
+      meta: {
+        confidence: promptRun ? 1 : 0.92,
+        executionTimeMs: promptRun?.execution_time_ms,
+        rowCount: promptRun?.row_count,
+        tablesUsed,
+        warnings,
+        businessTerms,
+        summary: promptRun
+          ? 'Последний ручной запуск сохранён как notebook block.'
+          : 'Редактируемая SQL-ячейка в стиле notebook.'
+      }
     };
   }
 
@@ -440,9 +500,14 @@ function mapCell(
       subtitle: 'Generated query',
       agent: 'SQL Generation Agent',
       tone: 'neutral',
+      queryRunId: cell.query_run_id,
+      sourceCellId,
+      runStatus,
       content: {
         sql: String(cell.content.sql ?? run?.sql ?? ''),
-        explanation: buildSqlExplanation(run)
+        explanation: buildSqlExplanation(run),
+        mode: 'generated',
+        warnings
       },
       meta: {
         confidence: run?.confidence ?? 0.78,
@@ -472,6 +537,9 @@ function mapCell(
       subtitle: 'Query output',
       agent: 'SQL Validation Agent',
       tone: 'neutral',
+      queryRunId: cell.query_run_id,
+      sourceCellId,
+      runStatus,
       content: {
         columns,
         rows: rows.map((row) =>
@@ -502,6 +570,9 @@ function mapCell(
       subtitle: 'Visualization',
       agent: 'Visualization Agent',
       tone: 'accent',
+      queryRunId: cell.query_run_id,
+      sourceCellId,
+      runStatus,
       content: buildChartContent(cell),
       meta: {
         confidence: run?.confidence ?? 0.8,
@@ -530,6 +601,9 @@ function mapCell(
       subtitle: 'Business summary',
       agent: 'Insight Agent',
       tone: 'success',
+      queryRunId: cell.query_run_id,
+      sourceCellId,
+      runStatus,
       content: {
         headline: sentences[0] ?? text ?? 'Insight generated.',
         bullets: sentences.length > 1 ? sentences.slice(1) : []
@@ -554,6 +628,9 @@ function mapCell(
     subtitle: run?.status === 'error' ? 'Guardrail response' : 'Agent asks for clarification',
     agent: run?.status === 'error' ? 'SQL Validation Agent' : 'Clarification Agent',
     tone: 'warning',
+    queryRunId: cell.query_run_id,
+    sourceCellId,
+    runStatus,
     content: buildClarificationContent(cell),
     meta: {
       confidence: run?.confidence ?? 0.74,

@@ -1,7 +1,11 @@
 import type {
+  ApiCellRead,
   ApiDictionaryEntryCreate,
   ApiDatabaseConnectionCreate,
   ApiDatabaseDescriptor,
+  ApiNotebookCellCreate,
+  ApiNotebookCellReorder,
+  ApiNotebookCellUpdate,
   ApiSchemaPreviewResponse,
   ApiDictionaryEntryRead,
   ApiNotebookDetail,
@@ -83,6 +87,34 @@ export const api = {
   deleteNotebook(notebookId: string) {
     return request<void>(`/api/notebooks/${notebookId}`, {
       method: 'DELETE'
+    });
+  },
+  createNotebookCell(notebookId: string, payload: ApiNotebookCellCreate) {
+    return request<ApiCellRead>(`/api/notebooks/${notebookId}/cells`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateNotebookCell(notebookId: string, cellId: string, payload: ApiNotebookCellUpdate) {
+    return request<ApiCellRead>(`/api/notebooks/${notebookId}/cells/${cellId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  runNotebookCell(notebookId: string, cellId: string) {
+    return request<ApiPromptRunResponse>(`/api/notebooks/${notebookId}/cells/${cellId}/run`, {
+      method: 'POST'
+    });
+  },
+  formatNotebookSqlCell(notebookId: string, cellId: string) {
+    return request<ApiCellRead>(`/api/notebooks/${notebookId}/cells/${cellId}/format-sql`, {
+      method: 'POST'
+    });
+  },
+  reorderNotebookCells(notebookId: string, payload: ApiNotebookCellReorder) {
+    return request<ApiNotebookDetail>(`/api/notebooks/${notebookId}/cells/reorder`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
   },
   createReport(payload: {

@@ -17,20 +17,20 @@
       <Pane :min-size="50">
         <NotebookCanvas
           v-if="store.currentNotebook"
-          :can-submit-prompt="store.canSubmitPrompt"
           :clarification-answers="store.clarificationAnswers"
           :database-name="store.currentDatabase.name"
-          :draft-prompt="store.draftPrompt"
-          :is-running="store.isRunning"
-          :is-submitting-prompt="store.isSubmittingPrompt"
           :notebook="store.currentNotebook"
+          :running-cell-ids="store.runningCellIds"
           :selected-cell-id="store.selectedCellId"
-          :visible-cells="store.visibleCells"
           @answer-clarification="store.answerClarification"
+          @create-input-cell="store.createInputCell"
+          @format-sql-cell="store.formatSqlCell"
+          @move-input-cell="store.moveInputCell"
           @rename-notebook="store.renameCurrentNotebook"
+          @reorder-input-cells="store.reorderInputCells"
+          @run-input-cell="store.runCell"
+          @save-input-cell="store.saveInputCell"
           @select-cell="store.selectCell"
-          @submit-prompt="store.submitPrompt"
-          @update-draft-prompt="store.updateDraftPrompt"
         />
         <div v-else class="empty-canvas">
           <div class="empty-canvas__card">

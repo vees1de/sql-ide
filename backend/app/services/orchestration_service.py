@@ -13,7 +13,13 @@ from app.agents.sql_generation import SQLGenerationAgent
 from app.agents.validation import SQLValidationAgent
 from app.agents.visualization import VisualizationAgent
 from app.core.config import settings
-from app.db.models import CellModel, NotebookModel, QueryRunModel, SemanticDictionaryModel
+from app.db.models import (
+    CellModel,
+    DatabaseConnectionModel,
+    NotebookModel,
+    QueryRunModel,
+    SemanticDictionaryModel,
+)
 from app.db.session import analytics_engine
 from app.schemas.query import (
     ChartEncoding,
@@ -71,17 +77,105 @@ class QueryOrchestrationService:
         )
 
     def rerun_notebook(self, db: Session, notebook: NotebookModel) -> list[PromptRunResponse]:
-        prompt_cells = sorted((cell for cell in notebook.cells if cell.type == "prompt"), key=lambda item: item.position)
+        input_cells = self.notebook_service.list_input_cells(notebook)
         self.notebook_service.delete_generated_runs(db, notebook)
         db.flush()
 
         responses: list[PromptRunResponse] = []
-        for prompt_cell in prompt_cells:
-            prompt_text = str(prompt_cell.content.get("text", "")).strip()
-            if prompt_text:
-                responses.append(self.run_prompt(db, notebook, prompt_text, existing_prompt_cell=prompt_cell))
-                db.refresh(notebook)
+        for input_cell in input_cells:
+            if input_cell.type == "prompt":
+                prompt_text = str(input_cell.content.get("text", "")).strip()
+                if prompt_text:
+                    responses.append(self.run_prompt(db, notebook, prompt_text, existing_prompt_cell=input_cell))
+            elif input_cell.type == "sql":
+                sql = str(input_cell.content.get("sql", "")).strip()
+                if sql:
+                    responses.append(self.run_sql_cell(db, notebook, input_cell))
+            db.refresh(notebook)
         return responses
+
+    def run_sql_cell(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        sql_cell: CellModel,
+    ) -> PromptRunResponse:
+        sql = str(sql_cell.content.get("sql", "")).strip()
+        if not sql:
+            return self._persist_manual_sql_error_run(
+                db=db,
+                notebook=notebook,
+                sql_cell=sql_cell,
+                validation={
+                    "sql": "",
+                    "errors": ["SQL cell is empty."],
+                    "warnings": [],
+                },
+            )
+
+        dialect = self._resolve_dialect(db, notebook)
+        validation = self.validation_agent.run(
+            sql,
+            dialect,
+            allowed_tables=self._resolve_allowed_tables(db, notebook),
+        )
+        if not validation.valid:
+            return self._persist_manual_sql_error_run(
+                db=db,
+                notebook=notebook,
+                sql_cell=sql_cell,
+                validation=validation.model_dump(mode="json"),
+            )
+
+        try:
+            execution = self.analytics_service.execute(validation.sql)
+        except Exception as exc:  # noqa: BLE001
+            return self._persist_manual_sql_error_run(
+                db=db,
+                notebook=notebook,
+                sql_cell=sql_cell,
+                validation={
+                    "sql": validation.sql,
+                    "errors": [f"Execution error: {exc}"],
+                    "warnings": validation.warnings,
+                },
+            )
+
+        sql_cell.content = {
+            "sql": validation.sql,
+            "warnings": validation.warnings,
+        }
+        chart_spec = self._build_manual_chart_spec(execution)
+        insight_text = self.llm_service.summarize_result(
+            prompt="Manual SQL cell",
+            sql=validation.sql,
+            columns=execution.columns,
+            rows=execution.rows,
+            row_count=execution.row_count,
+        ) or self._build_generic_insight(execution, chart_spec)
+
+        return self._persist_success_run(
+            db=db,
+            notebook=notebook,
+            prompt=validation.sql,
+            prompt_cell=sql_cell,
+            validation=validation.model_dump(mode="json"),
+            execution=execution.model_dump(mode="json"),
+            chart_spec=chart_spec.model_dump(mode="json"),
+            insight_text=insight_text,
+            explanation={
+                "source": "manual_sql",
+                "warnings": validation.warnings,
+            },
+            agent_trace={
+                "plan_source": "manual_sql",
+                "validation": validation.model_dump(mode="json"),
+                "chart_spec": chart_spec.model_dump(mode="json"),
+                "preview_rows": execution.rows[:5],
+            },
+            confidence=1.0,
+            include_sql_cell=False,
+        )
 
     def _run_prompt_with_llm(
         self,
@@ -278,6 +372,7 @@ class QueryOrchestrationService:
         explanation: dict[str, Any],
         agent_trace: dict[str, Any],
         confidence: float,
+        include_sql_cell: bool = True,
     ) -> PromptRunResponse:
         query_run = QueryRunModel(
             notebook_id=notebook.id,
@@ -302,8 +397,10 @@ class QueryOrchestrationService:
             execution=execution,
             chart_spec=chart_spec,
             insight_text=insight_text,
+            include_sql_cell=include_sql_cell,
         )
         notebook.status = "saved"
+        self.notebook_service.touch_notebook(notebook)
         db.commit()
 
         return PromptRunResponse(
@@ -336,6 +433,7 @@ class QueryOrchestrationService:
         db.add(prompt_cell)
         db.flush()
         notebook.cells.append(prompt_cell)
+        self.notebook_service.touch_notebook(notebook)
         return prompt_cell
 
     def _persist_clarification_run(
@@ -373,6 +471,7 @@ class QueryOrchestrationService:
         )
         db.add(clarification_cell)
         notebook.cells.append(clarification_cell)
+        self.notebook_service.touch_notebook(notebook)
         db.commit()
 
         return PromptRunResponse(
@@ -421,6 +520,7 @@ class QueryOrchestrationService:
         )
         db.add(error_cell)
         notebook.cells.append(error_cell)
+        self.notebook_service.touch_notebook(notebook)
         db.commit()
 
         return PromptRunResponse(
@@ -440,53 +540,110 @@ class QueryOrchestrationService:
         execution: dict[str, Any],
         chart_spec: dict[str, Any],
         insight_text: str,
+        include_sql_cell: bool = True,
     ) -> list[CellModel]:
         base_position = self.notebook_service.next_cell_position(notebook)
-        cells = [
-            CellModel(
-                notebook_id=notebook.id,
-                query_run_id=query_run.id,
-                type="sql",
-                position=base_position,
-                content={
-                    "sql": validation["sql"],
-                    "warnings": validation.get("warnings", []),
-                },
-            ),
-            CellModel(
-                notebook_id=notebook.id,
-                query_run_id=query_run.id,
-                type="table",
-                position=base_position + 1,
-                content={
-                    "columns": execution["columns"],
-                    "rows": execution["rows"],
-                    "rowCount": execution["row_count"],
-                },
-            ),
-            CellModel(
-                notebook_id=notebook.id,
-                query_run_id=query_run.id,
-                type="chart",
-                position=base_position + 2,
-                content={
-                    "chartSpec": chart_spec,
-                    "data": execution["rows"],
-                },
-            ),
-            CellModel(
-                notebook_id=notebook.id,
-                query_run_id=query_run.id,
-                type="insight",
-                position=base_position + 3,
-                content={"text": insight_text},
-            ),
-        ]
+        cells: list[CellModel] = []
+
+        if include_sql_cell:
+            cells.append(
+                CellModel(
+                    notebook_id=notebook.id,
+                    query_run_id=query_run.id,
+                    type="sql",
+                    position=base_position,
+                    content={
+                        "sql": validation["sql"],
+                        "warnings": validation.get("warnings", []),
+                    },
+                )
+            )
+
+        result_offset = 1 if include_sql_cell else 0
+        cells.extend(
+            [
+                CellModel(
+                    notebook_id=notebook.id,
+                    query_run_id=query_run.id,
+                    type="table",
+                    position=base_position + result_offset,
+                    content={
+                        "columns": execution["columns"],
+                        "rows": execution["rows"],
+                        "rowCount": execution["row_count"],
+                    },
+                ),
+                CellModel(
+                    notebook_id=notebook.id,
+                    query_run_id=query_run.id,
+                    type="chart",
+                    position=base_position + result_offset + 1,
+                    content={
+                        "chartSpec": chart_spec,
+                        "data": execution["rows"],
+                    },
+                ),
+                CellModel(
+                    notebook_id=notebook.id,
+                    query_run_id=query_run.id,
+                    type="insight",
+                    position=base_position + result_offset + 2,
+                    content={"text": insight_text},
+                ),
+            ]
+        )
         for cell in cells:
             db.add(cell)
             notebook.cells.append(cell)
         db.flush()
         return cells
+
+    def _persist_manual_sql_error_run(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        sql_cell: CellModel,
+        validation: dict[str, Any],
+    ) -> PromptRunResponse:
+        query_run = QueryRunModel(
+            notebook_id=notebook.id,
+            prompt_cell_id=sql_cell.id,
+            prompt_text=str(sql_cell.content.get("sql", "")),
+            sql=validation.get("sql", ""),
+            explanation={"status": "error", "source": "manual_sql"},
+            agent_trace={"plan_source": "manual_sql", "validation": validation},
+            confidence=1.0,
+            execution_time_ms=0,
+            row_count=0,
+            status="error",
+            error_message="; ".join(validation.get("errors") or ["SQL validation failed."]),
+        )
+        db.add(query_run)
+        db.flush()
+
+        error_cell = CellModel(
+            notebook_id=notebook.id,
+            query_run_id=query_run.id,
+            type="clarification",
+            position=self.notebook_service.next_cell_position(notebook),
+            content={
+                "question": "Не удалось выполнить SQL ячейку.",
+                "errors": validation.get("errors", []),
+                "warnings": validation.get("warnings", []),
+            },
+        )
+        db.add(error_cell)
+        notebook.cells.append(error_cell)
+        self.notebook_service.touch_notebook(notebook)
+        db.commit()
+
+        return PromptRunResponse(
+            notebook_id=notebook.id,
+            query_run_id=query_run.id,
+            prompt_cell_id=sql_cell.id,
+            generated_cell_ids=[error_cell.id],
+            status=query_run.status,
+        )
 
     def _build_explanation(self, intent: IntentPayload, semantic: Any) -> dict[str, Any]:
         return {
@@ -528,6 +685,53 @@ class QueryOrchestrationService:
             encoding=ChartEncoding(x_field=x_field, y_field=y_field),
             options={"rowCount": execution.row_count},
         )
+
+    def _build_manual_chart_spec(self, execution: QueryExecutionResult) -> ChartSpec:
+        numeric_columns = self._detect_numeric_columns(execution)
+        dimension_columns = [column for column in execution.columns if column not in numeric_columns]
+        x_field = dimension_columns[0] if dimension_columns else None
+        y_field = numeric_columns[0] if numeric_columns else None
+        chart_type = self._infer_chart_type(x_field, y_field)
+        if chart_type in {"line", "bar", "pie"} and (x_field is None or y_field is None):
+            chart_type = "table"
+
+        return ChartSpec(
+            chart_type=chart_type,
+            title="Manual SQL Result",
+            encoding=ChartEncoding(x_field=x_field, y_field=y_field),
+            options={"rowCount": execution.row_count},
+        )
+
+    def _resolve_dialect(self, db: Session, notebook: NotebookModel) -> str:
+        if notebook.database_id == settings.demo_database_id:
+            return analytics_engine.dialect.name
+
+        connection = (
+            db.query(DatabaseConnectionModel)
+            .filter(DatabaseConnectionModel.id == notebook.database_id)
+            .first()
+        )
+        if connection is not None and connection.dialect:
+            return connection.dialect
+        return analytics_engine.dialect.name
+
+    def _resolve_allowed_tables(self, db: Session, notebook: NotebookModel) -> list[str]:
+        if notebook.database_id == settings.demo_database_id:
+            return self.metadata_service.list_table_names()
+
+        connection = (
+            db.query(DatabaseConnectionModel)
+            .filter(DatabaseConnectionModel.id == notebook.database_id)
+            .first()
+        )
+        allowed_tables = connection.allowed_tables if connection is not None else None
+        if isinstance(allowed_tables, list) and allowed_tables:
+            return [str(table) for table in allowed_tables]
+
+        metadata_tables = self.metadata_service.list_table_names()
+        if metadata_tables:
+            return metadata_tables
+        return list(settings.allowed_tables)
 
     def _infer_chart_type(self, x_field: str | None, y_field: str | None) -> str:
         if x_field is None or y_field is None:

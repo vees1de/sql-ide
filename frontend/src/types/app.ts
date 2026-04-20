@@ -15,6 +15,8 @@ export interface PromptCellContent {
 export interface SqlCellContent {
   sql: string;
   explanation: string;
+  mode?: 'editable' | 'generated';
+  warnings?: string[];
 }
 
 export interface TableCellContent {
@@ -83,6 +85,20 @@ export interface NotebookCell {
   tone: 'accent' | 'neutral' | 'success' | 'warning';
   content: NotebookCellContent;
   meta: CellMeta;
+  queryRunId?: string | null;
+  sourceCellId?: string | null;
+  runStatus?: string | null;
+}
+
+export interface NotebookQueryBlock {
+  id: string;
+  inputCell: NotebookCell;
+  sqlCell?: NotebookCell;
+  tableCell?: NotebookCell;
+  chartCell?: NotebookCell;
+  insightCell?: NotebookCell;
+  clarificationCell?: NotebookCell;
+  otherCells: NotebookCell[];
 }
 
 export interface NotebookConversationTurn {

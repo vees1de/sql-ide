@@ -50,6 +50,7 @@ class SQLValidationAgent:
         if " limit " not in f" {final_sql.lower()} ":
             final_sql = f"{final_sql}\nLIMIT {settings.default_row_limit}"
             warnings.append(f"LIMIT {settings.default_row_limit} was added automatically.")
+        final_sql = self.format_sql(final_sql, dialect)
 
         return ValidationPayload(
             valid=not errors,
@@ -58,6 +59,21 @@ class SQLValidationAgent:
             warnings=warnings,
             errors=errors,
         )
+
+    def format_sql(self, sql: str, dialect: str) -> str:
+        cleaned_sql = sql.strip().rstrip(";")
+        if not cleaned_sql:
+            return ""
+
+        try:
+            parsed = parse_one(cleaned_sql, read=self._read_dialect(dialect))
+        except Exception:  # noqa: BLE001
+            return cleaned_sql
+
+        try:
+            return parsed.sql(pretty=True, dialect=self._read_dialect(dialect))
+        except Exception:  # noqa: BLE001
+            return cleaned_sql
 
     def _read_dialect(self, dialect: str) -> str:
         if dialect == "postgresql":

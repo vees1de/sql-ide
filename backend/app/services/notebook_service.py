@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import CellModel, NotebookModel, QueryRunModel
+from app.db.models import CellModel, NotebookModel, QueryRunModel, utcnow
 from app.schemas.notebook import NotebookCreate, NotebookUpdate
 
 
 class NotebookService:
+    input_cell_types = {"prompt", "sql"}
+
     def list_notebooks(self, db: Session) -> list[NotebookModel]:
         return db.query(NotebookModel).order_by(NotebookModel.updated_at.desc()).all()
 
@@ -50,6 +52,63 @@ class NotebookService:
         db.commit()
         return True
 
+    def get_cell(self, db: Session, notebook_id: str, cell_id: str) -> CellModel | None:
+        return (
+            db.query(CellModel)
+            .filter(CellModel.notebook_id == notebook_id, CellModel.id == cell_id)
+            .first()
+        )
+
+    def list_input_cells(self, notebook: NotebookModel) -> list[CellModel]:
+        return sorted(
+            (
+                cell
+                for cell in notebook.cells
+                if cell.query_run_id is None and cell.type in self.input_cell_types
+            ),
+            key=lambda item: item.position,
+        )
+
+    def create_cell(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        cell_type: str,
+        content: dict,
+    ) -> CellModel:
+        if cell_type not in self.input_cell_types:
+            raise ValueError("Only prompt and sql notebook cells can be created.")
+
+        cell = CellModel(
+            notebook_id=notebook.id,
+            type=cell_type,
+            position=self.next_cell_position(notebook),
+            content=self._normalize_input_content(cell_type, content),
+        )
+        db.add(cell)
+        db.flush()
+        notebook.cells.append(cell)
+        self.touch_notebook(notebook)
+        db.commit()
+        db.refresh(cell)
+        return cell
+
+    def update_cell(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        cell: CellModel,
+        content: dict,
+    ) -> CellModel:
+        if cell.query_run_id is not None or cell.type not in self.input_cell_types:
+            raise ValueError("Only editable prompt/sql cells can be updated.")
+
+        cell.content = self._normalize_input_content(cell.type, content)
+        self.touch_notebook(notebook)
+        db.commit()
+        db.refresh(cell)
+        return cell
+
     def list_history(self, db: Session, notebook_id: str) -> list[QueryRunModel]:
         return (
             db.query(QueryRunModel)
@@ -75,12 +134,95 @@ class NotebookService:
         return max(cell.position for cell in notebook.cells) + 1
 
     def delete_generated_runs(self, db: Session, notebook: NotebookModel) -> None:
-        prompt_cells = [cell for cell in notebook.cells if cell.type == "prompt"]
+        input_cells = self.list_input_cells(notebook)
+        input_ids = {cell.id for cell in input_cells}
         for cell in list(notebook.cells):
-            if cell.type != "prompt":
+            if cell.id not in input_ids:
                 db.delete(cell)
         for query_run in list(notebook.query_runs):
             db.delete(query_run)
-        for position, prompt_cell in enumerate(sorted(prompt_cells, key=lambda item: item.position), start=1):
-            prompt_cell.position = position
+        for position, input_cell in enumerate(input_cells, start=1):
+            input_cell.position = position
+        self.touch_notebook(notebook)
         db.flush()
+
+    def delete_runs_for_input_cell(self, db: Session, notebook: NotebookModel, cell: CellModel) -> None:
+        run_ids = {query_run.id for query_run in notebook.query_runs if query_run.prompt_cell_id == cell.id}
+        if not run_ids:
+            return
+
+        for generated_cell in list(notebook.cells):
+            if generated_cell.query_run_id in run_ids:
+                db.delete(generated_cell)
+        for query_run in list(notebook.query_runs):
+            if query_run.id in run_ids:
+                db.delete(query_run)
+        self.touch_notebook(notebook)
+        db.flush()
+
+    def reorder_blocks(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        ordered_input_cell_ids: list[str] | None = None,
+    ) -> None:
+        input_cells = self.list_input_cells(notebook)
+        input_cell_map = {cell.id: cell for cell in input_cells}
+        current_ids = {cell.id for cell in input_cells}
+
+        if ordered_input_cell_ids is None:
+            ordered_input_cells = input_cells
+        else:
+            requested_ids = [cell_id for cell_id in ordered_input_cell_ids if cell_id in input_cell_map]
+            if set(requested_ids) != current_ids or len(requested_ids) != len(current_ids):
+                raise ValueError("Cell order must include every editable prompt/sql cell exactly once.")
+            ordered_input_cells = [input_cell_map[cell_id] for cell_id in requested_ids]
+
+        latest_run_by_source: dict[str, QueryRunModel] = {}
+        for query_run in sorted(notebook.query_runs, key=lambda item: item.created_at):
+            latest_run_by_source[query_run.prompt_cell_id] = query_run
+
+        assigned_ids: set[str] = set()
+        position = 1
+
+        for input_cell in ordered_input_cells:
+            input_cell.position = position
+            position += 1
+            assigned_ids.add(input_cell.id)
+
+            latest_run = latest_run_by_source.get(input_cell.id)
+            if latest_run is None:
+                continue
+
+            generated_cells = sorted(
+                (
+                    cell
+                    for cell in notebook.cells
+                    if cell.query_run_id == latest_run.id
+                ),
+                key=lambda item: item.position,
+            )
+            for generated_cell in generated_cells:
+                generated_cell.position = position
+                position += 1
+                assigned_ids.add(generated_cell.id)
+
+        leftovers = sorted(
+            (cell for cell in notebook.cells if cell.id not in assigned_ids),
+            key=lambda item: (item.position, item.created_at),
+        )
+        for leftover in leftovers:
+            leftover.position = position
+            position += 1
+
+        self.touch_notebook(notebook)
+        db.flush()
+
+    def touch_notebook(self, notebook: NotebookModel) -> None:
+        notebook.updated_at = utcnow()
+
+    def _normalize_input_content(self, cell_type: str, content: dict) -> dict:
+        if cell_type == "prompt":
+            return {"text": str(content.get("text", "")).strip()}
+
+        return {"sql": str(content.get("sql", "")).strip()}

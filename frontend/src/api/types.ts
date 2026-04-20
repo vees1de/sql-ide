@@ -85,6 +85,19 @@ export interface ApiCellRead {
   updated_at: string;
 }
 
+export interface ApiNotebookCellCreate {
+  type: 'prompt' | 'sql';
+  content: Record<string, unknown>;
+}
+
+export interface ApiNotebookCellUpdate {
+  content: Record<string, unknown>;
+}
+
+export interface ApiNotebookCellReorder {
+  ordered_cell_ids: string[];
+}
+
 export interface ApiQueryRunRead {
   id: string;
   notebook_id: string;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +17,19 @@ class NotebookCreate(BaseModel):
 class NotebookUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     status: str | None = None
+
+
+class NotebookCellCreate(BaseModel):
+    type: Literal["prompt", "sql"]
+    content: dict[str, Any] = Field(default_factory=dict)
+
+
+class NotebookCellUpdate(BaseModel):
+    content: dict[str, Any] = Field(default_factory=dict)
+
+
+class NotebookCellReorder(BaseModel):
+    ordered_cell_ids: list[str] = Field(default_factory=list)
 
 
 class NotebookRead(BaseModel):

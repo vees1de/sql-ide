@@ -4,7 +4,9 @@ import { api } from '@/api/client';
 import { buildWorkspaceData } from '@/api/mappers';
 import type {
   ClarificationCellContent,
+  CellType,
   DatabaseConnection,
+  NotebookCell,
   Notebook,
   NotebookTraceStep,
   WorkspaceData
@@ -63,6 +65,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const isRunning = ref(false);
   const isBootstrapping = ref(false);
   const isSubmittingPrompt = ref(false);
+  const runningCellIds = ref<string[]>([]);
   const isSavingReport = ref(false);
   const initialized = ref(false);
   const statusLabel = ref('Connecting backend');
@@ -105,6 +108,28 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     () => !!currentNotebook.value && draftPrompt.value.trim().length > 0 && !isSubmittingPrompt.value
   );
 
+  function notebookInputCells(notebook: Notebook | null | undefined) {
+    return (
+      notebook?.cells.filter(
+        (cell) => !cell.queryRunId && (cell.type === 'prompt' || cell.type === 'sql')
+      ) ?? []
+    );
+  }
+
+  function buildCellPayload(cellType: CellType, value: string) {
+    if (cellType === 'sql') {
+      return { sql: value };
+    }
+    return { text: value };
+  }
+
+  function editorValue(cell: NotebookCell) {
+    if (cell.type === 'sql') {
+      return String((cell.content as { sql?: string }).sql ?? '');
+    }
+    return String((cell.content as { prompt?: string }).prompt ?? '');
+  }
+
   function setBanner(message: string) {
     banner.value = message;
   }
@@ -133,12 +158,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       return;
     }
 
+    const inputCells = notebookInputCells(notebook);
+
     if (cellStrategy === 'last') {
-      selectedCellId.value = notebook.cells[notebook.cells.length - 1]?.id ?? '';
+      selectedCellId.value = inputCells[inputCells.length - 1]?.id ?? notebook.cells[notebook.cells.length - 1]?.id ?? '';
     } else if (cellStrategy === 'first') {
-      selectedCellId.value = notebook.cells[0]?.id ?? '';
+      selectedCellId.value = inputCells[0]?.id ?? notebook.cells[0]?.id ?? '';
     } else if (!notebook.cells.some((cell) => cell.id === selectedCellId.value)) {
-      selectedCellId.value = notebook.cells[0]?.id ?? '';
+      selectedCellId.value = inputCells[0]?.id ?? notebook.cells[0]?.id ?? '';
     }
 
     activePipelineIndex.value = Math.max(notebook.trace.length - 1, 0);
@@ -296,21 +323,153 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return created.id;
   }
 
+  async function createInputCell(type: 'prompt' | 'sql') {
+    const notebook = currentNotebook.value;
+    if (!notebook) {
+      return '';
+    }
+
+    statusLabel.value = type === 'sql' ? 'Creating SQL block' : 'Creating prompt block';
+    const created = await api.createNotebookCell(notebook.id, {
+      type,
+      content: type === 'sql' ? { sql: '' } : { text: '' }
+    });
+    await refreshWorkspace(notebook.id, 'keep');
+    selectedCellId.value = created.id;
+    setBanner(type === 'sql' ? 'Создан новый SQL блок.' : 'Создан новый prompt блок.');
+    return created.id;
+  }
+
+  async function saveInputCell(cellId: string, value: string) {
+    const notebook = currentNotebook.value;
+    const cell = notebook?.cells.find((item) => item.id === cellId);
+    const trimmedValue = value.trim();
+
+    if (
+      !notebook ||
+      !cell ||
+      cell.queryRunId ||
+      (cell.type !== 'prompt' && cell.type !== 'sql')
+    ) {
+      return;
+    }
+
+    if (trimmedValue === editorValue(cell)) {
+      return;
+    }
+
+    await api.updateNotebookCell(notebook.id, cellId, {
+      content: buildCellPayload(cell.type, value)
+    });
+    await refreshWorkspace(notebook.id, 'keep');
+    selectedCellId.value = cellId;
+  }
+
+  async function formatSqlCell(cellId: string, value: string) {
+    const notebook = currentNotebook.value;
+    if (!notebook) {
+      return;
+    }
+
+    statusLabel.value = 'Formatting SQL';
+    await api.updateNotebookCell(notebook.id, cellId, {
+      content: { sql: value }
+    });
+    await api.formatNotebookSqlCell(notebook.id, cellId);
+    await refreshWorkspace(notebook.id, 'keep');
+    selectedCellId.value = cellId;
+    setBanner('SQL блок отформатирован.');
+  }
+
+  async function runCell(cellId: string, value: string) {
+    const notebook = currentNotebook.value;
+    const cell = notebook?.cells.find((item) => item.id === cellId);
+    if (
+      !notebook ||
+      !cell ||
+      cell.queryRunId ||
+      (cell.type !== 'prompt' && cell.type !== 'sql')
+    ) {
+      return;
+    }
+
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      setBanner(cell.type === 'sql' ? 'SQL блок пустой.' : 'Prompt блок пустой.');
+      return;
+    }
+
+    runningCellIds.value = [cellId];
+    isRunning.value = true;
+    statusLabel.value = cell.type === 'sql' ? 'Running SQL block' : 'Running prompt block';
+
+    try {
+      if (trimmedValue !== editorValue(cell)) {
+        await api.updateNotebookCell(notebook.id, cellId, {
+          content: buildCellPayload(cell.type, value)
+        });
+      }
+      await api.runNotebookCell(notebook.id, cellId);
+      await refreshWorkspace(notebook.id, 'keep');
+      selectedCellId.value = cellId;
+      setBanner(cell.type === 'sql' ? 'SQL блок выполнен.' : 'Prompt блок выполнен.');
+    } finally {
+      runningCellIds.value = [];
+      isRunning.value = false;
+    }
+  }
+
+  async function reorderInputCells(orderedCellIds: string[]) {
+    const notebook = currentNotebook.value;
+    if (!notebook) {
+      return;
+    }
+
+    statusLabel.value = 'Reordering notebook';
+    await api.reorderNotebookCells(notebook.id, {
+      ordered_cell_ids: orderedCellIds
+    });
+    await refreshWorkspace(notebook.id, 'keep');
+    setBanner('Порядок блоков обновлён.');
+  }
+
+  async function moveInputCell(cellId: string, direction: 'up' | 'down') {
+    const notebook = currentNotebook.value;
+    const inputCells = notebookInputCells(notebook);
+    const index = inputCells.findIndex((cell) => cell.id === cellId);
+    if (index < 0) {
+      return;
+    }
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= inputCells.length) {
+      return;
+    }
+
+    const ordered = [...inputCells.map((cell) => cell.id)];
+    const [moved] = ordered.splice(index, 1);
+    ordered.splice(targetIndex, 0, moved);
+    await reorderInputCells(ordered);
+    selectedCellId.value = cellId;
+  }
+
   async function runCurrentNotebook() {
     const notebook = currentNotebook.value;
     if (!notebook) {
       return;
     }
 
+    runningCellIds.value = notebookInputCells(notebook).map((cell) => cell.id);
     isRunning.value = true;
     statusLabel.value = 'Running notebook';
-    setBanner(`Running all prompt cells in “${notebook.title}”.`);
+    setBanner(`Running all notebook blocks in “${notebook.title}”.`);
 
     try {
       await api.runAll(notebook.id);
       await refreshWorkspace(notebook.id, 'last');
       setBanner(`Run completed for “${currentNotebook.value?.title ?? notebook.title}”.`);
     } finally {
+      runningCellIds.value = [];
       isRunning.value = false;
     }
   }
@@ -323,6 +482,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
 
     isSubmittingPrompt.value = true;
+    isRunning.value = true;
     statusLabel.value = 'Running prompt';
     setBanner(`Submitting prompt to “${notebook.title}”.`);
 
@@ -332,12 +492,20 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         prompt,
         clarificationAnswers.value
       );
-      await api.runPrompt(notebook.id, finalPrompt);
+      const created = await api.createNotebookCell(notebook.id, {
+        type: 'prompt',
+        content: { text: finalPrompt }
+      });
+      runningCellIds.value = [created.id];
+      await api.runNotebookCell(notebook.id, created.id);
       draftPrompt.value = '';
       clarificationAnswers.value = {};
-      await refreshWorkspace(notebook.id, 'last');
+      await refreshWorkspace(notebook.id, 'keep');
+      selectedCellId.value = created.id;
       setBanner('Prompt processed and notebook updated from backend.');
     } finally {
+      runningCellIds.value = [];
+      isRunning.value = false;
       isSubmittingPrompt.value = false;
     }
   }
@@ -499,6 +667,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     canSubmitPrompt,
     clarificationAnswers,
     connectDatabase,
+    createInputCell,
     createNotebook,
     deleteDatabase,
     deleteNotebook,
@@ -513,10 +682,15 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isSavingReport,
     isSubmittingPrompt,
     loadWorkspace,
+    moveInputCell,
+    reorderInputCells,
     refreshWorkspace,
     renameCurrentNotebook,
+    runningCellIds,
+    runCell,
     runCurrentNotebook,
     saveCurrentReport,
+    saveInputCell,
     selectedCell,
     selectedCellId,
     selectedNotebookId,
@@ -526,6 +700,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     statusLabel,
     submitPrompt,
     traceStatus,
+    formatSqlCell,
     updateDraftPrompt,
     visibleCells,
     visibleCellCount,
