@@ -599,7 +599,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       await refreshWorkspace(selectedNotebookId.value || undefined, 'keep');
       const dictPart =
         typeof created.dictionary_entries_imported === 'number' && created.dictionary_entries_imported > 0
-          ? ` В Dictionary добавлено ${created.dictionary_entries_imported} терминов.`
+          ? ` В Dictionary добавлено ${created.dictionary_entries_imported} терминов после initial scan.`
           : '';
       const message =
         created.status === 'syncing'

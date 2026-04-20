@@ -120,7 +120,7 @@ function isNavActive(item: (typeof navItems)[number]): boolean {
     return p === '/data' || p.startsWith('/data');
   }
   if (item.key === 'colab') {
-    return p === '/colab';
+    return p === '/colab' || p === '/notebook';
   }
   /* chat */
   return p === '/chat' || p.startsWith('/notebooks');

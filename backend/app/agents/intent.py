@@ -17,9 +17,34 @@ from app.schemas.query import DateRange, FilterCondition, IntentPayload
 
 class IntentAgent:
     METRIC_PATTERNS: dict[str, tuple[str, ...]] = {
-        "revenue": ("выруч", "revenue", "оборот", "доход"),
-        "order_count": ("количеств заказ", "число заказ", "orders count", "number of orders", "order count"),
-        "avg_order_value": ("средний чек", "average order value", "aov"),
+        "revenue": (
+            "выруч",
+            "revenue",
+            "оборот",
+            "доход",
+            "сумм",
+            "sum",
+            "amount",
+            "total",
+            "sales",
+            "price",
+            "value",
+            "cost",
+            "fee",
+        ),
+        "order_count": (
+            "количеств заказ",
+            "число заказ",
+            "orders count",
+            "number of orders",
+            "order count",
+            "count",
+            "сколько",
+            "records",
+            "rows",
+            "запис",
+        ),
+        "avg_order_value": ("средний чек", "average order value", "aov", "average", "avg", "mean", "средн"),
     }
     DIMENSION_PATTERNS: dict[str, tuple[str, ...]] = {
         "month": ("по месяц", "monthly", "by month", "помесяч"),
@@ -213,6 +238,11 @@ class IntentAgent:
                 lookback_value=amount,
                 lookback_unit="days",
             )
+
+        year_match = re.search(r"(?:за|в|for|during)\s+((?:19|20)\d{2})\s+год(?:а|у|ом)?", prompt)
+        if year_match:
+            year = int(year_match.group(1))
+            return DateRange(kind="absolute", start=date(year, 1, 1), end=date(year, 12, 31))
 
         if "this year" in prompt or "в этом году" in prompt:
             return DateRange(kind="absolute", start=date(today.year, 1, 1), end=today)

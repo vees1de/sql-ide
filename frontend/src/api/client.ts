@@ -1,8 +1,12 @@
 import type {
+  ApiERDGraph,
   ApiCellRead,
   ApiDictionaryEntryCreate,
   ApiDatabaseConnectionCreate,
   ApiDatabaseDescriptor,
+  ApiKnowledgeScanRun,
+  ApiKnowledgeSummary,
+  ApiKnowledgeTable,
   ApiNotebookCellCreate,
   ApiNotebookCellReorder,
   ApiNotebookCellUpdate,
@@ -23,7 +27,7 @@ function toUrl(path: string) {
   return `${apiBaseUrl}${path}`;
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(toUrl(path), {
     headers: {
       'Content-Type': 'application/json',
@@ -174,6 +178,73 @@ export const api = {
   },
   getSchema() {
     return request<ApiSchemaMetadataResponse>('/api/metadata/schema');
+  },
+  getKnowledge(databaseId: string) {
+    return request<ApiKnowledgeSummary>(`/api/databases/${databaseId}/knowledge`);
+  },
+  getKnowledgeTable(tableId: string) {
+    return request<ApiKnowledgeTable>(`/api/tables/${tableId}`);
+  },
+  runKnowledgeFullScan(databaseId: string) {
+    return request<ApiKnowledgeScanRun>(`/api/db-connections/${databaseId}/scan/full`, {
+      method: 'POST'
+    });
+  },
+  runKnowledgeIncrementalScan(databaseId: string) {
+    return request<ApiKnowledgeScanRun>(`/api/db-connections/${databaseId}/scan/incremental`, {
+      method: 'POST'
+    });
+  },
+  getKnowledgeScanRuns(databaseId: string) {
+    return request<ApiKnowledgeScanRun[]>(`/api/db-connections/${databaseId}/scan-runs`);
+  },
+  updateKnowledgeTable(
+    tableId: string,
+    payload: {
+      description_manual?: string | null;
+      business_meaning_manual?: string | null;
+      domain_manual?: string | null;
+      tags?: string[] | null;
+      sensitivity?: string | null;
+    }
+  ) {
+    return request<ApiKnowledgeTable>(`/api/tables/${tableId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateKnowledgeColumn(
+    columnId: string,
+    payload: {
+      description_manual?: string | null;
+      semantic_label_manual?: string | null;
+      synonyms?: string[] | null;
+      sensitivity?: string | null;
+      hidden_for_llm?: boolean | null;
+    }
+  ) {
+    return request<ApiKnowledgeTable>(`/api/columns/${columnId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateKnowledgeRelationship(
+    relationshipId: string,
+    payload: {
+      cardinality?: string | null;
+      confidence?: number | null;
+      approved?: boolean | null;
+      is_disabled?: boolean | null;
+      description_manual?: string | null;
+    }
+  ) {
+    return request<ApiKnowledgeTable>(`/api/relationships/${relationshipId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  getERD(databaseId: string) {
+    return request<ApiERDGraph>(`/api/databases/${databaseId}/erd`);
   },
   getWorkspaces() {
     return request<ApiWorkspaceRead[]>('/api/workspaces');

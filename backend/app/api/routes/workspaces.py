@@ -67,6 +67,8 @@ def create_database(
         status=connection.status or "connected",
         allowed_tables=allowed_list,
         dictionary_entries_imported=imported if imported else None,
+        knowledge_status=workspace_service._knowledge_status(db, connection.id),
+        last_scan_at=workspace_service._last_scan_at(db, connection.id),
     )
 
 
@@ -93,6 +95,8 @@ def update_database(
         table_count=connection.table_count or 0,
         status=connection.status or "connected",
         allowed_tables=allowed_list,
+        knowledge_status=workspace_service._knowledge_status(db, connection.id),
+        last_scan_at=workspace_service._last_scan_at(db, connection.id),
     )
 
 

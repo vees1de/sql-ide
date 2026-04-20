@@ -40,6 +40,7 @@ export interface ChartCellContent {
   }>;
   unit?: string;
   palette?: string[];
+  stacked?: boolean;
 }
 
 export interface InsightCellContent {
@@ -150,6 +151,8 @@ export interface DatabaseConnection {
   tables: number;
   schemas: string[];
   status: 'connected' | 'syncing';
+  knowledgeStatus?: 'not_scanned' | 'queued' | 'running' | 'completed' | 'failed' | string;
+  lastScanAt?: string;
   isDemo?: boolean;
   /** Whitelist таблиц для доступа; null — не ограничено отдельно (все из интроспекции при импорте). */
   allowedTables?: string[] | null;

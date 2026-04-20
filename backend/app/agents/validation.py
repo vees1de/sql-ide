@@ -41,9 +41,14 @@ class SQLValidationAgent:
                 break
 
         tables = sorted({table.name for table in parsed.find_all(exp.Table)})
-        effective_allowed_tables = tuple(allowed_tables or settings.allowed_tables)
+        if allowed_tables is None:
+            effective_allowed_tables = tuple(settings.allowed_tables)
+        else:
+            effective_allowed_tables = tuple(str(table) for table in allowed_tables)
         unknown_tables = sorted(set(tables) - set(effective_allowed_tables))
-        if effective_allowed_tables and unknown_tables:
+        if allowed_tables is not None and unknown_tables:
+            errors.append(f"Query references tables outside the whitelist: {', '.join(unknown_tables)}.")
+        elif allowed_tables is None and effective_allowed_tables and unknown_tables:
             errors.append(f"Query references tables outside the whitelist: {', '.join(unknown_tables)}.")
 
         final_sql = sql.strip().rstrip(";")

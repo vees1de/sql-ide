@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from sqlalchemy import create_engine, inspect as sa_inspect, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import DatabaseConnectionModel, WorkspaceModel
+from app.db.models import DatabaseConnectionModel, DatabaseKnowledgeScanRunModel, WorkspaceModel
 from app.db.session import analytics_engine
 from app.schemas.workspace import (
     DatabaseConnectionCreate,
@@ -15,27 +14,13 @@ from app.schemas.workspace import (
     SchemaPreviewTable,
     WorkspaceCreate,
 )
-from app.services.dictionary_service import DictionaryService
-
-
-DEFAULT_PORTS = {
-    "postgresql": 5432,
-    "postgres": 5432,
-    "mysql": 3306,
-    "mariadb": 3306,
-    "sqlite": 0,
-    "clickhouse": 9000,
-}
-
-
-def _normalize_dialect(raw: str) -> str:
-    value = (raw or "").strip().lower()
-    if value in {"postgres", "postgresql"}:
-        return "postgresql"
-    return value
-
-
-dictionary_service = DictionaryService()
+from app.services.database_connection_utils import (
+    DatabaseConnectionPayload,
+    create_connection_engine,
+    normalize_dialect,
+    ping_engine,
+)
+from app.services.knowledge_service import KnowledgeService
 
 
 def _introspect_engine_tables(engine) -> tuple[list[dict[str, object]], list[str]]:
@@ -57,29 +42,10 @@ def _introspect_engine_tables(engine) -> tuple[list[dict[str, object]], list[str
     return tables, table_names
 
 
-def _build_url(connection: DatabaseConnectionCreate) -> str:
-    dialect = _normalize_dialect(connection.dialect)
-    if dialect == "sqlite":
-        return f"sqlite:///{connection.database or ':memory:'}"
-
-    driver_prefix = {
-        "postgresql": "postgresql+psycopg2",
-        "mysql": "mysql+pymysql",
-        "mariadb": "mysql+pymysql",
-        "clickhouse": "clickhouse+native",
-    }.get(dialect, dialect)
-
-    user = connection.username or ""
-    password = f":{connection.password}" if connection.password else ""
-    credentials = f"{user}{password}@" if user or password else ""
-    host = connection.host or "localhost"
-    port = connection.port or DEFAULT_PORTS.get(dialect)
-    port_segment = f":{port}" if port else ""
-    database = f"/{connection.database}" if connection.database else ""
-    return f"{driver_prefix}://{credentials}{host}{port_segment}{database}"
-
-
 class WorkspaceService:
+    def __init__(self) -> None:
+        self.knowledge_service = KnowledgeService()
+
     def list_workspaces(self, db: Session) -> list[WorkspaceModel]:
         return db.query(WorkspaceModel).order_by(WorkspaceModel.created_at.asc()).all()
 
@@ -104,6 +70,8 @@ class WorkspaceService:
                 read_only=True,
                 is_demo=settings.analytics_uses_demo_data,
                 status="connected",
+                knowledge_status=self._knowledge_status(db, settings.demo_database_id),
+                last_scan_at=self._last_scan_at(db, settings.demo_database_id),
             )
         ]
 
@@ -130,16 +98,25 @@ class WorkspaceService:
                     table_count=connection.table_count or 0,
                     status=connection.status or "connected",
                     allowed_tables=allowed_list,
+                    knowledge_status=self._knowledge_status(db, connection.id),
+                    last_scan_at=self._last_scan_at(db, connection.id),
                 )
             )
         return descriptors
 
     def preview_schema(self, payload: DatabaseConnectionCreate) -> SchemaPreviewResponse:
-        url = _build_url(payload)
-        engine = create_engine(url, pool_pre_ping=True)
+        engine = create_connection_engine(
+            DatabaseConnectionPayload(
+                dialect=payload.dialect,
+                host=payload.host,
+                port=payload.port,
+                database=payload.database,
+                username=payload.username,
+                password=payload.password,
+            )
+        )
         try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+            ping_engine(engine)
             tables, names = _introspect_engine_tables(engine)
         finally:
             engine.dispose()
@@ -151,19 +128,26 @@ class WorkspaceService:
     def create_database(
         self, db: Session, payload: DatabaseConnectionCreate
     ) -> tuple[DatabaseConnectionModel, int]:
-        dialect = _normalize_dialect(payload.dialect)
+        dialect = normalize_dialect(payload.dialect)
         status = "connected"
         table_count = payload.table_count or 0
         allowed_tables_json: list[str] | None = None
         imported_count = 0
 
         try:
-            url = _build_url(payload)
-            engine = create_engine(url, pool_pre_ping=True)
+            engine = create_connection_engine(
+                DatabaseConnectionPayload(
+                    dialect=payload.dialect,
+                    host=payload.host,
+                    port=payload.port,
+                    database=payload.database,
+                    username=payload.username,
+                    password=payload.password,
+                )
+            )
             try:
-                with engine.connect() as connection:
-                    connection.execute(text("SELECT 1"))
-                introspected, discovered_names = _introspect_engine_tables(engine)
+                ping_engine(engine)
+                _, discovered_names = _introspect_engine_tables(engine)
                 table_count = len(discovered_names)
                 chosen = (
                     [name for name in (payload.allowed_tables or []) if name in discovered_names]
@@ -173,14 +157,6 @@ class WorkspaceService:
                 if not chosen and discovered_names:
                     chosen = discovered_names
                 allowed_tables_json = chosen
-
-                if payload.import_schema_to_dictionary and chosen:
-                    table_subset = [t for t in introspected if str(t.get("name")) in set(chosen)]
-                    imported_count = dictionary_service.import_schema_tables(
-                        db,
-                        table_subset,
-                        database_label=payload.name,
-                    )
             finally:
                 engine.dispose()
         except Exception:  # noqa: BLE001 — we want to surface failures as "syncing"
@@ -203,6 +179,18 @@ class WorkspaceService:
         db.add(connection_model)
         db.commit()
         db.refresh(connection_model)
+
+        if payload.import_schema_to_dictionary and connection_model.status == "connected":
+            try:
+                scan = self.knowledge_service.scan_database(
+                    db,
+                    connection_model.id,
+                    scan_type="full",
+                    sync_dictionary=True,
+                )
+                imported_count = int(scan.summary.get("dictionary_entries_imported", 0) or 0)
+            except Exception:  # noqa: BLE001
+                imported_count = 0
         return connection_model, imported_count
 
     def update_database(
@@ -234,3 +222,23 @@ class WorkspaceService:
         db.delete(connection)
         db.commit()
         return True
+
+    def _knowledge_status(self, db: Session, database_id: str) -> str:
+        latest = (
+            db.query(DatabaseKnowledgeScanRunModel)
+            .filter(DatabaseKnowledgeScanRunModel.database_id == database_id)
+            .order_by(DatabaseKnowledgeScanRunModel.started_at.desc())
+            .first()
+        )
+        return latest.status if latest is not None else "not_scanned"
+
+    def _last_scan_at(self, db: Session, database_id: str) -> str | None:
+        latest = (
+            db.query(DatabaseKnowledgeScanRunModel)
+            .filter(DatabaseKnowledgeScanRunModel.database_id == database_id)
+            .order_by(DatabaseKnowledgeScanRunModel.started_at.desc())
+            .first()
+        )
+        if latest is None or latest.finished_at is None:
+            return None
+        return latest.finished_at.isoformat()

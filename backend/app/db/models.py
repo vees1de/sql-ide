@@ -3,7 +3,18 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -130,3 +141,212 @@ class SemanticDictionaryModel(Base):
     source_database = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+
+class DatabaseKnowledgeScanRunModel(Base):
+    __tablename__ = "database_knowledge_scan_runs"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_id = Column(String(32), nullable=False, index=True)
+    database_label = Column(String(255), nullable=False)
+    dialect = Column(String(64), nullable=False, default="postgresql")
+    scan_type = Column(String(32), nullable=False, default="full")
+    status = Column(String(32), nullable=False, default="queued", index=True)
+    stage = Column(String(64), nullable=False, default="queued")
+    summary = Column(JSON, nullable=False, default=dict)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+    finished_at = Column(DateTime, nullable=True, index=True)
+
+
+class DatabaseKnowledgeTableModel(Base):
+    __tablename__ = "database_knowledge_tables"
+    __table_args__ = (
+        UniqueConstraint("database_id", "schema_name", "table_name", name="uq_knowledge_table"),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_id = Column(String(32), nullable=False, index=True)
+    schema_name = Column(String(255), nullable=False, default="public")
+    table_name = Column(String(255), nullable=False)
+    object_type = Column(String(32), nullable=False, default="table")
+    status = Column(String(32), nullable=False, default="active", index=True)
+    column_count = Column(Integer, nullable=False, default=0)
+    row_count = Column(Integer, nullable=True)
+    primary_key = Column(JSON, nullable=False, default=list)
+    description_auto = Column(Text, nullable=True)
+    description_manual = Column(Text, nullable=True)
+    business_meaning_auto = Column(Text, nullable=True)
+    business_meaning_manual = Column(Text, nullable=True)
+    domain_auto = Column(String(255), nullable=True)
+    domain_manual = Column(String(255), nullable=True)
+    tags = Column(JSON, nullable=False, default=list)
+    sensitivity = Column(String(64), nullable=True)
+    usage_score = Column(Float, nullable=True)
+    last_seen_scan_run_id = Column(String(32), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    columns = relationship(
+        "DatabaseKnowledgeColumnModel",
+        back_populates="table",
+        cascade="all, delete-orphan",
+    )
+
+
+class DatabaseKnowledgeColumnModel(Base):
+    __tablename__ = "database_knowledge_columns"
+    __table_args__ = (
+        UniqueConstraint(
+            "database_id",
+            "schema_name",
+            "table_name",
+            "column_name",
+            name="uq_knowledge_column",
+        ),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_id = Column(String(32), nullable=False, index=True)
+    table_id = Column(String(32), ForeignKey("database_knowledge_tables.id"), nullable=False, index=True)
+    schema_name = Column(String(255), nullable=False, default="public")
+    table_name = Column(String(255), nullable=False)
+    column_name = Column(String(255), nullable=False)
+    data_type = Column(String(255), nullable=False)
+    ordinal_position = Column(Integer, nullable=False, default=0)
+    is_nullable = Column(Boolean, nullable=False, default=True)
+    default_value = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, default="active", index=True)
+    distinct_count = Column(Integer, nullable=True)
+    null_ratio = Column(Float, nullable=True)
+    min_value = Column(String(255), nullable=True)
+    max_value = Column(String(255), nullable=True)
+    sample_values = Column(JSON, nullable=False, default=list)
+    semantic_label_auto = Column(String(255), nullable=True)
+    semantic_label_manual = Column(String(255), nullable=True)
+    description_auto = Column(Text, nullable=True)
+    description_manual = Column(Text, nullable=True)
+    synonyms = Column(JSON, nullable=False, default=list)
+    sensitivity = Column(String(64), nullable=True)
+    hidden_for_llm = Column(Boolean, nullable=False, default=False)
+    last_seen_scan_run_id = Column(String(32), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    table = relationship("DatabaseKnowledgeTableModel", back_populates="columns")
+
+
+class DatabaseKnowledgeRelationshipModel(Base):
+    __tablename__ = "database_knowledge_relationships"
+    __table_args__ = (
+        UniqueConstraint(
+            "database_id",
+            "from_schema_name",
+            "from_table_name",
+            "from_column_name",
+            "to_schema_name",
+            "to_table_name",
+            "to_column_name",
+            "relation_type",
+            name="uq_knowledge_relationship",
+        ),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_id = Column(String(32), nullable=False, index=True)
+    from_schema_name = Column(String(255), nullable=False, default="public")
+    from_table_name = Column(String(255), nullable=False)
+    from_column_name = Column(String(255), nullable=False)
+    to_schema_name = Column(String(255), nullable=False, default="public")
+    to_table_name = Column(String(255), nullable=False)
+    to_column_name = Column(String(255), nullable=False)
+    relation_type = Column(String(32), nullable=False, default="physical_fk")
+    cardinality = Column(String(64), nullable=True)
+    confidence = Column(Float, nullable=False, default=1.0)
+    approved = Column(Boolean, nullable=False, default=False)
+    is_disabled = Column(Boolean, nullable=False, default=False)
+    description_manual = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, default="active", index=True)
+    last_seen_scan_run_id = Column(String(32), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+
+# TODO(alembic): the three models below (chat_sessions, chat_messages, chat_query_executions)
+# should be included in the first Alembic revision when the knowledge/metadata agent
+# introduces proper migrations. For now they are picked up via bootstrap_application()'s
+# Base.metadata.create_all.
+
+
+class ChatSessionModel(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_connection_id = Column(
+        String(32),
+        ForeignKey("database_connections.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    title = Column(String(255), nullable=False)
+    current_sql_draft = Column(Text, nullable=True)
+    sql_draft_version = Column(Integer, nullable=False, default=0)
+    last_executed_sql = Column(Text, nullable=True)
+    last_intent_json = Column(JSON, nullable=True)
+    archived = Column(Boolean, nullable=False, default=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    messages = relationship(
+        "ChatMessageModel",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="ChatMessageModel.created_at",
+    )
+    executions = relationship(
+        "QueryExecutionModel",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="QueryExecutionModel.created_at",
+    )
+
+
+class ChatMessageModel(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    session_id = Column(
+        String(32),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role = Column(String(16), nullable=False)  # "user" | "assistant"
+    text = Column(Text, nullable=False)
+    structured_payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+
+    session = relationship("ChatSessionModel", back_populates="messages")
+
+
+class QueryExecutionModel(Base):
+    __tablename__ = "chat_query_executions"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    session_id = Column(
+        String(32),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sql_text = Column(Text, nullable=False)
+    columns_json = Column(JSON, nullable=True)
+    rows_preview_json = Column(JSON, nullable=True)
+    rows_preview_truncated = Column(Boolean, nullable=False, default=False)
+    row_count = Column(Integer, nullable=False, default=0)
+    execution_time_ms = Column(Integer, nullable=False, default=0)
+    chart_recommendation_json = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+
+    session = relationship("ChatSessionModel", back_populates="executions")

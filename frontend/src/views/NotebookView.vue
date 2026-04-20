@@ -181,7 +181,7 @@ watch(
     await store.ensureInitialized();
     if (notebookId) {
       await syncNotebookFromRoute(notebookId);
-    } else if (name === 'chat' || name === 'colab') {
+    } else if (name === 'colab' || name === 'notebook-home') {
       const first = store.workspace.notebooks[0]?.id;
       if (first && store.selectedNotebookId !== first) {
         await store.selectNotebook(first);

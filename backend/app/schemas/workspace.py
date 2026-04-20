@@ -20,6 +20,8 @@ class DatabaseDescriptor(BaseModel):
     status: str = "connected"
     allowed_tables: list[str] | None = None
     dictionary_entries_imported: int | None = None
+    knowledge_status: str | None = None
+    last_scan_at: str | None = None
 
 
 class DatabaseConnectionCreate(BaseModel):

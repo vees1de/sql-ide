@@ -1,9 +1,10 @@
 import { use } from 'echarts/core';
-import { BarChart, LineChart, PieChart } from 'echarts/charts';
+import { BarChart, GraphChart, LineChart, PieChart } from 'echarts/charts';
 import {
   DatasetComponent,
   GridComponent,
   LegendComponent,
+  ToolboxComponent,
   TitleComponent,
   TooltipComponent
 } from 'echarts/components';
@@ -13,10 +14,12 @@ use([
   BarChart,
   CanvasRenderer,
   DatasetComponent,
+  GraphChart,
   GridComponent,
   LegendComponent,
   LineChart,
   PieChart,
+  ToolboxComponent,
   TitleComponent,
   TooltipComponent
 ]);

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from app.agents.helpers import shift_year, subtract_months
 from app.schemas.query import DateRange, IntentPayload, SemanticMappingPayload
 
@@ -95,8 +97,8 @@ class SQLGenerationAgent:
 
         for index, mapping in enumerate(semantic.dimension_mappings, start=1):
             expression = mapping.expression
-            if align_previous_year and mapping.key in {"day", "week", "month"}:
-                expression = self._align_date_expression(semantic.dialect, mapping.key)
+            if align_previous_year and mapping.key in {"day", "week", "month"} and semantic.time_expression:
+                expression = self._align_date_expression(semantic.dialect, mapping.key, semantic.time_expression or mapping.expression)
             select_parts.append(f"{expression} AS {mapping.alias}")
             group_indices.append(str(index))
 
@@ -124,11 +126,12 @@ class SQLGenerationAgent:
 
     def _build_where_clauses(self, semantic: SemanticMappingPayload, date_range: DateRange | None) -> list[str]:
         clauses: list[str] = []
-        if semantic.base_table == "orders":
-            if date_range and date_range.start:
-                clauses.append(f"o.order_date >= {self._quote(date_range.start.isoformat())}")
-            if date_range and date_range.end:
-                clauses.append(f"o.order_date <= {self._quote(date_range.end.isoformat())}")
+        if semantic.time_expression and date_range:
+            if date_range.start:
+                clauses.append(f"{semantic.time_expression} >= {self._quote(date_range.start.isoformat())}")
+            if date_range.end:
+                exclusive_end = date_range.end + timedelta(days=1)
+                clauses.append(f"{semantic.time_expression} < {self._quote(exclusive_end.isoformat())}")
 
         for filter_mapping in semantic.filter_mappings:
             operator = filter_mapping.operator or "="
@@ -136,18 +139,18 @@ class SQLGenerationAgent:
 
         return clauses
 
-    def _align_date_expression(self, dialect: str, grain: str) -> str:
+    def _align_date_expression(self, dialect: str, grain: str, time_expression: str) -> str:
         if dialect == "postgresql":
             if grain == "day":
-                return "date_trunc('day', o.order_date + interval '1 year')"
+                return f"date_trunc('day', {time_expression} + interval '1 year')"
             if grain == "week":
-                return "date_trunc('week', o.order_date + interval '1 year')"
-            return "date_trunc('month', o.order_date + interval '1 year')"
+                return f"date_trunc('week', {time_expression} + interval '1 year')"
+            return f"date_trunc('month', {time_expression} + interval '1 year')"
         if grain == "day":
-            return "date(o.order_date, '+1 year')"
+            return f"date({time_expression}, '+1 year')"
         if grain == "week":
-            return "date(date(o.order_date, '+1 year'), 'weekday 1', '-7 days')"
-        return "date(date(o.order_date, '+1 year'), 'start of month')"
+            return f"date(date({time_expression}, '+1 year'), 'weekday 1', '-7 days')"
+        return f"date(date({time_expression}, '+1 year'), 'start of month')"
 
     def _default_comparison_range(self) -> DateRange:
         from datetime import date
@@ -159,6 +162,5 @@ class SQLGenerationAgent:
         return "'" + str(value).replace("'", "''") + "'"
 
     def _source_sql(self, semantic: SemanticMappingPayload, joins: str) -> tuple[str, str]:
-        if semantic.base_table == "orders":
-            return ("FROM orders o", joins)
-        return (f"FROM {semantic.base_table}", "")
+        base_alias = semantic.base_alias or "t0"
+        return (f"FROM {semantic.base_table} {base_alias}", joins)

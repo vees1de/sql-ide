@@ -148,7 +148,9 @@ defineProps<{
   height: 100%;
   overflow-y: auto;
   padding: 1.25rem 1rem 1.4rem;
-  background: rgba(255, 255, 255, 0.74);
+  background:
+    radial-gradient(circle at top, rgba(138, 180, 248, 0.06), transparent 28%),
+    rgba(21, 24, 34, 0.96);
 }
 
 .inspector__section + .inspector__section {
@@ -226,7 +228,7 @@ defineProps<{
 .tag-chip {
   padding: 0.42rem 0.65rem;
   border-radius: 999px;
-  background: rgba(19, 28, 45, 0.06);
+  background: rgba(255, 255, 255, 0.06);
   font-size: 0.84rem;
 }
 
@@ -251,7 +253,7 @@ defineProps<{
 .trace-item {
   padding: 0.9rem 0.95rem;
   border-radius: 1rem;
-  background: rgba(19, 28, 45, 0.04);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid transparent;
   transition: border-color 180ms ease, transform 180ms ease;
 }

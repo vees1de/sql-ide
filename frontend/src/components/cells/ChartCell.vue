@@ -100,6 +100,7 @@ const chartOption = computed(() => {
     series: (props.content.series ?? []).map((series) => ({
       ...series,
       type: props.content.chartType,
+      stack: props.content.stacked ? 'total' : undefined,
       smooth: props.content.chartType === 'line',
       symbolSize: props.content.chartType === 'line' ? 9 : undefined,
       barMaxWidth: props.content.chartType === 'bar' ? 30 : undefined,

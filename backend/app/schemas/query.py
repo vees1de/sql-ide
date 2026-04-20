@@ -55,6 +55,8 @@ class SemanticMappingPayload(BaseModel):
     metric_key: str | None = None
     metric_expression: str | None = None
     metric_alias: str | None = None
+    time_expression: str | None = None
+    base_alias: str = "t0"
     dimension_mappings: list[DimensionMapping] = Field(default_factory=list)
     filter_mappings: list[FilterMapping] = Field(default_factory=list)
     tables: list[str] = Field(default_factory=list)

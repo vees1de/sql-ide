@@ -674,6 +674,8 @@ function buildDatabaseConnections(
       tables,
       schemas: ['public'],
       status,
+      knowledgeStatus: database.knowledge_status ?? 'not_scanned',
+      lastScanAt: database.last_scan_at ?? undefined,
       isDemo: database.is_demo,
       allowedTables: database.allowed_tables ?? null
     };

@@ -49,6 +49,8 @@ class LLMService:
         prompt: str,
         schema: SchemaMetadataResponse,
         previous_intent: IntentPayload | None = None,
+        history_text: str | None = None,
+        temperature: float = 0.1,
     ) -> LLMQueryPlan | None:
         if not self.configured:
             return None
@@ -61,13 +63,14 @@ class LLMService:
             "Your job is to understand the analytics request, decide whether clarification is needed, "
             "and generate a single safe read-only SELECT query when possible.\n"
             "Rules:\n"
-            "1. Use only tables and columns from the schema.\n"
+            "1. Use only tables, columns, and relationships from the schema.\n"
             "2. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, GRANT or transaction statements.\n"
             "3. Prefer explicit JOINs and explicit aliases.\n"
             "4. Keep SQL compatible with the provided SQL dialect.\n"
             "5. If the request is ambiguous, set intent.clarification_question and return sql as null.\n"
             "6. Keep warnings concise.\n"
             "7. Match the user's language in clarification text.\n"
+            "8. Use conversation history when provided to resolve follow-up intent.\n"
             "Return this JSON shape:\n"
             "{"
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
@@ -85,6 +88,7 @@ class LLMService:
                 "dialect": schema.dialect,
                 "schema": schema_summary,
                 "previous_intent": previous_intent_payload,
+                "history_text": history_text,
                 "user_prompt": prompt,
             },
             ensure_ascii=False,
@@ -98,7 +102,7 @@ class LLMService:
                     {"role": "user", "content": user_prompt},
                 ],
                 max_tokens=1400,
-                temperature=0.1,
+                temperature=temperature,
             )
             payload = json.loads(self._extract_json_object(content))
             payload.setdefault("intent", {})
@@ -182,14 +186,27 @@ class LLMService:
             )
         return self._client
 
-    def _format_schema(self, schema: SchemaMetadataResponse) -> list[dict[str, Any]]:
-        return [
-            {
-                "table": table.name,
-                "columns": [{"name": column.name, "type": column.type} for column in table.columns],
-            }
-            for table in schema.tables
-        ]
+    def _format_schema(self, schema: SchemaMetadataResponse) -> dict[str, Any]:
+        return {
+            "tables": [
+                {
+                    "table": table.name,
+                    "columns": [{"name": column.name, "type": column.type} for column in table.columns],
+                }
+                for table in schema.tables
+            ],
+            "relationships": [
+                {
+                    "from_table": relationship.from_table,
+                    "from_column": relationship.from_column,
+                    "to_table": relationship.to_table,
+                    "to_column": relationship.to_column,
+                    "relation_type": relationship.relation_type,
+                    "cardinality": relationship.cardinality,
+                }
+                for relationship in schema.relationships
+            ],
+        }
 
     def _extract_json_object(self, content: str) -> str:
         stripped = content.strip()

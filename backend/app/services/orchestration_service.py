@@ -290,6 +290,7 @@ class QueryOrchestrationService:
         previous_intent: IntentPayload | None,
     ) -> PromptRunResponse:
         intent = self.intent_agent.run(prompt=prompt, previous_intent=previous_intent)
+        schema = self.metadata_service.get_schema()
 
         if intent.clarification_question and intent.metric is None:
             return self._persist_clarification_run(db, notebook, prompt_cell, intent)
@@ -299,6 +300,7 @@ class QueryOrchestrationService:
             intent=intent,
             dictionary_entries=dictionary_entries,
             dialect=analytics_engine.dialect.name,
+            schema=schema,
         )
         sql = self.sql_generation_agent.run(intent, semantic)
         validation = self.validation_agent.run(

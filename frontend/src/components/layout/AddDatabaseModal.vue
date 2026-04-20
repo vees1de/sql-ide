@@ -72,13 +72,13 @@
         </label>
 
         <div class="form__section">
-          <p class="form__section-title">Схема и Dictionary</p>
+          <p class="form__section-title">Knowledge scan</p>
           <label class="form__check">
             <input v-model="importSchemaToDictionary" type="checkbox" />
-            <span>Заполнить Dictionary по всем таблицам и колонкам (импорт схемы)</span>
+            <span>Сразу выполнить full scan схемы и синхронизировать Dictionary</span>
           </label>
           <p class="form__hint">
-            Для каждой таблицы и колонки создаётся термин в семантическом словаре — удобно для NL→SQL и уточнений.
+            После подключения база будет распарсена в knowledge layer: tables, columns, FK и persisted scan snapshot.
           </p>
         </div>
 
