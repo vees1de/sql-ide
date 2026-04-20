@@ -23,7 +23,18 @@ import type {
   ApiSemanticCatalog,
   ApiSemanticCatalogActivationRequest,
   ApiSchemaMetadataResponse,
-  ApiWorkspaceRead
+  ApiWorkspaceRead,
+  ApiWidgetRead,
+  ApiWidgetDetail,
+  ApiWidgetCreate,
+  ApiWidgetUpdate,
+  ApiDashboardRead,
+  ApiDashboardDetail,
+  ApiDashboardCreate,
+  ApiDashboardUpdate,
+  ApiDashboardWidgetDetail,
+  ApiDashboardWidgetAdd,
+  ApiDashboardWidgetPatch
 } from '@/api/types';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -289,5 +300,69 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload)
     });
+  },
+
+  // --- Widgets ---
+  listWidgets() {
+    return request<ApiWidgetRead[]>('/api/widgets');
+  },
+  createWidget(payload: ApiWidgetCreate) {
+    return request<ApiWidgetDetail>('/api/widgets', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  getWidget(widgetId: string) {
+    return request<ApiWidgetDetail>(`/api/widgets/${widgetId}`);
+  },
+  updateWidget(widgetId: string, payload: ApiWidgetUpdate) {
+    return request<ApiWidgetDetail>(`/api/widgets/${widgetId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteWidget(widgetId: string) {
+    return request<void>(`/api/widgets/${widgetId}`, { method: 'DELETE' });
+  },
+  runWidget(widgetId: string) {
+    return request<ApiWidgetDetail>(`/api/widgets/${widgetId}/run`, { method: 'POST' });
+  },
+
+  // --- Dashboards ---
+  listDashboards() {
+    return request<ApiDashboardRead[]>('/api/dashboards');
+  },
+  createDashboard(payload: ApiDashboardCreate) {
+    return request<ApiDashboardDetail>('/api/dashboards', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  getDashboard(dashboardId: string) {
+    return request<ApiDashboardDetail>(`/api/dashboards/${dashboardId}`);
+  },
+  updateDashboard(dashboardId: string, payload: ApiDashboardUpdate) {
+    return request<ApiDashboardDetail>(`/api/dashboards/${dashboardId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteDashboard(dashboardId: string) {
+    return request<void>(`/api/dashboards/${dashboardId}`, { method: 'DELETE' });
+  },
+  addWidgetToDashboard(dashboardId: string, payload: ApiDashboardWidgetAdd) {
+    return request<ApiDashboardWidgetDetail>(`/api/dashboards/${dashboardId}/widgets`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateDashboardWidget(dashboardId: string, dwId: string, payload: ApiDashboardWidgetPatch) {
+    return request<ApiDashboardWidgetDetail>(`/api/dashboards/${dashboardId}/widgets/${dwId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  removeWidgetFromDashboard(dashboardId: string, dwId: string) {
+    return request<void>(`/api/dashboards/${dashboardId}/widgets/${dwId}`, { method: 'DELETE' });
   }
 };

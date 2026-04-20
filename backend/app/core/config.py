@@ -112,6 +112,7 @@ class Settings:
     analytics_uses_demo_data: bool
     allowed_tables: tuple[str, ...]
     default_row_limit: int
+    max_row_limit: int
     query_timeout_seconds: int
     demo_workspace_name: str
     demo_database_id: str
@@ -158,7 +159,8 @@ def get_settings() -> Settings:
         analytics_database_url=analytics_database_url,
         analytics_uses_demo_data=uses_demo_data or _read_bool("BOOTSTRAP_DEMO_ANALYTICS", False),
         allowed_tables=allowed_tables,
-        default_row_limit=int(os.getenv("DEFAULT_ROW_LIMIT", "200")),
+        default_row_limit=int(os.getenv("DEFAULT_ROW_LIMIT", "50")),
+        max_row_limit=int(os.getenv("MAX_ROW_LIMIT", "1000")),
         query_timeout_seconds=int(os.getenv("QUERY_TIMEOUT_SECONDS", "15")),
         demo_workspace_name=os.getenv("DEMO_WORKSPACE_NAME", "Demo Workspace"),
         demo_database_id=os.getenv("DEMO_DATABASE_ID", "demo_analytics"),

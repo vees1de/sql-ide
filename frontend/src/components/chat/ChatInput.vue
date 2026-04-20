@@ -47,7 +47,8 @@
         </select>
       </div>
       <button class="chat-input__send" type="submit" :disabled="busy || !modelValue.trim()">
-        {{ busy ? '...' : '→' }}
+        <span v-if="busy" class="chat-input__spinner" />
+        <span v-else>→</span>
       </button>
     </div>
   </form>
@@ -195,6 +196,20 @@ function onModelChange(event: Event) {
 .chat-input__model:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.chat-input__spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--ink-strong);
+  border-radius: 50%;
+  animation: chat-spin 0.7s linear infinite;
+}
+
+@keyframes chat-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 940px) {

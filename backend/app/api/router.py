@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import analytics, chat, dictionary, health, knowledge, metadata, notebooks, reports, workspaces
+from app.api.routes import analytics, chat, dashboards, dictionary, health, knowledge, metadata, notebooks, reports, widgets, workspaces
 
 
 api_router = APIRouter()
@@ -15,3 +15,5 @@ api_router.include_router(reports.router, prefix="", tags=["reports"])
 api_router.include_router(dictionary.router, prefix="", tags=["semantic-dictionary"])
 api_router.include_router(metadata.router, prefix="", tags=["metadata"])
 api_router.include_router(knowledge.router, prefix="", tags=["knowledge"])
+api_router.include_router(widgets.router, prefix="", tags=["widgets"])
+api_router.include_router(dashboards.router, prefix="", tags=["dashboards"])

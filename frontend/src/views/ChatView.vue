@@ -25,6 +25,8 @@
         <ChatResultPanel
           :execution="chat.executionResult"
           :view="chat.resultView"
+          :sql-text="chat.sqlDraft"
+          :database-connection-id="chat.activeDbId"
           @change-view="chat.setResultMode"
         />
       </section>

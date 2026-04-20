@@ -15,6 +15,11 @@
       <div v-else class="chat-assistant__empty">
         Чем я могу помочь?
       </div>
+      <div v-if="busy" class="chat-assistant__loader">
+        <span class="chat-assistant__dot" />
+        <span class="chat-assistant__dot" />
+        <span class="chat-assistant__dot" />
+      </div>
     </div>
 
     <ChatInput
@@ -79,6 +84,13 @@ watch(
   }
 );
 
+watch(
+  () => props.busy,
+  () => {
+    void scrollToBottom();
+  }
+);
+
 onMounted(() => {
   void scrollToBottom();
 });
@@ -120,5 +132,29 @@ function submit() {
   place-items: center;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.chat-assistant__loader {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 2px;
+}
+
+.chat-assistant__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: chat-dot-bounce 1.2s infinite ease-in-out;
+}
+
+.chat-assistant__dot:nth-child(1) { animation-delay: 0s; }
+.chat-assistant__dot:nth-child(2) { animation-delay: 0.2s; }
+.chat-assistant__dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes chat-dot-bounce {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40%            { opacity: 1;    transform: translateY(-4px); }
 }
 </style>

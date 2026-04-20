@@ -14,14 +14,24 @@
           class="chat-result-panel__tab"
           :class="{ 'chat-result-panel__tab--active': view === 'chart' }"
           type="button"
-          :disabled="execution?.chart_recommendation?.recommended_view !== 'chart'"
           @click="$emit('change-view', 'chart')"
         >
           График
         </button>
       </div>
 
-      <span v-if="execution" class="chat-result-panel__summary">{{ summary }}</span>
+      <div class="chat-result-panel__actions">
+        <span v-if="execution" class="chat-result-panel__summary">{{ summary }}</span>
+        <button
+          v-if="execution && !execution.error_message && sqlText"
+          class="chat-result-panel__save-btn"
+          type="button"
+          title="Сохранить как виджет"
+          @click="showSaveModal = true"
+        >
+          Сохранить отчёт
+        </button>
+      </div>
     </div>
 
     <div v-if="execution?.error_message" class="chat-result-panel__error">
@@ -44,23 +54,39 @@
     <div v-else class="chat-result-panel__empty">
       Результат появится после запуска SQL.
     </div>
+
+    <SaveReportModal
+      v-if="showSaveModal && execution && sqlText"
+      :execution="execution"
+      :sql-text="sqlText"
+      :database-connection-id="databaseConnectionId"
+      @close="showSaveModal = false"
+      @saved="onSaved"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import ChatResultChart from '@/components/chat/ChatResultChart.vue';
 import ChatResultTable from '@/components/chat/ChatResultTable.vue';
+import SaveReportModal from '@/components/widgets/SaveReportModal.vue';
 import type { ApiChatExecutionRead } from '@/api/types';
 
 const props = defineProps<{
   execution: ApiChatExecutionRead | null;
   view: 'table' | 'chart';
+  sqlText?: string | null;
+  databaseConnectionId?: string | null;
 }>();
 
 defineEmits<{
   (event: 'change-view', value: 'table' | 'chart'): void;
 }>();
+
+const router = useRouter();
+const showSaveModal = ref(false);
 
 const summary = computed(() => {
   if (!props.execution) {
@@ -69,6 +95,11 @@ const summary = computed(() => {
   const columnCount = props.execution.columns?.length ?? 0;
   return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} ms`;
 });
+
+function onSaved(widgetId: string) {
+  showSaveModal.value = false;
+  void router.push(`/widget/${widgetId}`);
+}
 </script>
 
 <style scoped lang="scss">
@@ -123,9 +154,31 @@ const summary = computed(() => {
   cursor: not-allowed;
 }
 
+.chat-result-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chat-result-panel__summary {
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+.chat-result-panel__save-btn {
+  padding: 0 10px;
+  min-height: 26px;
+  border: 1px solid rgba(112, 59, 247, 0.6);
+  border-radius: 8px;
+  background: rgba(112, 59, 247, 0.12);
+  color: rgba(180, 140, 255, 1);
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(112, 59, 247, 0.22);
+  }
 }
 
 .chat-result-panel__empty,

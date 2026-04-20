@@ -529,3 +529,87 @@ class QueryExecutionModel(Base):
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     session = relationship("ChatSessionModel", back_populates="executions")
+
+
+# ---------------------------------------------------------------------------
+# Widgets & Dashboards
+# ---------------------------------------------------------------------------
+
+class WidgetModel(Base):
+    __tablename__ = "widgets"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    source_type = Column(String(32), nullable=False, default="sql")  # "sql" | "text_to_sql"
+    source_query_run_id = Column(String(32), nullable=True)
+    sql_text = Column(Text, nullable=False, default="")
+    visualization_type = Column(String(32), nullable=False, default="table")  # table|line|bar|area|pie|metric
+    visualization_config = Column(JSON, nullable=True)
+    result_schema = Column(JSON, nullable=True)
+    refresh_policy = Column(String(32), nullable=False, default="on_view")  # manual|on_view|scheduled
+    is_public = Column(Boolean, nullable=False, default=False)
+    owner_id = Column(String(255), nullable=False, default="default")
+    database_connection_id = Column(String(32), nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    dashboard_widgets = relationship("DashboardWidgetModel", back_populates="widget", cascade="all, delete-orphan")
+    runs = relationship("WidgetRunModel", back_populates="widget", cascade="all, delete-orphan", order_by="WidgetRunModel.started_at")
+
+
+class WidgetRunModel(Base):
+    __tablename__ = "widget_runs"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    widget_id = Column(String(32), ForeignKey("widgets.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="pending")  # pending|running|completed|error
+    columns_json = Column(JSON, nullable=True)
+    rows_preview_json = Column(JSON, nullable=True)
+    rows_preview_truncated = Column(Boolean, nullable=False, default=False)
+    row_count = Column(Integer, nullable=False, default=0)
+    execution_time_ms = Column(Integer, nullable=False, default=0)
+    error_text = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=False, default=utcnow)
+    finished_at = Column(DateTime, nullable=True)
+
+    widget = relationship("WidgetModel", back_populates="runs")
+
+
+class DashboardModel(Base):
+    __tablename__ = "dashboards"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    slug = Column(String(255), nullable=True, unique=True)
+    layout_type = Column(String(32), nullable=False, default="grid")
+    is_public = Column(Boolean, nullable=False, default=False)
+    owner_id = Column(String(255), nullable=False, default="default")
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    dashboard_widgets = relationship(
+        "DashboardWidgetModel",
+        back_populates="dashboard",
+        cascade="all, delete-orphan",
+        order_by="DashboardWidgetModel.created_at",
+    )
+
+
+class DashboardWidgetModel(Base):
+    __tablename__ = "dashboard_widgets"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    dashboard_id = Column(String(32), ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False, index=True)
+    widget_id = Column(String(32), ForeignKey("widgets.id", ondelete="CASCADE"), nullable=False, index=True)
+    title_override = Column(String(255), nullable=True)
+    layout = Column(JSON, nullable=False, default=lambda: {"x": 0, "y": 0, "w": 6, "h": 4})
+    display_options = Column(JSON, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+    dashboard = relationship("DashboardModel", back_populates="dashboard_widgets")
+    widget = relationship("WidgetModel", back_populates="dashboard_widgets")

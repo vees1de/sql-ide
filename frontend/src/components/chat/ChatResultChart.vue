@@ -4,7 +4,7 @@
       <ChartCell :content="content" />
     </div>
     <div v-else class="chat-result-chart__empty">
-      <p>Для этого результата график не рекомендован.</p>
+      <p>{{ emptyMessage }}</p>
     </div>
   </div>
 </template>
@@ -95,6 +95,28 @@ const content = computed<ChartCellContent | null>(() => {
   };
 });
 
+const emptyMessage = computed(() => {
+  const execution = props.execution;
+  if (!execution) {
+    return 'Для этого результата график не рекомендован.';
+  }
+
+  const recommendation = execution.chart_recommendation;
+  if (!recommendation) {
+    return 'Для этого результата график не рекомендован.';
+  }
+
+  if (recommendation.recommended_view !== 'chart') {
+    return recommendation.reason;
+  }
+
+  if (execution.error_message) {
+    return execution.error_message;
+  }
+
+  return 'Для этого результата график не рекомендован.';
+});
+
 function uniqueValues(rows: Array<Record<string, unknown>>, field: string) {
   return [...new Set(rows.map((row) => String(row[field] ?? '—')))];
 }
@@ -148,4 +170,3 @@ function toNumber(value: unknown) {
   min-height: 18rem;
 }
 </style>
-

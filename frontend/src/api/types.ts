@@ -546,3 +546,143 @@ export interface ApiPromptRunResponse {
   generated_cell_ids: string[];
   status: string;
 }
+
+// ---------------------------------------------------------------------------
+// Widgets
+// ---------------------------------------------------------------------------
+
+export type ApiVisualizationType = 'table' | 'line' | 'bar' | 'area' | 'pie' | 'metric' | 'stacked_bar';
+export type ApiRefreshPolicy = 'manual' | 'on_view' | 'scheduled';
+export type ApiWidgetSourceType = 'sql' | 'text_to_sql';
+
+export interface ApiWidgetRunRead {
+  id: string;
+  widget_id: string;
+  status: string;
+  columns: Array<{ name: string; type: string }> | null;
+  rows_preview: Array<Record<string, unknown>> | null;
+  rows_preview_truncated: boolean;
+  row_count: number;
+  execution_time_ms: number;
+  error_text: string | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface ApiWidgetRead {
+  id: string;
+  title: string;
+  description: string | null;
+  source_type: ApiWidgetSourceType;
+  source_query_run_id: string | null;
+  sql_text: string;
+  visualization_type: ApiVisualizationType;
+  visualization_config: Record<string, unknown> | null;
+  result_schema: Record<string, unknown> | null;
+  refresh_policy: ApiRefreshPolicy;
+  is_public: boolean;
+  owner_id: string;
+  database_connection_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiWidgetDetail extends ApiWidgetRead {
+  last_run: ApiWidgetRunRead | null;
+}
+
+export interface ApiWidgetCreate {
+  title: string;
+  description?: string | null;
+  source_type?: ApiWidgetSourceType;
+  source_query_run_id?: string | null;
+  sql_text?: string;
+  visualization_type?: ApiVisualizationType;
+  visualization_config?: Record<string, unknown> | null;
+  refresh_policy?: ApiRefreshPolicy;
+  is_public?: boolean;
+  database_connection_id?: string | null;
+}
+
+export interface ApiWidgetUpdate {
+  title?: string | null;
+  description?: string | null;
+  sql_text?: string | null;
+  visualization_type?: ApiVisualizationType | null;
+  visualization_config?: Record<string, unknown> | null;
+  refresh_policy?: ApiRefreshPolicy | null;
+  is_public?: boolean | null;
+}
+
+// ---------------------------------------------------------------------------
+// Dashboards
+// ---------------------------------------------------------------------------
+
+export interface ApiDashboardWidgetLayout {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ApiDashboardWidgetRead {
+  id: string;
+  dashboard_id: string;
+  widget_id: string;
+  title_override: string | null;
+  layout: ApiDashboardWidgetLayout;
+  display_options: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiDashboardWidgetDetail extends ApiDashboardWidgetRead {
+  widget: ApiWidgetRead;
+}
+
+export interface ApiDashboardRead {
+  id: string;
+  title: string;
+  description: string | null;
+  slug: string | null;
+  layout_type: string;
+  is_public: boolean;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiDashboardDetail extends ApiDashboardRead {
+  widgets: ApiDashboardWidgetDetail[];
+}
+
+export interface ApiDashboardWidgetCreateItem {
+  widget_id: string;
+  layout?: ApiDashboardWidgetLayout;
+  title_override?: string | null;
+}
+
+export interface ApiDashboardCreate {
+  title: string;
+  description?: string | null;
+  is_public?: boolean;
+  widgets?: ApiDashboardWidgetCreateItem[];
+}
+
+export interface ApiDashboardUpdate {
+  title?: string | null;
+  description?: string | null;
+  is_public?: boolean | null;
+  slug?: string | null;
+}
+
+export interface ApiDashboardWidgetAdd {
+  widget_id: string;
+  layout?: ApiDashboardWidgetLayout;
+  title_override?: string | null;
+}
+
+export interface ApiDashboardWidgetPatch {
+  layout?: ApiDashboardWidgetLayout | null;
+  title_override?: string | null;
+}

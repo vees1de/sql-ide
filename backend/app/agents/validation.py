@@ -47,11 +47,8 @@ class SQLValidationAgent:
             if unknown_tables:
                 errors.append(f"Query references tables outside the whitelist: {', '.join(unknown_tables)}.")
 
-        final_sql = sql.strip().rstrip(";")
-        if " limit " not in f" {final_sql.lower()} ":
-            final_sql = f"{final_sql}\nLIMIT {settings.default_row_limit}"
-            warnings.append(f"LIMIT {settings.default_row_limit} was added automatically.")
-        final_sql = self.format_sql(final_sql, dialect)
+        parsed = self._apply_row_limit(parsed, warnings)
+        final_sql = self.format_sql(parsed.sql(pretty=True, dialect=self._read_dialect(dialect)), dialect)
 
         return ValidationPayload(
             valid=not errors,
@@ -75,6 +72,32 @@ class SQLValidationAgent:
             return parsed.sql(pretty=True, dialect=self._read_dialect(dialect))
         except Exception:  # noqa: BLE001
             return cleaned_sql
+
+    def _apply_row_limit(self, parsed: exp.Expression, warnings: list[str]) -> exp.Expression:
+        limit_clause = parsed.args.get("limit")
+        if limit_clause is None:
+            parsed.set("limit", exp.Limit(expression=exp.Literal.number(settings.default_row_limit)))
+            warnings.append(f"LIMIT {settings.default_row_limit} was added automatically.")
+            return parsed
+
+        limit_value = self._extract_limit_value(limit_clause)
+        if limit_value is not None and limit_value > settings.max_row_limit:
+            parsed.set("limit", exp.Limit(expression=exp.Literal.number(settings.max_row_limit)))
+            warnings.append(f"LIMIT {limit_value} was reduced to {settings.max_row_limit}.")
+        return parsed
+
+    def _extract_limit_value(self, limit_clause: exp.Expression) -> int | None:
+        if not isinstance(limit_clause, exp.Limit):
+            return None
+
+        value = limit_clause.args.get("expression") or limit_clause.args.get("this")
+        if not isinstance(value, exp.Literal) or value.is_string:
+            return None
+
+        try:
+            return int(str(value.this))
+        except ValueError:
+            return None
 
     def _read_dialect(self, dialect: str) -> str:
         if dialect == "postgresql":
