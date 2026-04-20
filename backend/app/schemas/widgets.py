@@ -12,21 +12,19 @@ SourceType = Literal["sql", "text_to_sql"]
 
 
 class WidgetRunRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: str
     widget_id: str
     status: str
-    columns: list[dict[str, Any]] | None = Field(None, alias="columns_json")
-    rows_preview: list[dict[str, Any]] | None = Field(None, alias="rows_preview_json")
+    columns: list[dict[str, Any]] | None = None
+    rows_preview: list[dict[str, Any]] | None = None
     rows_preview_truncated: bool = False
     row_count: int = 0
     execution_time_ms: int = 0
     error_text: str | None = None
     started_at: datetime
     finished_at: datetime | None = None
-
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class WidgetCreate(BaseModel):

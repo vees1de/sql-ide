@@ -219,9 +219,9 @@ const query = ref('');
 const openIds = ref<Set<string>>(new Set());
 
 const navItems = [
-  { to: '/colab', label: 'Коллаб', key: 'colab' as const },
-  { to: '/data', label: 'Дэшборд', key: 'data' as const },
-  { to: '/chat', label: 'BimsChat', key: 'chat' as const }
+  { to: '/chat', label: 'Чат', key: 'chat' as const },
+  { to: '/dashboards', label: 'Дашборды', key: 'dashboards' as const },
+  { to: '/data', label: 'Настройки', key: 'data' as const },
 ];
 
 const normalizedQuery = computed(() => query.value.trim().toLowerCase());
@@ -304,13 +304,13 @@ watch(
   }
 );
 
-function isRouteActive(key: 'chat' | 'colab' | 'data') {
+function isRouteActive(key: 'chat' | 'dashboards' | 'data') {
   const path = route.path;
   if (key === 'chat') {
-    return path === '/chat' || path.startsWith('/notebooks');
+    return path === '/chat' || path.startsWith('/notebooks') || path === '/colab' || path === '/notebook';
   }
-  if (key === 'colab') {
-    return path === '/colab' || path === '/notebook';
+  if (key === 'dashboards') {
+    return path.startsWith('/dashboards') || path.startsWith('/widgets') || path.startsWith('/widget/');
   }
   return path === '/data' || path.startsWith('/data');
 }
