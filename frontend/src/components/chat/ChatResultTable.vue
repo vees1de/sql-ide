@@ -53,7 +53,20 @@ function formatValue(value: unknown) {
 </script>
 
 <style scoped lang="scss">
+.chat-result-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+}
+
 .chat-result-table__wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow: auto;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
@@ -61,9 +74,15 @@ function formatValue(value: unknown) {
 }
 
 table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
+}
+
+th,
+td {
+  white-space: nowrap;
 }
 
 th,

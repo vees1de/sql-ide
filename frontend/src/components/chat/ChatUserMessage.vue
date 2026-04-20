@@ -21,13 +21,13 @@ defineProps<{
 .chat-user-message p {
   max-width: min(80%, 42rem);
   margin: 0;
-  padding: 0.9rem 1rem;
-  border-radius: 1rem 1rem 0.35rem 1rem;
-  background: linear-gradient(180deg, rgba(138, 180, 248, 0.18), rgba(138, 180, 248, 0.1));
-  border: 1px solid rgba(138, 180, 248, 0.18);
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px 12px 4px 12px;
+  background: rgba(112, 59, 247, 0.22);
+  border: 1px solid rgba(112, 59, 247, 0.65);
   color: var(--ink);
-  line-height: 1.55;
+  line-height: 1.5;
+  font-size: 0.86rem;
   white-space: pre-wrap;
 }
 </style>
-

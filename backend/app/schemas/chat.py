@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.query import DateRange, FilterCondition
+from app.schemas.query import DateRange, FilterCondition, QueryMode
 
 
 class Interpretation(BaseModel):
@@ -26,7 +26,36 @@ class TableUsage(BaseModel):
 class ClarificationOption(BaseModel):
     id: str
     label: str
-    detail: str
+    detail: str | None = None
+    reason: str | None = None
+
+
+AmbiguityType = Literal["metric", "dimension", "time_range", "aggregation", "other"]
+ClarificationAnswerType = Literal["single_select", "multi_select", "free_text"]
+ClarificationStatus = Literal["pending", "answered"]
+MessageKind = Literal["answer", "clarification", "error"]
+
+
+class ClarificationBlock(BaseModel):
+    clarification_id: str
+    question: str
+    ambiguity_type: AmbiguityType = "other"
+    answer_type: ClarificationAnswerType = "single_select"
+    options: list[ClarificationOption] = Field(default_factory=list)
+    recommended_option_id: str | None = None
+    status: ClarificationStatus = "pending"
+    answer_option_id: str | None = None
+    answer_text: str | None = None
+
+
+class ErrorBlock(BaseModel):
+    message: str
+    suggestions: list[str] = Field(default_factory=list)
+
+
+class ClarificationAnswerRequest(BaseModel):
+    selected_option_id: str | None = None
+    text_answer: str | None = None
 
 
 class StructuredPayload(BaseModel):
@@ -34,10 +63,20 @@ class StructuredPayload(BaseModel):
     tables_used: list[TableUsage] = Field(default_factory=list)
     sql: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    message_kind: MessageKind = "answer"
+    clarification: ClarificationBlock | None = None
+    error: ErrorBlock | None = None
+    # Legacy fields kept for already-persisted messages. Frontend reads new fields first.
     needs_clarification: bool = False
     clarification_question: str | None = None
     clarification_options: list[ClarificationOption] | None = None
+    answered_clarification_id: str | None = None
     dialect: str
+    query_mode: QueryMode = "fast"
+    llm_model_alias: str | None = None
+    complexity: Literal["simple", "complex"] = "simple"
+    mode_suggestion: QueryMode | None = None
+    mode_suggestion_reason: str | None = None
 
 
 class ChatSessionCreate(BaseModel):
@@ -51,6 +90,8 @@ class ChatSessionUpdate(BaseModel):
 
 class ChatMessageCreate(BaseModel):
     text: str = Field(min_length=1)
+    query_mode: QueryMode = "fast"
+    llm_model_alias: str | None = None
 
 
 class SqlDraftUpdate(BaseModel):

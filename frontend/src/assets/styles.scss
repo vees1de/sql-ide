@@ -1,35 +1,34 @@
 :root {
   color-scheme: dark;
-  font-family: 'Inter', 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
 
-  // Colab-inspired dark palette
-  --bg: #0f1117;
-  --bg-elev: #151822;
-  --surface: #1a1d24;
-  --surface-2: #222630;
-  --canvas: #12141b;
-  --ink: #e8eaed;
+  --bg: #262626;
+  --bg-elev: #2c2c2c;
+  --surface: #313131;
+  --surface-2: #363636;
+  --canvas: #262626;
+  --ink: #ffffff;
   --ink-strong: #ffffff;
-  --muted: #9aa0a6;
-  --muted-2: #6b7280;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-strong: rgba(255, 255, 255, 0.14);
+  --muted: #c6c6c6;
+  --muted-2: #989898;
+  --line: #666666;
+  --line-strong: #666666;
 
-  --accent: #f9ab00;            // Colab yellow/orange
-  --accent-strong: #fbbc04;
-  --accent-soft: rgba(249, 171, 0, 0.14);
-  --link: #8ab4f8;              // Colab blue
-  --link-strong: #aecbfa;
-  --link-soft: rgba(138, 180, 248, 0.16);
+  --accent: #703bf7;
+  --accent-strong: #8c67fb;
+  --accent-soft: rgba(112, 59, 247, 0.2);
+  --link: #703bf7;
+  --link-strong: #ffffff;
+  --link-soft: rgba(112, 59, 247, 0.2);
 
-  --success: #81c995;
-  --warning: #fdd663;
-  --danger: #f28b82;
+  --success: #5ac88a;
+  --warning: #d8b85c;
+  --danger: #ff7676;
 
-  --radius: 8px;
-  --radius-lg: 12px;
-  --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --radius: 16px;
+  --radius-lg: 16px;
+  --shadow-soft: none;
+  --shadow-hover: none;
 
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', monospace;
 }
@@ -81,12 +80,12 @@ select {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: #555555;
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: #6b6b6b;
 }
 
 *::-webkit-scrollbar-track {
@@ -138,7 +137,7 @@ select {
   border: 1px solid transparent;
   border-radius: var(--radius);
   background: var(--accent);
-  color: #1a1d24;
+  color: var(--ink-strong);
   font-size: 0.85rem;
   font-weight: 600;
   transition:
@@ -150,7 +149,7 @@ select {
 
 .app-button:hover {
   background: var(--accent-strong);
-  box-shadow: 0 2px 8px rgba(249, 171, 0, 0.25);
+  box-shadow: none;
 }
 
 .app-button:disabled {
@@ -166,18 +165,18 @@ select {
 }
 
 .app-button--ghost:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
   box-shadow: none;
 }
 
 .app-button--link {
   border-color: transparent;
   background: var(--link-soft);
-  color: var(--link-strong);
+  color: var(--ink-strong);
 }
 
 .app-button--link:hover {
-  background: rgba(138, 180, 248, 0.25);
+  background: rgba(112, 59, 247, 0.3);
   box-shadow: none;
 }
 

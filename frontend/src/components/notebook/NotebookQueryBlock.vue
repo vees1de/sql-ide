@@ -27,10 +27,48 @@
         <div>
           <strong>{{ blockTitle }}</strong>
           <p>{{ blockSubtitle }}</p>
+          <p class="query-block__mode-note">Mode: {{ modeLabel }}</p>
         </div>
       </div>
 
       <div class="query-block__actions">
+        <div class="query-block__mode-switch" role="group" aria-label="Query mode">
+          <button
+            class="query-block__mode-btn"
+            :class="{ 'query-block__mode-btn--active': currentMode === 'fast' }"
+            type="button"
+            :disabled="running"
+            @click="setMode('fast')"
+          >
+            ⚡ Fast
+          </button>
+          <button
+            class="query-block__mode-btn"
+            :class="{ 'query-block__mode-btn--active': currentMode === 'thinking' }"
+            type="button"
+            :disabled="running"
+            @click="setMode('thinking')"
+          >
+            🧠 Thinking
+          </button>
+        </div>
+        <div class="query-block__model">
+          <label :for="`model-${block.id}`">Model</label>
+          <select
+            :id="`model-${block.id}`"
+            :value="currentModelAlias"
+            :disabled="running"
+            @change="onModelChange"
+          >
+            <option
+              v-for="alias in llmModelAliases"
+              :key="alias"
+              :value="alias"
+            >
+              {{ alias }}
+            </option>
+          </select>
+        </div>
         <span v-if="rowCountLabel" class="pill pill--ghost">{{ rowCountLabel }}</span>
         <span v-if="executionTimeLabel" class="pill pill--ghost">{{ executionTimeLabel }}</span>
         <button
@@ -61,9 +99,17 @@
           class="app-button app-button--tiny"
           type="button"
           :disabled="running"
-          @click="runCell"
+          @click="runCellIn('fast')"
         >
-          {{ running ? 'Running…' : 'Run' }}
+          {{ running && currentMode === 'fast' ? 'Running…' : 'Run in ⚡ Fast' }}
+        </button>
+        <button
+          class="app-button app-button--tiny"
+          type="button"
+          :disabled="running"
+          @click="runCellIn('thinking')"
+        >
+          {{ running && currentMode === 'thinking' ? 'Running…' : 'Run in 🧠 Thinking' }}
         </button>
       </div>
     </header>
@@ -176,6 +222,7 @@ import type {
   InsightCellContent,
   NotebookCell,
   NotebookQueryBlock,
+  QueryMode,
   SqlCellContent,
   TableCellContent
 } from '@/types/app';
@@ -185,6 +232,8 @@ const props = defineProps<{
   canMoveDown: boolean;
   canMoveUp: boolean;
   clarificationAnswers: Record<string, string>;
+  defaultLlmModelAlias: string;
+  llmModelAliases: string[];
   running: boolean;
   selectedCellId: string;
 }>();
@@ -196,13 +245,17 @@ const emit = defineEmits<{
   (event: 'format-sql-cell', cellId: string, value: string): void;
   (event: 'move-down', cellId: string): void;
   (event: 'move-up', cellId: string): void;
-  (event: 'run-input-cell', cellId: string, value: string): void;
-  (event: 'save-input-cell', cellId: string, value: string): void;
+  (event: 'run-input-cell', cellId: string, value: string, mode: QueryMode, llmModelAlias?: string): void;
+  (event: 'save-input-cell', cellId: string, value: string, mode?: QueryMode, llmModelAlias?: string): void;
+  (event: 'set-input-model', cellId: string, llmModelAlias: string): void;
+  (event: 'set-input-mode', cellId: string, mode: QueryMode): void;
   (event: 'select-cell', cellId: string): void;
 }>();
 
 const activeResultTab = ref<'table' | 'chart'>('table');
 const draftValue = ref('');
+const currentMode = ref<QueryMode>('fast');
+const currentModelAlias = ref('');
 const dirty = ref(false);
 
 const isSqlBlock = computed(() => props.block.inputCell.type === 'sql');
@@ -224,6 +277,8 @@ const blockSubtitle = computed(() =>
     ? 'Как в Colab: правка, форматирование и запуск из одной ячейки'
     : 'Редактируйте запрос на естественном языке и перезапускайте блок'
 );
+
+const modeLabel = computed(() => (currentMode.value === 'thinking' ? '🧠 Thinking' : '⚡ Fast'));
 
 const placeholder = computed(() =>
   isSqlBlock.value
@@ -265,10 +320,26 @@ function extractInputValue(cell: NotebookCell) {
   return String((cell.content as { prompt?: string }).prompt ?? '');
 }
 
+function extractInputMode(cell: NotebookCell): QueryMode {
+  if (cell.type === 'sql') {
+    return (cell.content as SqlCellContent).queryMode ?? 'fast';
+  }
+  return (cell.content as { queryMode?: QueryMode }).queryMode ?? 'fast';
+}
+
+function extractInputModelAlias(cell: NotebookCell): string {
+  if (cell.type === 'sql') {
+    return (cell.content as SqlCellContent).llmModelAlias ?? props.defaultLlmModelAlias;
+  }
+  return (cell.content as { llmModelAlias?: string }).llmModelAlias ?? props.defaultLlmModelAlias;
+}
+
 function syncDraftFromCell() {
   if (!dirty.value) {
     draftValue.value = extractInputValue(props.block.inputCell);
   }
+  currentMode.value = extractInputMode(props.block.inputCell);
+  currentModelAlias.value = extractInputModelAlias(props.block.inputCell);
 }
 
 function onInput(event: Event) {
@@ -282,12 +353,24 @@ function saveCell() {
     return;
   }
   dirty.value = false;
-  emit('save-input-cell', props.block.inputCell.id, draftValue.value);
+  emit(
+    'save-input-cell',
+    props.block.inputCell.id,
+    draftValue.value,
+    currentMode.value,
+    currentModelAlias.value
+  );
 }
 
 function runCell() {
   dirty.value = false;
-  emit('run-input-cell', props.block.inputCell.id, draftValue.value);
+  emit(
+    'run-input-cell',
+    props.block.inputCell.id,
+    draftValue.value,
+    currentMode.value,
+    currentModelAlias.value
+  );
 }
 
 function runFromHotkey(event: KeyboardEvent) {
@@ -298,6 +381,34 @@ function runFromHotkey(event: KeyboardEvent) {
 function formatSql() {
   dirty.value = false;
   emit('format-sql-cell', props.block.inputCell.id, draftValue.value);
+}
+
+function setMode(mode: QueryMode, persist = true) {
+  if (currentMode.value === mode) {
+    return;
+  }
+  currentMode.value = mode;
+  if (persist) {
+    emit('set-input-mode', props.block.inputCell.id, mode);
+  }
+}
+
+function runCellIn(mode: QueryMode) {
+  if (currentMode.value !== mode) {
+    setMode(mode, false);
+  }
+  dirty.value = false;
+  emit('run-input-cell', props.block.inputCell.id, draftValue.value, mode, currentModelAlias.value);
+}
+
+function onModelChange(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  const nextAlias = target.value.trim();
+  if (!nextAlias || currentModelAlias.value === nextAlias) {
+    return;
+  }
+  currentModelAlias.value = nextAlias;
+  emit('set-input-model', props.block.inputCell.id, nextAlias);
 }
 
 function onDragStart(event: DragEvent) {
@@ -358,7 +469,12 @@ function insightContent(cell: NotebookCell) {
 }
 
 watch(
-  () => [props.block.inputCell.id, extractInputValue(props.block.inputCell)],
+  () => [
+    props.block.inputCell.id,
+    extractInputValue(props.block.inputCell),
+    extractInputMode(props.block.inputCell),
+    extractInputModelAlias(props.block.inputCell)
+  ],
   () => {
     syncDraftFromCell();
   },
@@ -426,6 +542,12 @@ watch(
   line-height: 1.45;
 }
 
+.query-block__mode-note {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .query-block__drag {
   display: inline-flex;
   flex-direction: column;
@@ -455,6 +577,51 @@ watch(
   gap: 0.35rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.query-block__mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.query-block__mode-btn {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+
+.query-block__mode-btn--active {
+  background: var(--accent-soft);
+  color: var(--ink-strong);
+}
+
+.query-block__model {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.query-block__model label {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.query-block__model select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  color: var(--ink);
+  padding: 0.18rem 0.38rem;
+  font-size: 0.72rem;
 }
 
 .query-block__editor {

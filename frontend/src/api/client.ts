@@ -7,7 +7,9 @@ import type {
   ApiKnowledgeScanRun,
   ApiKnowledgeSummary,
   ApiKnowledgeTable,
+  ApiLlmModelAliasesResponse,
   ApiNotebookCellCreate,
+  ApiNotebookCellRunRequest,
   ApiNotebookCellReorder,
   ApiNotebookCellUpdate,
   ApiSchemaPreviewResponse,
@@ -15,6 +17,7 @@ import type {
   ApiNotebookDetail,
   ApiNotebookRead,
   ApiPromptRunResponse,
+  ApiQueryMode,
   ApiQueryTemplate,
   ApiReportRead,
   ApiSchemaMetadataResponse,
@@ -105,9 +108,10 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
-  runNotebookCell(notebookId: string, cellId: string) {
+  runNotebookCell(notebookId: string, cellId: string, payload?: ApiNotebookCellRunRequest) {
     return request<ApiPromptRunResponse>(`/api/notebooks/${notebookId}/cells/${cellId}/run`, {
-      method: 'POST'
+      method: 'POST',
+      ...(payload ? { body: JSON.stringify(payload) } : {})
     });
   },
   formatNotebookSqlCell(notebookId: string, cellId: string) {
@@ -178,6 +182,9 @@ export const api = {
   },
   getSchema() {
     return request<ApiSchemaMetadataResponse>('/api/metadata/schema');
+  },
+  getLlmModels() {
+    return request<ApiLlmModelAliasesResponse>('/api/metadata/llm-models');
   },
   getKnowledge(databaseId: string) {
     return request<ApiKnowledgeSummary>(`/api/databases/${databaseId}/knowledge`);
@@ -254,10 +261,10 @@ export const api = {
       method: 'POST'
     });
   },
-  runPrompt(notebookId: string, prompt: string) {
+  runPrompt(notebookId: string, prompt: string, queryMode: ApiQueryMode = 'fast') {
     return request<ApiPromptRunResponse>(`/api/notebooks/${notebookId}/prompt-runs`, {
       method: 'POST',
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, query_mode: queryMode })
     });
   },
   updateNotebook(notebookId: string, payload: { title?: string; status?: string }) {

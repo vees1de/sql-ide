@@ -9,12 +9,17 @@ import type {
   ApiChatSessionRead,
   ApiChatSessionUpdate,
   ApiChatSqlDraftUpdate,
-  ApiDatabaseDescriptor
+  ApiDatabaseDescriptor,
+  ApiLlmModelAliasesResponse
 } from '@/api/types';
 
 export const chatApi = {
   getDatabases() {
     return request<ApiDatabaseDescriptor[]>('/api/chat/databases');
+  },
+
+  getLlmModels() {
+    return request<ApiLlmModelAliasesResponse>('/api/metadata/llm-models');
   },
 
   getSessions(databaseId: string) {
@@ -66,4 +71,3 @@ export const chatApi = {
     });
   }
 };
-

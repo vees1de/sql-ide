@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.schemas.notebook import (
     NotebookCellCreate,
+    NotebookCellRunRequest,
     NotebookCellReorder,
     NotebookCellUpdate,
     NotebookCreate,
@@ -82,7 +83,12 @@ def update_cell(
 
 
 @router.post("/notebooks/{notebook_id}/cells/{cell_id}/run", response_model=PromptRunResponse, status_code=201)
-def run_cell(notebook_id: str, cell_id: str, db: Session = Depends(get_db)) -> PromptRunResponse:
+def run_cell(
+    notebook_id: str,
+    cell_id: str,
+    payload: NotebookCellRunRequest | None = None,
+    db: Session = Depends(get_db),
+) -> PromptRunResponse:
     notebook = notebook_service.get_notebook(db, notebook_id)
     if notebook is None:
         raise HTTPException(status_code=404, detail="Notebook not found.")
@@ -97,14 +103,35 @@ def run_cell(notebook_id: str, cell_id: str, db: Session = Depends(get_db)) -> P
     if cell.type == "sql" and not str(cell.content.get("sql", "")).strip():
         raise HTTPException(status_code=400, detail="SQL cell is empty.")
 
+    if payload and payload.query_mode and cell.type in notebook_service.input_cell_types:
+        notebook_service.set_input_cell_query_mode(db, notebook, cell, payload.query_mode, commit=False)
+    if payload and payload.llm_model_alias and cell.type in notebook_service.input_cell_types:
+        notebook_service.set_input_cell_model_alias(db, notebook, cell, payload.llm_model_alias, commit=False)
+
     notebook_service.delete_runs_for_input_cell(db, notebook, cell)
     db.refresh(notebook)
 
+    query_mode = notebook_service.resolve_input_cell_query_mode(cell)
+    llm_model_alias = notebook_service.resolve_input_cell_model_alias(cell)
+
     if cell.type == "prompt":
         prompt = str(cell.content.get("text", "")).strip()
-        response = orchestration_service.run_prompt(db, notebook, prompt, existing_prompt_cell=cell)
+        response = orchestration_service.run_prompt(
+            db,
+            notebook,
+            prompt,
+            existing_prompt_cell=cell,
+            query_mode=query_mode,
+            llm_model_alias=llm_model_alias,
+        )
     else:
-        response = orchestration_service.run_sql_cell(db, notebook, cell)
+        response = orchestration_service.run_sql_cell(
+            db,
+            notebook,
+            cell,
+            query_mode=query_mode,
+            llm_model_alias=llm_model_alias,
+        )
 
     db.refresh(notebook)
     notebook_service.reorder_blocks(db, notebook)
@@ -163,7 +190,13 @@ def run_prompt(notebook_id: str, payload: PromptRunRequest, db: Session = Depend
     notebook = notebook_service.get_notebook(db, notebook_id)
     if notebook is None:
         raise HTTPException(status_code=404, detail="Notebook not found.")
-    response = orchestration_service.run_prompt(db, notebook, payload.prompt)
+    response = orchestration_service.run_prompt(
+        db,
+        notebook,
+        payload.prompt,
+        query_mode=payload.query_mode,
+        llm_model_alias=payload.llm_model_alias,
+    )
     db.refresh(notebook)
     notebook_service.reorder_blocks(db, notebook)
     db.commit()

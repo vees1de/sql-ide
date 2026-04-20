@@ -6,8 +6,12 @@ export type CellType =
   | 'insight'
   | 'clarification';
 
+export type QueryMode = 'fast' | 'thinking';
+
 export interface PromptCellContent {
   prompt: string;
+  queryMode?: QueryMode;
+  llmModelAlias?: string;
   chips?: string[];
   context?: string[];
 }
@@ -16,6 +20,8 @@ export interface SqlCellContent {
   sql: string;
   explanation: string;
   mode?: 'editable' | 'generated';
+  queryMode?: QueryMode;
+  llmModelAlias?: string;
   warnings?: string[];
 }
 

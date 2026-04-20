@@ -18,6 +18,7 @@ import type {
   Notebook,
   NotebookCell,
   NotebookTraceStep,
+  QueryMode,
   QueryTemplate,
   SavedReport,
   WorkspaceData
@@ -56,6 +57,10 @@ function titleCase(input: string) {
   }
 
   return input.charAt(0).toUpperCase() + input.slice(1);
+}
+
+function normalizeQueryMode(value: unknown): QueryMode {
+  return typeof value === 'string' && value.toLowerCase() === 'thinking' ? 'thinking' : 'fast';
 }
 
 function normalizeDisplayValue(value: unknown): string | number {
@@ -112,13 +117,27 @@ function buildSqlExplanation(run: ApiQueryRunRead | undefined) {
   return `Агент посчитал ${metricLabel(run.explanation.metric)}${dimensionText}${filterText}.`;
 }
 
+function extractRunQueryMode(run: ApiQueryRunRead | undefined): QueryMode {
+  const explanation = run?.explanation as { query_mode?: unknown } | undefined;
+  const trace = run?.agent_trace as { query_mode?: unknown } | undefined;
+  return normalizeQueryMode(explanation?.query_mode ?? trace?.query_mode);
+}
+
+function extractRunModelAlias(run: ApiQueryRunRead | undefined, fallbackAlias: string): string {
+  const explanation = run?.explanation as { llm_model_alias?: unknown } | undefined;
+  const trace = run?.agent_trace as { llm_model_alias?: unknown } | undefined;
+  const raw = explanation?.llm_model_alias ?? trace?.llm_model_alias;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : fallbackAlias;
+}
+
 function extractWarnings(run: ApiQueryRunRead | undefined, cell: ApiCellRead) {
   const validation = run?.agent_trace.validation as { warnings?: string[] } | undefined;
+  const explanation = run?.explanation as { warnings?: string[] } | undefined;
   const contentWarnings = Array.isArray(cell.content.warnings)
     ? (cell.content.warnings as string[])
     : [];
 
-  return [...(validation?.warnings ?? []), ...contentWarnings];
+  return [...(validation?.warnings ?? []), ...(explanation?.warnings ?? []), ...contentWarnings];
 }
 
 function extractTables(run: ApiQueryRunRead | undefined) {
@@ -427,9 +446,19 @@ function buildTrace(run: ApiQueryRunRead | undefined, notebookTitle: string, ins
 function mapCell(
   cell: ApiCellRead,
   run: ApiQueryRunRead | undefined,
-  promptRun: ApiQueryRunRead | undefined
+  promptRun: ApiQueryRunRead | undefined,
+  fallbackModelAlias: string
 ): NotebookCell {
   const effectiveRun = run ?? promptRun;
+  const queryMode = normalizeQueryMode(
+    cell.content.query_mode ?? cell.content.queryMode ?? extractRunQueryMode(effectiveRun)
+  );
+  const llmModelAlias =
+    typeof cell.content.llm_model_alias === 'string'
+      ? cell.content.llm_model_alias
+      : typeof cell.content.llmModelAlias === 'string'
+        ? cell.content.llmModelAlias
+        : extractRunModelAlias(effectiveRun, fallbackModelAlias);
   const warnings = extractWarnings(effectiveRun, cell);
   const businessTerms = extractBusinessTerms(effectiveRun);
   const tablesUsed = extractTables(effectiveRun);
@@ -450,6 +479,8 @@ function mapCell(
       runStatus,
       content: {
         prompt: String(cell.content.text ?? ''),
+        queryMode,
+        llmModelAlias,
         chips: businessTerms.slice(0, 3).map((term) => titleCase(term.replace(/_/g, ' '))),
         context: promptRun?.status ? [`Status: ${promptRun.status}`] : []
       },
@@ -475,6 +506,8 @@ function mapCell(
           ? 'Ручной SQL можно править, форматировать и запускать повторно.'
           : 'Вставьте SQL, затем отформатируйте или выполните блок.',
         mode: 'editable',
+        queryMode,
+        llmModelAlias,
         warnings
       },
       meta: {
@@ -507,6 +540,8 @@ function mapCell(
         sql: String(cell.content.sql ?? run?.sql ?? ''),
         explanation: buildSqlExplanation(run),
         mode: 'generated',
+        queryMode,
+        llmModelAlias,
         warnings
       },
       meta: {
@@ -735,7 +770,11 @@ function buildHistory(notebooks: Notebook[], reports: SavedReport[]): HistoryIte
   }));
 }
 
-export function mapNotebookDetail(detail: ApiNotebookDetail, workspaceName: string): Notebook {
+export function mapNotebookDetail(
+  detail: ApiNotebookDetail,
+  workspaceName: string,
+  defaultModelAlias: string
+): Notebook {
   const sortedCells = [...detail.cells].sort((left, right) => left.position - right.position);
   const sortedRuns = [...detail.query_runs].sort(
     (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
@@ -751,7 +790,8 @@ export function mapNotebookDetail(detail: ApiNotebookDetail, workspaceName: stri
     mapCell(
       cell,
       cell.query_run_id ? runById.get(cell.query_run_id) : undefined,
-      promptRunByCellId.get(cell.id)
+      promptRunByCellId.get(cell.id),
+      defaultModelAlias
     )
   );
 
@@ -790,6 +830,7 @@ export function mapNotebookDetail(detail: ApiNotebookDetail, workspaceName: stri
 
 export function buildWorkspaceData(params: {
   databases: ApiDatabaseDescriptor[];
+  defaultModelAlias: string;
   dictionary: ApiDictionaryEntryRead[];
   notebookDetails: ApiNotebookDetail[];
   reports: ApiReportRead[];
@@ -798,7 +839,11 @@ export function buildWorkspaceData(params: {
   workspace: ApiWorkspaceRead | null;
 }): WorkspaceData {
   const notebooks = params.notebookDetails.map((detail) =>
-    mapNotebookDetail(detail, params.workspace?.name ?? 'Demo Workspace')
+    mapNotebookDetail(
+      detail,
+      params.workspace?.name ?? 'Demo Workspace',
+      params.defaultModelAlias
+    )
   );
   const reports = buildReports(params.reports);
 

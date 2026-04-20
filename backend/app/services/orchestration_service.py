@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from statistics import median
 from typing import Any
 
 from pydantic import ValidationError
@@ -12,7 +14,7 @@ from app.agents.semantic import SemanticMappingAgent
 from app.agents.sql_generation import SQLGenerationAgent
 from app.agents.validation import SQLValidationAgent
 from app.agents.visualization import VisualizationAgent
-from app.core.config import settings
+from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_alias, settings
 from app.db.models import (
     CellModel,
     DatabaseConnectionModel,
@@ -26,7 +28,9 @@ from app.schemas.query import (
     ChartSpec,
     IntentPayload,
     PromptRunResponse,
+    QueryMode,
     QueryExecutionResult,
+    normalize_query_mode,
 )
 from app.services.analytics import AnalyticsExecutionService
 from app.services.llm_service import LLMQueryPlan, LLMService
@@ -54,19 +58,41 @@ class QueryOrchestrationService:
         notebook: NotebookModel,
         prompt: str,
         existing_prompt_cell: CellModel | None = None,
+        query_mode: QueryMode = "fast",
+        llm_model_alias: str | None = None,
     ) -> PromptRunResponse:
+        query_mode = normalize_query_mode(query_mode)
+        normalized_model_alias = normalize_llm_model_alias(llm_model_alias)
+        llm_model = resolve_llm_model_from_alias(normalized_model_alias)
         previous_intent = self._load_previous_intent(db, notebook.id)
-        prompt_cell = existing_prompt_cell or self._create_prompt_cell(db, notebook, prompt)
-
-        llm_response = self._run_prompt_with_llm(
-            db=db,
-            notebook=notebook,
-            prompt=prompt,
-            prompt_cell=prompt_cell,
-            previous_intent=previous_intent,
+        prompt_cell = existing_prompt_cell or self._create_prompt_cell(
+            db,
+            notebook,
+            prompt,
+            query_mode,
+            normalized_model_alias,
         )
-        if llm_response is not None:
-            return llm_response
+        if existing_prompt_cell is not None:
+            prompt_cell.content = {
+                "text": prompt.strip(),
+                "query_mode": query_mode,
+                "llm_model_alias": normalized_model_alias,
+            }
+            db.flush()
+
+        if query_mode == "thinking":
+            llm_response = self._run_prompt_with_llm(
+                db=db,
+                notebook=notebook,
+                prompt=prompt,
+                prompt_cell=prompt_cell,
+                previous_intent=previous_intent,
+                query_mode=query_mode,
+                llm_model_alias=normalized_model_alias,
+                llm_model=llm_model,
+            )
+            if llm_response is not None:
+                return llm_response
 
         return self._run_prompt_with_rules(
             db=db,
@@ -74,6 +100,8 @@ class QueryOrchestrationService:
             prompt=prompt,
             prompt_cell=prompt_cell,
             previous_intent=previous_intent,
+            query_mode=query_mode,
+            llm_model_alias=normalized_model_alias,
         )
 
     def rerun_notebook(self, db: Session, notebook: NotebookModel) -> list[PromptRunResponse]:
@@ -83,14 +111,33 @@ class QueryOrchestrationService:
 
         responses: list[PromptRunResponse] = []
         for input_cell in input_cells:
+            query_mode = self.notebook_service.resolve_input_cell_query_mode(input_cell)
+            llm_model_alias = self.notebook_service.resolve_input_cell_model_alias(input_cell)
             if input_cell.type == "prompt":
                 prompt_text = str(input_cell.content.get("text", "")).strip()
                 if prompt_text:
-                    responses.append(self.run_prompt(db, notebook, prompt_text, existing_prompt_cell=input_cell))
+                    responses.append(
+                        self.run_prompt(
+                            db,
+                            notebook,
+                            prompt_text,
+                            existing_prompt_cell=input_cell,
+                            query_mode=query_mode,
+                            llm_model_alias=llm_model_alias,
+                        )
+                    )
             elif input_cell.type == "sql":
                 sql = str(input_cell.content.get("sql", "")).strip()
                 if sql:
-                    responses.append(self.run_sql_cell(db, notebook, input_cell))
+                    responses.append(
+                        self.run_sql_cell(
+                            db,
+                            notebook,
+                            input_cell,
+                            query_mode=query_mode,
+                            llm_model_alias=llm_model_alias,
+                        )
+                    )
             db.refresh(notebook)
         return responses
 
@@ -99,13 +146,22 @@ class QueryOrchestrationService:
         db: Session,
         notebook: NotebookModel,
         sql_cell: CellModel,
+        query_mode: QueryMode = "fast",
+        llm_model_alias: str | None = None,
     ) -> PromptRunResponse:
+        query_mode = normalize_query_mode(query_mode)
+        normalized_model_alias = normalize_llm_model_alias(llm_model_alias)
+        llm_model = resolve_llm_model_from_alias(normalized_model_alias)
         sql = str(sql_cell.content.get("sql", "")).strip()
+        complexity = self._classify_sql_complexity(sql)
         if not sql:
             return self._persist_manual_sql_error_run(
                 db=db,
                 notebook=notebook,
                 sql_cell=sql_cell,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=normalized_model_alias,
                 validation={
                     "sql": "",
                     "errors": ["SQL cell is empty."],
@@ -124,6 +180,9 @@ class QueryOrchestrationService:
                 db=db,
                 notebook=notebook,
                 sql_cell=sql_cell,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=normalized_model_alias,
                 validation=validation.model_dump(mode="json"),
             )
 
@@ -134,6 +193,9 @@ class QueryOrchestrationService:
                 db=db,
                 notebook=notebook,
                 sql_cell=sql_cell,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=normalized_model_alias,
                 validation={
                     "sql": validation.sql,
                     "errors": [f"Execution error: {exc}"],
@@ -144,15 +206,26 @@ class QueryOrchestrationService:
         sql_cell.content = {
             "sql": validation.sql,
             "warnings": validation.warnings,
+            "query_mode": query_mode,
+            "llm_model_alias": normalized_model_alias,
         }
         chart_spec = self._build_manual_chart_spec(execution)
-        insight_text = self.llm_service.summarize_result(
-            prompt="Manual SQL cell",
-            sql=validation.sql,
-            columns=execution.columns,
-            rows=execution.rows,
-            row_count=execution.row_count,
-        ) or self._build_generic_insight(execution, chart_spec)
+        llm_summary = None
+        if query_mode == "thinking":
+            llm_summary = self.llm_service.summarize_result(
+                prompt="Manual SQL cell",
+                sql=validation.sql,
+                columns=execution.columns,
+                rows=execution.rows,
+                row_count=execution.row_count,
+                model=llm_model,
+            )
+        insight_text = self._finalize_insight(
+            llm_summary or self._build_generic_insight(execution, chart_spec),
+            query_mode=query_mode,
+            execution=execution,
+            chart_spec=chart_spec,
+        )
 
         return self._persist_success_run(
             db=db,
@@ -175,6 +248,9 @@ class QueryOrchestrationService:
             },
             confidence=1.0,
             include_sql_cell=False,
+            query_mode=query_mode,
+            complexity=complexity,
+            llm_model_alias=normalized_model_alias,
         )
 
     def _run_prompt_with_llm(
@@ -184,17 +260,23 @@ class QueryOrchestrationService:
         prompt: str,
         prompt_cell: CellModel,
         previous_intent: IntentPayload | None,
+        query_mode: QueryMode,
+        llm_model_alias: str,
+        llm_model: str,
     ) -> PromptRunResponse | None:
-        if not self.llm_service.configured:
-            return None
-
         schema = self.metadata_service.get_schema()
         allowed_tables = [table.name for table in schema.tables]
-        plan = self.llm_service.plan_query(prompt=prompt, schema=schema, previous_intent=previous_intent)
+        plan = self.llm_service.plan_query(
+            prompt=prompt,
+            schema=schema,
+            previous_intent=previous_intent,
+            model=llm_model,
+        )
         if plan is None:
             return None
 
         intent = plan.intent
+        complexity = self._classify_prompt_complexity(prompt, intent)
         if intent.clarification_question and not plan.sql:
             schema = self.metadata_service.get_schema()
             clarification_payload = self.clarification_agent.run(intent, schema=schema)
@@ -205,6 +287,9 @@ class QueryOrchestrationService:
                 prompt_cell=prompt_cell,
                 intent=intent,
                 clarification=clarification_payload,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
             )
 
         if not plan.sql:
@@ -221,6 +306,9 @@ class QueryOrchestrationService:
                 prompt=prompt,
                 intent=intent,
                 validation=validation.model_dump(mode="json"),
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
             )
 
         try:
@@ -239,16 +327,26 @@ class QueryOrchestrationService:
                     "errors": [f"Execution error: {exc}"],
                     "warnings": validation.warnings,
                 },
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
             )
 
         chart_spec = self._build_chart_spec(prompt, plan, execution)
-        insight_text = self.llm_service.summarize_result(
-            prompt=prompt,
-            sql=validation.sql,
-            columns=execution.columns,
-            rows=execution.rows,
-            row_count=execution.row_count,
-        ) or self._build_generic_insight(execution, chart_spec)
+        insight_text = self._finalize_insight(
+            self.llm_service.summarize_result(
+                prompt=prompt,
+                sql=validation.sql,
+                columns=execution.columns,
+                rows=execution.rows,
+                row_count=execution.row_count,
+                model=llm_model,
+            )
+            or self._build_generic_insight(execution, chart_spec),
+            query_mode=query_mode,
+            execution=execution,
+            chart_spec=chart_spec,
+        )
 
         explanation = {
             "metric": intent.metric,
@@ -279,6 +377,9 @@ class QueryOrchestrationService:
             explanation=explanation,
             agent_trace=agent_trace,
             confidence=intent.confidence,
+            query_mode=query_mode,
+            complexity=complexity,
+            llm_model_alias=llm_model_alias,
         )
 
     def _run_prompt_with_rules(
@@ -288,12 +389,28 @@ class QueryOrchestrationService:
         prompt: str,
         prompt_cell: CellModel,
         previous_intent: IntentPayload | None,
+        query_mode: QueryMode,
+        llm_model_alias: str,
     ) -> PromptRunResponse:
         intent = self.intent_agent.run(prompt=prompt, previous_intent=previous_intent)
+        complexity = self._classify_prompt_complexity(prompt, intent)
+        mode_warnings: list[str] = []
         schema = self.metadata_service.get_schema()
 
         if intent.clarification_question and intent.metric is None:
-            return self._persist_clarification_run(db, notebook, prompt_cell, intent)
+            if query_mode == "thinking":
+                return self._persist_clarification_run(
+                    db=db,
+                    notebook=notebook,
+                    prompt_cell=prompt_cell,
+                    intent=intent,
+                    query_mode=query_mode,
+                    complexity=complexity,
+                    llm_model_alias=llm_model_alias,
+                )
+            intent, mode_warnings = self._apply_fast_mode_defaults(intent, previous_intent)
+            if complexity == "complex":
+                mode_warnings.append("Сложный запрос выполнен в Fast режиме. Результат может быть приближённым.")
 
         dictionary_entries = self._load_dictionary(db)
         semantic = self.semantic_agent.run(
@@ -317,6 +434,9 @@ class QueryOrchestrationService:
                 prompt=prompt,
                 intent=intent,
                 validation=validation.model_dump(mode="json"),
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
             )
 
         try:
@@ -333,11 +453,22 @@ class QueryOrchestrationService:
                     "errors": [f"Execution error: {exc}"],
                     "warnings": validation.warnings,
                 },
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
             )
         chart_spec = self.visualization_agent.run(intent, semantic, execution)
-        insight_text = self.insight_agent.run(intent, semantic, execution)
+        insight_text = self._finalize_insight(
+            self.insight_agent.run(intent, semantic, execution),
+            query_mode=query_mode,
+            execution=execution,
+            chart_spec=chart_spec,
+        )
 
         explanation = self._build_explanation(intent, semantic)
+        if mode_warnings:
+            existing_warnings = explanation.get("warnings", [])
+            explanation["warnings"] = list(dict.fromkeys([*existing_warnings, *mode_warnings]))
         agent_trace = {
             "plan_source": "rules",
             "intent": intent.model_dump(mode="json"),
@@ -359,6 +490,9 @@ class QueryOrchestrationService:
             explanation=explanation,
             agent_trace=agent_trace,
             confidence=intent.confidence,
+            query_mode=query_mode,
+            complexity=complexity,
+            llm_model_alias=llm_model_alias,
         )
 
     def _persist_success_run(
@@ -375,14 +509,31 @@ class QueryOrchestrationService:
         agent_trace: dict[str, Any],
         confidence: float,
         include_sql_cell: bool = True,
+        query_mode: QueryMode = "fast",
+        complexity: str = "simple",
+        llm_model_alias: str | None = None,
     ) -> PromptRunResponse:
+        explanation_payload = dict(explanation)
+        explanation_payload["query_mode"] = query_mode
+        explanation_payload["complexity"] = complexity
+        explanation_payload["llm_model_alias"] = llm_model_alias
+        if query_mode == "fast" and complexity == "complex":
+            warnings = list(explanation_payload.get("warnings") or [])
+            warnings.append("Fast режим применён к сложному запросу: результат может быть приближённым.")
+            explanation_payload["warnings"] = list(dict.fromkeys(warnings))
+
+        trace_payload = dict(agent_trace)
+        trace_payload["query_mode"] = query_mode
+        trace_payload["complexity"] = complexity
+        trace_payload["llm_model_alias"] = llm_model_alias
+
         query_run = QueryRunModel(
             notebook_id=notebook.id,
             prompt_cell_id=prompt_cell.id,
             prompt_text=prompt,
             sql=validation["sql"],
-            explanation=explanation,
-            agent_trace=agent_trace,
+            explanation=explanation_payload,
+            agent_trace=trace_payload,
             confidence=confidence,
             execution_time_ms=execution["execution_time_ms"],
             row_count=execution["row_count"],
@@ -400,6 +551,7 @@ class QueryOrchestrationService:
             chart_spec=chart_spec,
             insight_text=insight_text,
             include_sql_cell=include_sql_cell,
+            llm_model_alias=llm_model_alias,
         )
         notebook.status = "saved"
         self.notebook_service.touch_notebook(notebook)
@@ -425,12 +577,23 @@ class QueryOrchestrationService:
     def _load_dictionary(self, db: Session) -> list[SemanticDictionaryModel]:
         return db.query(SemanticDictionaryModel).order_by(SemanticDictionaryModel.term.asc()).all()
 
-    def _create_prompt_cell(self, db: Session, notebook: NotebookModel, prompt: str) -> CellModel:
+    def _create_prompt_cell(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        prompt: str,
+        query_mode: QueryMode,
+        llm_model_alias: str,
+    ) -> CellModel:
         prompt_cell = CellModel(
             notebook_id=notebook.id,
             type="prompt",
             position=self.notebook_service.next_cell_position(notebook),
-            content={"text": prompt},
+            content={
+                "text": prompt,
+                "query_mode": query_mode,
+                "llm_model_alias": llm_model_alias,
+            },
         )
         db.add(prompt_cell)
         db.flush()
@@ -445,6 +608,9 @@ class QueryOrchestrationService:
         prompt_cell: CellModel,
         intent: IntentPayload,
         clarification: dict[str, Any] | None = None,
+        query_mode: QueryMode = "fast",
+        complexity: str = "simple",
+        llm_model_alias: str | None = None,
     ) -> PromptRunResponse:
         clarification_payload = clarification or self.clarification_agent.run(
             intent, schema=self.metadata_service.get_schema()
@@ -454,8 +620,19 @@ class QueryOrchestrationService:
             prompt_cell_id=prompt_cell.id,
             prompt_text=intent.raw_prompt,
             sql="",
-            explanation={"status": "clarification_required"},
-            agent_trace={"intent": intent.model_dump(mode="json"), "clarification": clarification_payload},
+            explanation={
+                "status": "clarification_required",
+                "query_mode": query_mode,
+                "complexity": complexity,
+                "llm_model_alias": llm_model_alias,
+            },
+            agent_trace={
+                "intent": intent.model_dump(mode="json"),
+                "clarification": clarification_payload,
+                "query_mode": query_mode,
+                "complexity": complexity,
+                "llm_model_alias": llm_model_alias,
+            },
             confidence=intent.confidence,
             execution_time_ms=0,
             row_count=0,
@@ -469,7 +646,11 @@ class QueryOrchestrationService:
             query_run_id=query_run.id,
             type="clarification",
             position=self.notebook_service.next_cell_position(notebook),
-            content=clarification_payload,
+            content={
+                **clarification_payload,
+                "query_mode": query_mode,
+                "llm_model_alias": llm_model_alias,
+            },
         )
         db.add(clarification_cell)
         notebook.cells.append(clarification_cell)
@@ -492,14 +673,28 @@ class QueryOrchestrationService:
         prompt: str,
         intent: IntentPayload,
         validation: dict[str, Any],
+        query_mode: QueryMode = "fast",
+        complexity: str = "simple",
+        llm_model_alias: str | None = None,
     ) -> PromptRunResponse:
         query_run = QueryRunModel(
             notebook_id=notebook.id,
             prompt_cell_id=prompt_cell.id,
             prompt_text=prompt,
             sql=validation.get("sql", ""),
-            explanation={"status": "error"},
-            agent_trace={"intent": intent.model_dump(mode="json"), "validation": validation},
+            explanation={
+                "status": "error",
+                "query_mode": query_mode,
+                "complexity": complexity,
+                "llm_model_alias": llm_model_alias,
+            },
+            agent_trace={
+                "intent": intent.model_dump(mode="json"),
+                "validation": validation,
+                "query_mode": query_mode,
+                "complexity": complexity,
+                "llm_model_alias": llm_model_alias,
+            },
             confidence=intent.confidence,
             execution_time_ms=0,
             row_count=0,
@@ -518,6 +713,8 @@ class QueryOrchestrationService:
                 "question": "Не удалось безопасно выполнить запрос.",
                 "errors": validation.get("errors", []),
                 "warnings": validation.get("warnings", []),
+                "query_mode": query_mode,
+                "llm_model_alias": llm_model_alias,
             },
         )
         db.add(error_cell)
@@ -543,6 +740,7 @@ class QueryOrchestrationService:
         chart_spec: dict[str, Any],
         insight_text: str,
         include_sql_cell: bool = True,
+        llm_model_alias: str | None = None,
     ) -> list[CellModel]:
         base_position = self.notebook_service.next_cell_position(notebook)
         cells: list[CellModel] = []
@@ -557,6 +755,7 @@ class QueryOrchestrationService:
                     content={
                         "sql": validation["sql"],
                         "warnings": validation.get("warnings", []),
+                        "llm_model_alias": llm_model_alias,
                     },
                 )
             )
@@ -606,14 +805,29 @@ class QueryOrchestrationService:
         notebook: NotebookModel,
         sql_cell: CellModel,
         validation: dict[str, Any],
+        query_mode: QueryMode = "fast",
+        complexity: str = "simple",
+        llm_model_alias: str | None = None,
     ) -> PromptRunResponse:
         query_run = QueryRunModel(
             notebook_id=notebook.id,
             prompt_cell_id=sql_cell.id,
             prompt_text=str(sql_cell.content.get("sql", "")),
             sql=validation.get("sql", ""),
-            explanation={"status": "error", "source": "manual_sql"},
-            agent_trace={"plan_source": "manual_sql", "validation": validation},
+            explanation={
+                "status": "error",
+                "source": "manual_sql",
+                "query_mode": query_mode,
+                "complexity": complexity,
+                "llm_model_alias": llm_model_alias,
+            },
+            agent_trace={
+                "plan_source": "manual_sql",
+                "validation": validation,
+                "query_mode": query_mode,
+                "complexity": complexity,
+                "llm_model_alias": llm_model_alias,
+            },
             confidence=1.0,
             execution_time_ms=0,
             row_count=0,
@@ -632,6 +846,8 @@ class QueryOrchestrationService:
                 "question": "Не удалось выполнить SQL ячейку.",
                 "errors": validation.get("errors", []),
                 "warnings": validation.get("warnings", []),
+                "query_mode": query_mode,
+                "llm_model_alias": llm_model_alias,
             },
         )
         db.add(error_cell)
@@ -778,6 +994,117 @@ class QueryOrchestrationService:
         if first_value is None:
             return f"Запрос вернул {execution.row_count} строк."
         return f"По запросу получено значение {self._fmt(first_value)}."
+
+    def _apply_fast_mode_defaults(
+        self,
+        intent: IntentPayload,
+        previous_intent: IntentPayload | None,
+    ) -> tuple[IntentPayload, list[str]]:
+        adjusted = intent.model_copy(deep=True)
+        warnings: list[str] = []
+
+        if adjusted.metric is None:
+            fallback_metric = previous_intent.metric if previous_intent and previous_intent.metric else "revenue"
+            adjusted.metric = fallback_metric
+            warnings.append(f"Метрика не указана явно. В Fast режиме выбрана «{fallback_metric}».")
+
+        if adjusted.clarification_question:
+            warnings.append("Clarification пропущен для ускорения ответа в Fast режиме.")
+        adjusted.clarification_question = None
+        adjusted.ambiguities = []
+        adjusted.confidence = max(0.45, adjusted.confidence - 0.05)
+
+        return adjusted, warnings
+
+    def _classify_prompt_complexity(self, prompt: str, intent: IntentPayload) -> str:
+        score = 0
+        lowered = prompt.lower()
+        if len(prompt) > 120:
+            score += 1
+        if intent.comparison:
+            score += 2
+        if len(intent.dimensions) >= 2:
+            score += 2
+        if len(intent.filters) >= 2:
+            score += 1
+        if any(
+            marker in lowered
+            for marker in (
+                "compare",
+                "comparison",
+                "vs",
+                "growth",
+                "trend",
+                "anomaly",
+                "cohort",
+                "retention",
+                "корреляц",
+                "сравн",
+                "против",
+                "динам",
+                "аномал",
+                "когорт",
+            )
+        ):
+            score += 2
+        return "complex" if score >= 3 else "simple"
+
+    def _classify_sql_complexity(self, sql: str) -> str:
+        lowered = sql.lower()
+        score = 0
+        if len(sql) > 240:
+            score += 1
+        keyword_markers = (" join ", " with ", " over(", " union ", " case ", " having ", " percentile")
+        score += sum(1 for marker in keyword_markers if marker in lowered)
+        return "complex" if score >= 2 else "simple"
+
+    def _finalize_insight(
+        self,
+        insight_text: str,
+        *,
+        query_mode: QueryMode,
+        execution: QueryExecutionResult,
+        chart_spec: ChartSpec,
+    ) -> str:
+        cleaned = " ".join(str(insight_text or "").split()).strip()
+        if not cleaned:
+            cleaned = self._build_generic_insight(execution, chart_spec)
+
+        first_sentence = re.split(r"(?<=[.!?])\s+", cleaned, maxsplit=1)[0].strip()
+        if query_mode == "fast":
+            return first_sentence or cleaned
+
+        metric_column = chart_spec.encoding.y_field
+        if metric_column is None:
+            return cleaned
+
+        dimension_column = chart_spec.encoding.x_field
+        series = []
+        for row in execution.rows:
+            metric_value = self._to_number(row.get(metric_column))
+            if metric_value is None:
+                continue
+            label = str(row.get(dimension_column)) if dimension_column else "overall"
+            series.append((label, metric_value))
+
+        if len(series) < 2:
+            return cleaned
+
+        values = [value for _label, value in series]
+        top_label, top_value = max(series, key=lambda item: item[1])
+        bottom_label, bottom_value = min(series, key=lambda item: item[1])
+        spread = top_value - bottom_value
+        notes = [
+            f"Лидер: {top_label} ({self._fmt(top_value)}), минимум: {bottom_label} ({self._fmt(bottom_value)}).",
+            f"Разброс между крайними значениями: {self._fmt(spread)}.",
+        ]
+        mid = median(values)
+        if mid > 0 and top_value >= mid * 1.8:
+            notes.append(
+                "Обнаружена возможная аномалия: верхняя точка заметно выше медианы, стоит проверить источник всплеска."
+            )
+
+        return "\n".join([cleaned, *notes])
 
     def _detect_numeric_columns(self, execution: QueryExecutionResult) -> list[str]:
         numeric_columns: list[str] = []

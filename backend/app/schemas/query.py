@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+QueryMode = Literal["fast", "thinking"]
+
+
+def normalize_query_mode(value: str | None) -> QueryMode:
+    if isinstance(value, str) and value.strip().lower() == "thinking":
+        return "thinking"
+    return "fast"
 
 
 class FilterCondition(BaseModel):
@@ -97,6 +106,8 @@ class QueryExecutionResult(BaseModel):
 
 class PromptRunRequest(BaseModel):
     prompt: str = Field(min_length=1)
+    query_mode: QueryMode = "fast"
+    llm_model_alias: str | None = None
 
 
 class PromptRunResponse(BaseModel):
@@ -143,6 +154,17 @@ class QueryRunRead(BaseModel):
 
 
 @dataclass
+class ClarificationAnswerRecord:
+    clarification_id: str
+    ambiguity_type: str
+    option_id: str | None = None
+    option_label: str | None = None
+    text_answer: str | None = None
+
+
+@dataclass
 class QueryContext:
-    previous_intent: IntentPayload | None
-    notebook_title: str
+    previous_intent: IntentPayload | None = None
+    notebook_title: str = ""
+    original_prompt: str = ""
+    clarification_answers: list[ClarificationAnswerRecord] = field(default_factory=list)

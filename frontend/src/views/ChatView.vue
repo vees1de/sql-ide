@@ -1,19 +1,5 @@
 <template>
   <main class="chat-view">
-    <header class="chat-view__header">
-      <div>
-        <p class="eyebrow">Chat</p>
-        <h1>Прозрачный text-to-SQL</h1>
-        <p class="chat-view__lead">
-          Выберите базу, задайте вопрос по-русски, получите SQL и объяснение. Запуск всегда вручную.
-        </p>
-      </div>
-      <div class="chat-view__meta">
-        <span class="pill pill--ghost">{{ currentDatabase?.name ?? 'База не выбрана' }}</span>
-        <span class="pill pill--ghost">{{ chat.statusLabel }}</span>
-      </div>
-    </header>
-
     <div class="chat-view__grid">
       <ChatSidebar
         :active-db-id="chat.activeDbId"
@@ -28,32 +14,35 @@
         @select-session="selectSession"
       />
 
-      <section class="chat-view__center">
+      <section class="chat-view__panel chat-view__panel--center">
         <ChatSqlEditor
-          :auto-apply-sql="chat.autoApplySql"
           :busy="chat.generating || chat.executing"
           :model-value="chat.sqlDraft"
           :status="editorStatus"
-          :version="chat.sqlDraftVersion"
           @run="runSql"
           @update:modelValue="updateSqlDraft"
         />
-
-        <ChatAssistant
-          :auto-apply-sql="chat.autoApplySql"
-          :busy="chat.generating"
-          :messages="chat.messages"
-          @apply-sql="applySql"
-          @clarification="sendClarification"
-          @send="sendMessage"
+        <ChatResultPanel
+          :execution="chat.executionResult"
+          :view="chat.resultView"
+          @change-view="chat.setResultMode"
         />
       </section>
 
-      <ChatResultPanel
-        :execution="chat.executionResult"
-        :view="chat.resultView"
-        @change-view="chat.setResultMode"
-      />
+      <section class="chat-view__panel chat-view__panel--chat">
+        <ChatAssistant
+          :busy="chat.generating"
+          :messages="chat.messages"
+          :query-mode="chat.queryMode ?? 'fast'"
+          :llm-model-alias="chat.llmModelAlias ?? 'gpt120'"
+          :llm-model-aliases="chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']"
+          @apply-sql="applySql"
+          @clarification="sendClarification"
+          @set-llm-model-alias="chat.setLlmModelAlias"
+          @set-query-mode="chat.setQueryMode"
+          @send="sendMessage"
+        />
+      </section>
     </div>
   </main>
 </template>
@@ -67,8 +56,6 @@ import ChatSqlEditor from '@/components/chat/ChatSqlEditor.vue';
 import { useChatStore } from '@/stores/chat';
 
 const chat = useChatStore();
-
-const currentDatabase = computed(() => chat.currentDatabase);
 
 const editorStatus = computed<'idle' | 'executing' | 'error' | 'generating'>(() => {
   if (chat.executing) {
@@ -109,7 +96,8 @@ function deleteSession(sessionId: string) {
   void chat.deleteSession(sessionId);
 }
 
-function sendMessage(text: string) {
+function sendMessage(text: string, mode: 'fast' | 'thinking') {
+  chat.setQueryMode(mode);
   void chat.sendMessage(text);
 }
 
@@ -132,96 +120,72 @@ function applySql(sql: string) {
 
 <style scoped lang="scss">
 .chat-view {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  min-height: 0;
+  padding: 16px;
+  background: var(--bg);
   flex: 1;
-  padding: 1rem;
-  background:
-    radial-gradient(circle at top left, rgba(249, 171, 0, 0.08), transparent 28%),
-    radial-gradient(circle at top right, rgba(138, 180, 248, 0.08), transparent 24%),
-    var(--canvas);
-}
-
-.chat-view__header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.8rem;
-  padding-bottom: 0.35rem;
-}
-
-.chat-view__header h1 {
-  margin: 0.25rem 0 0;
-  font-size: clamp(1.25rem, 1.1rem + 1vw, 2rem);
-  letter-spacing: -0.03em;
-}
-
-.chat-view__lead {
-  margin: 0.35rem 0 0;
-  max-width: 54rem;
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.55;
-}
-
-.chat-view__meta {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
+  min-height: 0;
 }
 
 .chat-view__grid {
   display: grid;
-  grid-template-columns: minmax(16rem, 22%) minmax(0, 50%) minmax(18rem, 28%);
-  gap: 0.9rem;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 360px);
+  gap: 16px;
   min-height: 0;
   flex: 1;
+  height: 100%;
 }
 
-.chat-view__center {
+.chat-view__panel {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.chat-view__panel--center {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.9rem;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.chat-view__panel--chat {
+  display: flex;
   min-height: 0;
 }
 
-@media (max-width: 1100px) {
+.chat-view__panel--chat :deep(.chat-assistant) {
+  width: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 1260px) {
   .chat-view__grid {
-    grid-template-columns: minmax(16rem, 28%) minmax(0, 1fr);
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
     grid-template-rows: auto auto;
   }
 
-  .chat-view__center {
+  .chat-view__panel--center {
     grid-column: 2;
   }
 
-  .chat-view__grid > :last-child {
+  .chat-view__panel--chat {
     grid-column: 1 / -1;
+    min-height: 380px;
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 940px) {
   .chat-view {
-    padding: 0.85rem;
-  }
-
-  .chat-view__header {
-    align-items: flex-start;
-    flex-direction: column;
+    padding: 12px;
   }
 
   .chat-view__grid {
     grid-template-columns: 1fr;
   }
 
-  .chat-view__center {
-    grid-column: auto;
-  }
-
-  .chat-view__grid > :last-child {
+  .chat-view__panel--center,
+  .chat-view__panel--chat {
     grid-column: auto;
   }
 }

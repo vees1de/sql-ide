@@ -27,3 +27,14 @@ class SchemaMetadataResponse(BaseModel):
     dialect: str
     tables: list[TableMetadata] = Field(default_factory=list)
     relationships: list[RelationshipMetadata] = Field(default_factory=list)
+
+
+class LLMModelAliasItem(BaseModel):
+    alias: str
+    model: str
+
+
+class LLMModelAliasesResponse(BaseModel):
+    aliases: list[LLMModelAliasItem] = Field(default_factory=list)
+    default_alias: str
+    current_alias: str

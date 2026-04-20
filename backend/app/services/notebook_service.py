@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import normalize_llm_model_alias
 from app.db.models import CellModel, NotebookModel, QueryRunModel, utcnow
 from app.schemas.notebook import NotebookCreate, NotebookUpdate
+from app.schemas.query import QueryMode, normalize_query_mode
 
 
 class NotebookService:
@@ -107,6 +109,67 @@ class NotebookService:
         self.touch_notebook(notebook)
         db.commit()
         db.refresh(cell)
+        return cell
+
+    def resolve_input_cell_query_mode(self, cell: CellModel) -> QueryMode:
+        if not isinstance(cell.content, dict):
+            return "fast"
+        raw_mode = cell.content.get("query_mode")
+        if raw_mode is None:
+            raw_mode = cell.content.get("queryMode")
+        return normalize_query_mode(str(raw_mode) if raw_mode is not None else None)
+
+    def resolve_input_cell_model_alias(self, cell: CellModel) -> str:
+        if not isinstance(cell.content, dict):
+            return normalize_llm_model_alias(None)
+        raw_alias = cell.content.get("llm_model_alias")
+        if raw_alias is None:
+            raw_alias = cell.content.get("llmModelAlias")
+        return normalize_llm_model_alias(str(raw_alias) if raw_alias is not None else None)
+
+    def set_input_cell_query_mode(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        cell: CellModel,
+        query_mode: QueryMode,
+        *,
+        commit: bool = True,
+    ) -> CellModel:
+        if cell.query_run_id is not None or cell.type not in self.input_cell_types:
+            raise ValueError("Only editable prompt/sql cells can be updated.")
+
+        normalized = self._normalize_input_content(cell.type, {**dict(cell.content or {}), "query_mode": query_mode})
+        cell.content = normalized
+        self.touch_notebook(notebook)
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(cell)
+        return cell
+
+    def set_input_cell_model_alias(
+        self,
+        db: Session,
+        notebook: NotebookModel,
+        cell: CellModel,
+        llm_model_alias: str,
+        *,
+        commit: bool = True,
+    ) -> CellModel:
+        if cell.query_run_id is not None or cell.type not in self.input_cell_types:
+            raise ValueError("Only editable prompt/sql cells can be updated.")
+
+        normalized = self._normalize_input_content(
+            cell.type,
+            {**dict(cell.content or {}), "llm_model_alias": llm_model_alias},
+        )
+        cell.content = normalized
+        self.touch_notebook(notebook)
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(cell)
         return cell
 
     def list_history(self, db: Session, notebook_id: str) -> list[QueryRunModel]:
@@ -222,7 +285,30 @@ class NotebookService:
         notebook.updated_at = utcnow()
 
     def _normalize_input_content(self, cell_type: str, content: dict) -> dict:
+        query_mode = normalize_query_mode(
+            str(content.get("query_mode") if content.get("query_mode") is not None else content.get("queryMode"))
+            if content.get("query_mode") is not None or content.get("queryMode") is not None
+            else None
+        )
+        llm_model_alias = normalize_llm_model_alias(
+            str(
+                content.get("llm_model_alias")
+                if content.get("llm_model_alias") is not None
+                else content.get("llmModelAlias")
+            )
+            if content.get("llm_model_alias") is not None or content.get("llmModelAlias") is not None
+            else None
+        )
         if cell_type == "prompt":
-            return {"text": str(content.get("text", "")).strip()}
+            prompt_text = str(content.get("text", content.get("prompt", "")) or "").strip()
+            return {
+                "text": prompt_text,
+                "query_mode": query_mode,
+                "llm_model_alias": llm_model_alias,
+            }
 
-        return {"sql": str(content.get("sql", "")).strip()}
+        return {
+            "sql": str(content.get("sql", "") or "").strip(),
+            "query_mode": query_mode,
+            "llm_model_alias": llm_model_alias,
+        }

@@ -4,6 +4,7 @@ import { chatApi } from '@/api/chat';
 import type {
   ApiChatExecutionRead,
   ApiChatMessageRead,
+  ApiQueryMode,
   ApiChatSessionDetail,
   ApiChatSessionRead,
   ApiDatabaseDescriptor
@@ -20,6 +21,9 @@ export const useChatStore = defineStore('chat', () => {
   const executionResult = ref<ApiChatExecutionRead | null>(emptyExecution);
   const resultView = ref<'table' | 'chart'>('table');
   const autoApplySql = ref(true);
+  const queryMode = ref<ApiQueryMode>('fast');
+  const llmModelAliases = ref<string[]>([]);
+  const llmModelAlias = ref('gpt120');
   const activeDbId = ref('');
   const activeSessionId = ref('');
   const lastSyncedSqlDraft = ref('');
@@ -138,7 +142,29 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function loadLlmModels() {
+    try {
+      const payload = await chatApi.getLlmModels();
+      const fetchedAliases = payload.aliases
+        .map((item) => item.alias.trim())
+        .filter(Boolean);
+      const candidateDefault = payload.default_alias?.trim() || llmModelAlias.value || 'gpt120';
+      const candidateCurrent = payload.current_alias?.trim() || candidateDefault;
+      const nextAliases = fetchedAliases.length ? fetchedAliases : [candidateDefault];
+      llmModelAliases.value = nextAliases;
+      llmModelAlias.value = nextAliases.includes(candidateCurrent)
+        ? candidateCurrent
+        : nextAliases[0];
+    } catch {
+      if (!llmModelAliases.value.length) {
+        llmModelAliases.value = [llmModelAlias.value || 'gpt120'];
+      }
+      llmModelAlias.value = llmModelAliases.value[0];
+    }
+  }
+
   async function initialize() {
+    await loadLlmModels();
     await loadDatabases();
     if (activeDbId.value) {
       await loadSessions(activeDbId.value);
@@ -284,6 +310,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function sendMessage(text: string) {
+    const mode = queryMode.value;
     if (!text.trim()) {
       return;
     }
@@ -305,9 +332,13 @@ export const useChatStore = defineStore('chat', () => {
 
     generating.value = true;
     setError(null);
-    setStatus('Генерирую SQL');
+    setStatus(mode === 'thinking' ? 'Генерирую SQL (Thinking)' : 'Генерирую SQL (Fast)');
     try {
-      const response = await chatApi.sendMessage(session.id, { text });
+      const response = await chatApi.sendMessage(session.id, {
+        text,
+        query_mode: mode,
+        llm_model_alias: llmModelAlias.value
+      });
       syncSession(response.session);
       messages.value = [...messages.value, response.user_message, response.assistant_message];
       if (response.sql_draft) {
@@ -368,6 +399,24 @@ export const useChatStore = defineStore('chat', () => {
     autoApplySql.value = next;
   }
 
+  function setQueryMode(mode: ApiQueryMode) {
+    if (mode !== 'fast' && mode !== 'thinking') {
+      return;
+    }
+    queryMode.value = mode;
+  }
+
+  function setLlmModelAlias(alias: string) {
+    const nextAlias = alias?.trim();
+    if (!nextAlias) {
+      return;
+    }
+    llmModelAlias.value = nextAlias;
+    if (!llmModelAliases.value.includes(nextAlias)) {
+      llmModelAliases.value = [nextAlias, ...llmModelAliases.value];
+    }
+  }
+
   function clearExecutionResult() {
     setSessionResult(null);
   }
@@ -391,8 +440,11 @@ export const useChatStore = defineStore('chat', () => {
     loadingMessages,
     loadingSessions,
     loadDatabases,
+    llmModelAlias,
+    llmModelAliases,
     loadSessions,
     messages,
+    queryMode,
     sessions,
     renameSession,
     resultView,
@@ -402,8 +454,10 @@ export const useChatStore = defineStore('chat', () => {
     sendMessage,
     setAutoApplySql,
     setError,
+    setLlmModelAlias,
     setResultMode,
     setStatus,
+    setQueryMode,
     statusLabel,
     sqlDraft,
     sqlDraftVersion,

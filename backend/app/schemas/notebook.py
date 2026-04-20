@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.query import CellRead, QueryRunRead
+from app.schemas.query import CellRead, QueryMode, QueryRunRead
 
 
 class NotebookCreate(BaseModel):
@@ -30,6 +30,11 @@ class NotebookCellUpdate(BaseModel):
 
 class NotebookCellReorder(BaseModel):
     ordered_cell_ids: list[str] = Field(default_factory=list)
+
+
+class NotebookCellRunRequest(BaseModel):
+    query_mode: QueryMode | None = None
+    llm_model_alias: str | None = None
 
 
 class NotebookRead(BaseModel):

@@ -1,40 +1,31 @@
 <template>
   <section class="chat-assistant">
-    <header class="chat-assistant__head">
-      <div>
-        <p class="eyebrow">Диалог</p>
-        <h2>Как я понял запрос</h2>
-      </div>
-      <div class="chat-assistant__status">
-        <span class="pill pill--ghost">{{ messages.length }} сообщений</span>
-        <span v-if="busy" class="pill pill--accent">Генерирую</span>
-      </div>
-    </header>
-
     <div ref="scrollRef" class="chat-assistant__feed">
       <template v-if="messages.length">
         <component
           :is="message.role === 'user' ? ChatUserMessage : ChatAssistantMessage"
           v-for="message in messages"
           :key="message.id"
-          :auto-apply-sql="autoApplySql"
           :message="message"
           @apply-sql="$emit('apply-sql', $event)"
           @clarification="$emit('clarification', $event)"
+          @switch-mode="$emit('set-query-mode', $event)"
         />
       </template>
       <div v-else class="chat-assistant__empty">
-        <p class="chat-assistant__empty-title">Выберите базу данных и задайте вопрос.</p>
-        <p class="chat-assistant__empty-text">
-          Например: «сколько заказов было за последние 6 месяцев» или «выручка по месяцам за прошлый год».
-        </p>
+        Чем я могу помочь?
       </div>
     </div>
 
     <ChatInput
       v-model="draft"
       :busy="busy"
-      placeholder="Спросите по-русски, что нужно посчитать"
+      :query-mode="queryMode"
+      :model-alias="llmModelAlias"
+      :model-aliases="llmModelAliases"
+      placeholder="Чем я могу помочь?"
+      @update:queryMode="$emit('set-query-mode', $event)"
+      @update:modelAlias="$emit('set-llm-model-alias', $event)"
       @send="submit"
     />
   </section>
@@ -45,18 +36,29 @@ import { nextTick, onMounted, ref, watch } from 'vue';
 import ChatAssistantMessage from '@/components/chat/ChatAssistantMessage.vue';
 import ChatInput from '@/components/chat/ChatInput.vue';
 import ChatUserMessage from '@/components/chat/ChatUserMessage.vue';
-import type { ApiChatMessageRead } from '@/api/types';
+import type { ApiChatMessageRead, ApiQueryMode } from '@/api/types';
 
-const props = defineProps<{
-  messages: ApiChatMessageRead[];
-  busy: boolean;
-  autoApplySql: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    messages: ApiChatMessageRead[];
+    busy: boolean;
+    queryMode?: ApiQueryMode;
+    llmModelAlias?: string;
+    llmModelAliases?: string[];
+  }>(),
+  {
+    queryMode: 'fast',
+    llmModelAlias: 'gpt120',
+    llmModelAliases: () => ['gpt120']
+  }
+);
 
 const emit = defineEmits<{
-  (event: 'send', text: string): void;
+  (event: 'send', text: string, mode: ApiQueryMode): void;
   (event: 'apply-sql', sql: string): void;
   (event: 'clarification', answer: string): void;
+  (event: 'set-query-mode', mode: ApiQueryMode): void;
+  (event: 'set-llm-model-alias', alias: string): void;
 }>();
 
 const draft = ref('');
@@ -86,65 +88,37 @@ function submit() {
   if (!text) {
     return;
   }
-  emit('send', text);
+  emit('send', text, props.queryMode);
   draft.value = '';
 }
 </script>
 
 <style scoped lang="scss">
 .chat-assistant {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   min-height: 0;
   height: 100%;
 }
 
-.chat-assistant__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.chat-assistant__head h2 {
-  margin: 0.3rem 0 0;
-  font-size: 1.05rem;
-}
-
-.chat-assistant__status {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
 .chat-assistant__feed {
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 0.25rem;
-  display: grid;
-  gap: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 2px;
 }
 
 .chat-assistant__empty {
-  padding: 1rem;
   border: 1px dashed var(--line);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.chat-assistant__empty-title {
-  margin: 0;
-  color: var(--ink);
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
-.chat-assistant__empty-text {
-  margin: 0.35rem 0 0;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
   color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.55;
+  font-size: 0.82rem;
 }
 </style>
-

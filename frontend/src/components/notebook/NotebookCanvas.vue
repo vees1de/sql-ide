@@ -50,6 +50,8 @@
           :can-move-down="index < queryBlocks.length - 1"
           :can-move-up="index > 0"
           :clarification-answers="clarificationAnswers"
+          :default-llm-model-alias="defaultLlmModelAlias"
+          :llm-model-aliases="llmModelAliases"
           :running="runningCellIds.includes(block.inputCell.id)"
           :selected-cell-id="selectedCellId"
           @answer-clarification="onAnswerClarification"
@@ -60,6 +62,8 @@
           @move-up="onMoveUp"
           @run-input-cell="onRunInputCell"
           @save-input-cell="onSaveInputCell"
+          @set-input-model="onSetInputModel"
+          @set-input-mode="onSetInputMode"
           @select-cell="$emit('select-cell', $event)"
         />
       </template>
@@ -97,11 +101,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import NotebookQueryBlock from '@/components/notebook/NotebookQueryBlock.vue';
-import type { Notebook, NotebookCell, NotebookQueryBlock as QueryBlock } from '@/types/app';
+import type { Notebook, NotebookCell, NotebookQueryBlock as QueryBlock, QueryMode } from '@/types/app';
 
 const props = defineProps<{
   clarificationAnswers: Record<string, string>;
   databaseName: string;
+  defaultLlmModelAlias: string;
+  llmModelAliases: string[];
   notebook: Notebook;
   runningCellIds: string[];
   selectedCellId: string;
@@ -114,8 +120,10 @@ const emit = defineEmits<{
   (event: 'move-input-cell', cellId: string, direction: 'up' | 'down'): void;
   (event: 'rename-notebook', title: string): void;
   (event: 'reorder-input-cells', orderedCellIds: string[]): void;
-  (event: 'run-input-cell', cellId: string, value: string): void;
-  (event: 'save-input-cell', cellId: string, value: string): void;
+  (event: 'run-input-cell', cellId: string, value: string, mode: QueryMode, llmModelAlias?: string): void;
+  (event: 'save-input-cell', cellId: string, value: string, mode?: QueryMode, llmModelAlias?: string): void;
+  (event: 'set-input-model', cellId: string, llmModelAlias: string): void;
+  (event: 'set-input-mode', cellId: string, mode: QueryMode): void;
   (event: 'select-cell', cellId: string): void;
 }>();
 
@@ -176,12 +184,12 @@ function onDragStart(cellId: string) {
   draggingCellId.value = cellId;
 }
 
-function onSaveInputCell(cellId: string, value: string) {
-  emit('save-input-cell', cellId, value);
+function onSaveInputCell(cellId: string, value: string, mode?: QueryMode, llmModelAlias?: string) {
+  emit('save-input-cell', cellId, value, mode, llmModelAlias);
 }
 
-function onRunInputCell(cellId: string, value: string) {
-  emit('run-input-cell', cellId, value);
+function onRunInputCell(cellId: string, value: string, mode: QueryMode, llmModelAlias?: string) {
+  emit('run-input-cell', cellId, value, mode, llmModelAlias);
 }
 
 function onFormatSqlCell(cellId: string, value: string) {
@@ -194,6 +202,14 @@ function onMoveUp(cellId: string) {
 
 function onMoveDown(cellId: string) {
   emit('move-input-cell', cellId, 'down');
+}
+
+function onSetInputMode(cellId: string, mode: QueryMode) {
+  emit('set-input-mode', cellId, mode);
+}
+
+function onSetInputModel(cellId: string, llmModelAlias: string) {
+  emit('set-input-model', cellId, llmModelAlias);
 }
 
 function clearDragState() {

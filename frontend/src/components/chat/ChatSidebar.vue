@@ -1,19 +1,29 @@
 <template>
   <aside class="chat-sidebar">
-    <header class="chat-sidebar__head">
-      <div>
-        <p class="eyebrow">Базы</p>
-        <h2>Подключения и чаты</h2>
-      </div>
-      <button class="app-button app-button--tiny" type="button" :disabled="!activeDbId" @click="$emit('create-session')">
-        + Чат
-      </button>
-    </header>
+    <div class="chat-sidebar__top">
+      <RouterLink to="/chat" class="chat-sidebar__brand" title="BimsDash">
+        <span class="chat-sidebar__brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M20 4H11.3A7.3 7.3 0 0 0 4 11.3v1.4A7.3 7.3 0 0 0 11.3 20H14a6 6 0 0 0 6-6z" />
+          </svg>
+        </span>
+        <span class="chat-sidebar__brand-text">BimsDash</span>
+      </RouterLink>
+
+      <nav class="chat-sidebar__nav" aria-label="Навигация">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          class="chat-sidebar__nav-link"
+          :class="{ 'chat-sidebar__nav-link--active': isRouteActive(item.key) }"
+        >
+          {{ item.label }}
+        </RouterLink>
+      </nav>
+    </div>
 
     <section class="chat-sidebar__section">
-      <div class="chat-sidebar__section-head">
-        <h3>Базы данных</h3>
-      </div>
       <div class="chat-sidebar__db-list">
         <button
           v-for="database in databases"
@@ -25,30 +35,37 @@
         >
           <div class="chat-sidebar__item-main">
             <strong>{{ database.name }}</strong>
-            <span>{{ database.dialect }} · {{ database.status }}</span>
+            <span>{{ database.dialect }}</span>
           </div>
-          <span class="pill pill--ghost">{{ database.table_count }}</span>
+          <span class="chat-sidebar__count">{{ database.table_count }}</span>
         </button>
       </div>
     </section>
 
     <section class="chat-sidebar__section chat-sidebar__section--fill">
-      <div class="chat-sidebar__section-head">
-        <h3>Сессии</h3>
+      <div class="chat-sidebar__sessions-head">
         <input
           v-model="query"
           class="chat-sidebar__search"
           type="search"
           placeholder="Поиск"
         />
+        <button
+          class="chat-sidebar__new"
+          type="button"
+          :disabled="!activeDbId"
+          @click="$emit('create-session')"
+        >
+          +
+        </button>
       </div>
 
-      <div v-if="loading" class="chat-sidebar__loading">
-        Загружаю чаты…
+      <div v-if="loading" class="chat-sidebar__state">
+        Загружаю…
       </div>
 
-      <div v-else-if="!filteredSessions.length" class="chat-sidebar__empty">
-        <p>Пока нет чатов. Создайте первый.</p>
+      <div v-else-if="!filteredSessions.length" class="chat-sidebar__state">
+        Пусто
       </div>
 
       <div v-else class="chat-sidebar__session-list">
@@ -77,11 +94,23 @@
         </article>
       </div>
     </section>
+
+    <footer class="chat-sidebar__footer">
+      <button class="chat-sidebar__footer-btn chat-sidebar__footer-btn--accent" type="button">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Профиль
+      </button>
+      <button class="chat-sidebar__footer-btn" type="button" title="Настройки" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1.82v.16a2 2 0 1 1-4 0v-.16A1.65 1.65 0 0 0 9 20a1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.82-.33h-.16a2 2 0 1 1 0-4h.16A1.65 1.65 0 0 0 4 9a1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6c.3 0 .59-.12.8-.33a1.65 1.65 0 0 0 .2-1.27v-.16a2 2 0 1 1 4 0v.16c-.03.45.06.9.26 1.3.2.39.53.71.92.9.4.2.85.3 1.3.26h.16a2 2 0 1 1 0 4h-.16a1.65 1.65 0 0 0-1.3.26c-.39.2-.72.52-.92.9-.2.4-.29.84-.26 1.3z"/></svg>
+        Настройки
+      </button>
+    </footer>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { RouterLink, useRoute } from 'vue-router';
 import type { ApiChatSessionRead, ApiDatabaseDescriptor } from '@/api/types';
 
 const props = defineProps<{
@@ -100,11 +129,29 @@ const emit = defineEmits<{
   (event: 'delete-session', sessionId: string): void;
 }>();
 
+const route = useRoute();
 const query = ref('');
+
+const navItems = [
+  { to: '/colab', label: 'Коллаб', key: 'colab' as const },
+  { to: '/data', label: 'Дэшборд', key: 'data' as const },
+  { to: '/chat', label: 'BimsChat', key: 'chat' as const }
+];
 
 const filteredSessions = computed(() =>
   props.sessions.filter((session) => session.title.toLowerCase().includes(query.value.toLowerCase()))
 );
+
+function isRouteActive(key: 'chat' | 'colab' | 'data') {
+  const path = route.path;
+  if (key === 'chat') {
+    return path === '/chat' || path.startsWith('/notebooks');
+  }
+  if (key === 'colab') {
+    return path === '/colab' || path === '/notebook';
+  }
+  return path === '/data' || path.startsWith('/data');
+}
 
 function rename(session: ApiChatSessionRead) {
   const title = window.prompt('Новое название чата', session.title)?.trim();
@@ -131,159 +178,256 @@ function formatTime(value: string) {
 
 <style scoped lang="scss">
 .chat-sidebar {
-  display: grid;
-  gap: 1rem;
-  min-height: 0;
   height: 100%;
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015)),
-    var(--bg-elev);
-  box-shadow: var(--shadow-soft);
-}
-
-.chat-sidebar__head,
-.chat-sidebar__section-head {
+  min-height: 0;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.65rem;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.chat-sidebar__head h2,
-.chat-sidebar__section-head h3 {
-  margin: 0.3rem 0 0;
-  font-size: 1rem;
+.chat-sidebar__top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.chat-sidebar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink-strong);
+}
+
+.chat-sidebar__brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  background: rgba(112, 59, 247, 0.12);
+}
+
+.chat-sidebar__brand-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.chat-sidebar__nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-sidebar__nav-link {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.chat-sidebar__nav-link--active {
+  color: var(--ink-strong);
+  border-color: rgba(112, 59, 247, 0.8);
+  background: rgba(112, 59, 247, 0.22);
 }
 
 .chat-sidebar__section {
-  display: grid;
-  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.12);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-height: 0;
+  flex: 0 0 auto;
 }
 
 .chat-sidebar__section--fill {
-  min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  flex: 1 1 auto;
 }
 
 .chat-sidebar__db-list,
 .chat-sidebar__session-list {
-  display: grid;
-  gap: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-height: 0;
 }
 
 .chat-sidebar__session-list {
   overflow-y: auto;
-  padding-right: 0.2rem;
+  flex: 1 1 auto;
 }
 
-.chat-sidebar__item {
-  width: 100%;
+.chat-sidebar__sessions-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  text-align: left;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.02);
-  color: inherit;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
-.chat-sidebar__item:hover {
-  border-color: rgba(249, 171, 0, 0.25);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.chat-sidebar__item--active {
-  border-color: rgba(249, 171, 0, 0.45);
-  background: rgba(249, 171, 0, 0.08);
-}
-
-.chat-sidebar__item-main {
-  display: grid;
-  gap: 0.12rem;
+.chat-sidebar__sessions-head .chat-sidebar__search {
+  flex: 1 1 auto;
   min-width: 0;
-}
-
-.chat-sidebar__item-main strong {
-  color: var(--ink);
-  font-size: 0.83rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chat-sidebar__item-main span {
-  color: var(--muted);
-  font-size: 0.74rem;
-}
-
-.chat-sidebar__item--database {
-  padding: 0.72rem 0.75rem;
-}
-
-.chat-sidebar__item--session {
-  padding: 0.65rem 0.7rem;
-}
-
-.chat-sidebar__session-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.chat-sidebar__icon-btn {
-  width: 1.9rem;
-  height: 1.9rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--muted);
-}
-
-.chat-sidebar__icon-btn:hover {
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.08);
 }
 
 .chat-sidebar__search {
   width: 100%;
-  min-width: 8rem;
-  padding: 0.5rem 0.7rem;
+  height: 34px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
   color: var(--ink);
   font-size: 0.82rem;
+  padding: 0 10px;
 }
 
 .chat-sidebar__search:focus {
   outline: none;
-  border-color: rgba(249, 171, 0, 0.35);
+  border-color: rgba(112, 59, 247, 0.75);
 }
 
-.chat-sidebar__empty,
-.chat-sidebar__loading {
-  padding: 0.9rem 0.75rem;
-  border-radius: var(--radius);
-  border: 1px dashed var(--line);
-  color: var(--muted);
+.chat-sidebar__new {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(112, 59, 247, 0.18);
+  color: var(--ink-strong);
+  font-size: 1rem;
+}
+
+.chat-sidebar__new:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chat-sidebar__item {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  padding: 9px 10px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-sidebar__item--active {
+  border-color: rgba(112, 59, 247, 0.8);
+  background: rgba(112, 59, 247, 0.2);
+}
+
+.chat-sidebar__item-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chat-sidebar__item-main strong {
   font-size: 0.82rem;
-  line-height: 1.5;
+  font-weight: 500;
+  color: var(--ink-strong);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.chat-sidebar__empty p {
-  margin: 0;
+.chat-sidebar__item-main span {
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
-@media (max-width: 900px) {
-  .chat-sidebar {
-    min-height: auto;
+.chat-sidebar__count {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.chat-sidebar__session-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.chat-sidebar__icon-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.chat-sidebar__icon-btn:hover {
+  border-color: var(--line);
+  color: var(--ink-strong);
+}
+
+.chat-sidebar__state {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.chat-sidebar__footer {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.chat-sidebar__footer .chat-sidebar__footer-btn--accent {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-sidebar__footer-btn {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--ink);
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.chat-sidebar__footer-btn--accent {
+  border-color: rgba(112, 59, 247, 0.8);
+  background: rgba(112, 59, 247, 0.25);
+}
+
+@media (max-width: 940px) {
+  .chat-sidebar__nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .chat-sidebar__nav-link {
+    justify-content: center;
   }
 }
 </style>

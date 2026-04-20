@@ -8,6 +8,7 @@ import type {
   DatabaseConnection,
   NotebookCell,
   Notebook,
+  QueryMode,
   NotebookTraceStep,
   WorkspaceData
 } from '@/types/app';
@@ -71,6 +72,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const statusLabel = ref('Connecting backend');
   const banner = ref('Connecting frontend to backend API.');
   const errorMessage = ref<string | null>(null);
+  const llmModelAliases = ref<string[]>(['gpt120']);
+  const defaultLlmModelAlias = ref('gpt120');
   const draftPrompt = ref('');
   const clarificationAnswers = ref<Record<string, string>>({});
   const activePipelineIndex = ref(0);
@@ -116,11 +119,34 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     );
   }
 
-  function buildCellPayload(cellType: CellType, value: string) {
-    if (cellType === 'sql') {
-      return { sql: value };
+  function formatModeLabel(mode: QueryMode) {
+    return mode === 'thinking' ? '🧠 Thinking' : '⚡ Fast';
+  }
+
+  function resolveInputCellMode(cell: NotebookCell): QueryMode {
+    if (cell.type === 'sql') {
+      return (cell.content as { queryMode?: QueryMode }).queryMode ?? 'fast';
     }
-    return { text: value };
+    return (cell.content as { queryMode?: QueryMode }).queryMode ?? 'fast';
+  }
+
+  function resolveInputCellModelAlias(cell: NotebookCell): string {
+    if (cell.type === 'sql') {
+      return (cell.content as { llmModelAlias?: string }).llmModelAlias ?? defaultLlmModelAlias.value;
+    }
+    return (cell.content as { llmModelAlias?: string }).llmModelAlias ?? defaultLlmModelAlias.value;
+  }
+
+  function buildCellPayload(
+    cellType: CellType,
+    value: string,
+    queryMode: QueryMode,
+    llmModelAlias: string
+  ) {
+    if (cellType === 'sql') {
+      return { sql: value, query_mode: queryMode, llm_model_alias: llmModelAlias };
+    }
+    return { text: value, query_mode: queryMode, llm_model_alias: llmModelAlias };
   }
 
   function editorValue(cell: NotebookCell) {
@@ -210,7 +236,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           dictionary,
           templates,
           schema,
-          notebookSummaries
+          notebookSummaries,
+          llmModels
         ] = await Promise.all([
           api.getWorkspaces(),
           api.getDatabases(),
@@ -218,14 +245,30 @@ export const useWorkspaceStore = defineStore('workspace', () => {
           api.getDictionary(),
           api.getQueryTemplates(),
           api.getSchema().catch(() => null),
-          api.getNotebooks()
+          api.getNotebooks(),
+          api.getLlmModels().catch(() => null)
         ]);
 
         const notebookDetails = await Promise.all(
           notebookSummaries.map((notebook) => api.getNotebook(notebook.id))
         );
 
+        const fetchedAliases = (llmModels?.aliases ?? [])
+          .map((item) => item.alias.trim())
+          .filter(Boolean);
+        const candidateDefaultAlias =
+          llmModels?.default_alias?.trim() || defaultLlmModelAlias.value || 'gpt120';
+        const candidateAliases = fetchedAliases.length ? fetchedAliases : llmModelAliases.value;
+        const nextAliases = candidateAliases.length ? candidateAliases : [candidateDefaultAlias];
+        const nextDefaultAlias = nextAliases.includes(candidateDefaultAlias)
+          ? candidateDefaultAlias
+          : nextAliases[0];
+
+        llmModelAliases.value = nextAliases;
+        defaultLlmModelAlias.value = nextDefaultAlias;
+
         workspace.value = buildWorkspaceData({
+          defaultModelAlias: nextDefaultAlias,
           workspace: workspaces[0] ?? null,
           databases,
           reports,
@@ -332,7 +375,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     statusLabel.value = type === 'sql' ? 'Creating SQL block' : 'Creating prompt block';
     const created = await api.createNotebookCell(notebook.id, {
       type,
-      content: type === 'sql' ? { sql: '' } : { text: '' }
+      content:
+        type === 'sql'
+          ? { sql: '', query_mode: 'fast', llm_model_alias: defaultLlmModelAlias.value }
+          : { text: '', query_mode: 'fast', llm_model_alias: defaultLlmModelAlias.value }
     });
     await refreshWorkspace(notebook.id, 'keep');
     selectedCellId.value = created.id;
@@ -340,7 +386,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return created.id;
   }
 
-  async function saveInputCell(cellId: string, value: string) {
+  async function saveInputCell(
+    cellId: string,
+    value: string,
+    queryMode?: QueryMode,
+    llmModelAlias?: string
+  ) {
     const notebook = currentNotebook.value;
     const cell = notebook?.cells.find((item) => item.id === cellId);
     const trimmedValue = value.trim();
@@ -354,12 +405,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       return;
     }
 
-    if (trimmedValue === editorValue(cell)) {
+    const effectiveMode = queryMode ?? resolveInputCellMode(cell);
+    const effectiveModelAlias = llmModelAlias ?? resolveInputCellModelAlias(cell);
+    if (
+      trimmedValue === editorValue(cell) &&
+      effectiveMode === resolveInputCellMode(cell) &&
+      effectiveModelAlias === resolveInputCellModelAlias(cell)
+    ) {
       return;
     }
 
     await api.updateNotebookCell(notebook.id, cellId, {
-      content: buildCellPayload(cell.type, value)
+      content: buildCellPayload(cell.type, value, effectiveMode, effectiveModelAlias)
     });
     await refreshWorkspace(notebook.id, 'keep');
     selectedCellId.value = cellId;
@@ -371,9 +428,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       return;
     }
 
+    const cell = notebook.cells.find((item) => item.id === cellId);
+    const mode = cell ? resolveInputCellMode(cell) : 'fast';
+    const modelAlias = cell ? resolveInputCellModelAlias(cell) : defaultLlmModelAlias.value;
     statusLabel.value = 'Formatting SQL';
     await api.updateNotebookCell(notebook.id, cellId, {
-      content: { sql: value }
+      content: { sql: value, query_mode: mode, llm_model_alias: modelAlias }
     });
     await api.formatNotebookSqlCell(notebook.id, cellId);
     await refreshWorkspace(notebook.id, 'keep');
@@ -381,7 +441,64 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     setBanner('SQL блок отформатирован.');
   }
 
-  async function runCell(cellId: string, value: string) {
+  async function setInputCellMode(cellId: string, queryMode: QueryMode) {
+    const notebook = currentNotebook.value;
+    const cell = notebook?.cells.find((item) => item.id === cellId);
+    if (
+      !notebook ||
+      !cell ||
+      cell.queryRunId ||
+      (cell.type !== 'prompt' && cell.type !== 'sql')
+    ) {
+      return;
+    }
+
+    if (resolveInputCellMode(cell) === queryMode) {
+      return;
+    }
+
+    await api.updateNotebookCell(notebook.id, cellId, {
+      content: buildCellPayload(
+        cell.type,
+        editorValue(cell),
+        queryMode,
+        resolveInputCellModelAlias(cell)
+      )
+    });
+    await refreshWorkspace(notebook.id, 'keep');
+    selectedCellId.value = cellId;
+  }
+
+  async function setInputCellModelAlias(cellId: string, llmModelAlias: string) {
+    const notebook = currentNotebook.value;
+    const cell = notebook?.cells.find((item) => item.id === cellId);
+    if (
+      !notebook ||
+      !cell ||
+      cell.queryRunId ||
+      (cell.type !== 'prompt' && cell.type !== 'sql')
+    ) {
+      return;
+    }
+
+    const nextAlias = llmModelAlias.trim();
+    if (!nextAlias || resolveInputCellModelAlias(cell) === nextAlias) {
+      return;
+    }
+
+    await api.updateNotebookCell(notebook.id, cellId, {
+      content: buildCellPayload(cell.type, editorValue(cell), resolveInputCellMode(cell), nextAlias)
+    });
+    await refreshWorkspace(notebook.id, 'keep');
+    selectedCellId.value = cellId;
+  }
+
+  async function runCell(
+    cellId: string,
+    value: string,
+    queryMode?: QueryMode,
+    llmModelAlias?: string
+  ) {
     const notebook = currentNotebook.value;
     const cell = notebook?.cells.find((item) => item.id === cellId);
     if (
@@ -394,6 +511,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
 
     const trimmedValue = value.trim();
+    const effectiveMode = queryMode ?? resolveInputCellMode(cell);
+    const effectiveModelAlias = llmModelAlias ?? resolveInputCellModelAlias(cell);
     if (!trimmedValue) {
       setBanner(cell.type === 'sql' ? 'SQL блок пустой.' : 'Prompt блок пустой.');
       return;
@@ -401,18 +520,32 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
     runningCellIds.value = [cellId];
     isRunning.value = true;
-    statusLabel.value = cell.type === 'sql' ? 'Running SQL block' : 'Running prompt block';
+    statusLabel.value =
+      cell.type === 'sql'
+        ? `Running SQL block (${formatModeLabel(effectiveMode)})`
+        : `Running prompt block (${formatModeLabel(effectiveMode)})`;
 
     try {
-      if (trimmedValue !== editorValue(cell)) {
+      if (
+        trimmedValue !== editorValue(cell) ||
+        effectiveMode !== resolveInputCellMode(cell) ||
+        effectiveModelAlias !== resolveInputCellModelAlias(cell)
+      ) {
         await api.updateNotebookCell(notebook.id, cellId, {
-          content: buildCellPayload(cell.type, value)
+          content: buildCellPayload(cell.type, value, effectiveMode, effectiveModelAlias)
         });
       }
-      await api.runNotebookCell(notebook.id, cellId);
+      await api.runNotebookCell(notebook.id, cellId, {
+        query_mode: effectiveMode,
+        llm_model_alias: effectiveModelAlias
+      });
       await refreshWorkspace(notebook.id, 'keep');
       selectedCellId.value = cellId;
-      setBanner(cell.type === 'sql' ? 'SQL блок выполнен.' : 'Prompt блок выполнен.');
+      setBanner(
+        cell.type === 'sql'
+          ? `SQL блок выполнен (${formatModeLabel(effectiveMode)}).`
+          : `Prompt блок выполнен (${formatModeLabel(effectiveMode)}).`
+      );
     } finally {
       runningCellIds.value = [];
       isRunning.value = false;
@@ -492,12 +625,16 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         prompt,
         clarificationAnswers.value
       );
+      const modelAlias = defaultLlmModelAlias.value;
       const created = await api.createNotebookCell(notebook.id, {
         type: 'prompt',
-        content: { text: finalPrompt }
+        content: { text: finalPrompt, query_mode: 'fast', llm_model_alias: modelAlias }
       });
       runningCellIds.value = [created.id];
-      await api.runNotebookCell(notebook.id, created.id);
+      await api.runNotebookCell(notebook.id, created.id, {
+        query_mode: 'fast',
+        llm_model_alias: modelAlias
+      });
       draftPrompt.value = '';
       clarificationAnswers.value = {};
       await refreshWorkspace(notebook.id, 'keep');
@@ -669,6 +806,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     connectDatabase,
     createInputCell,
     createNotebook,
+    defaultLlmModelAlias,
     deleteDatabase,
     deleteNotebook,
     currentDatabase,
@@ -681,6 +819,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isRunning,
     isSavingReport,
     isSubmittingPrompt,
+    llmModelAliases,
     loadWorkspace,
     moveInputCell,
     reorderInputCells,
@@ -691,6 +830,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     runCurrentNotebook,
     saveCurrentReport,
     saveInputCell,
+    setInputCellModelAlias,
+    setInputCellMode,
     selectedCell,
     selectedCellId,
     selectedNotebookId,

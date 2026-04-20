@@ -19,6 +19,8 @@
           v-if="store.currentNotebook"
           :clarification-answers="store.clarificationAnswers"
           :database-name="store.currentDatabase.name"
+          :default-llm-model-alias="store.defaultLlmModelAlias"
+          :llm-model-aliases="store.llmModelAliases"
           :notebook="store.currentNotebook"
           :running-cell-ids="store.runningCellIds"
           :selected-cell-id="store.selectedCellId"
@@ -30,6 +32,8 @@
           @reorder-input-cells="store.reorderInputCells"
           @run-input-cell="store.runCell"
           @save-input-cell="store.saveInputCell"
+          @set-input-model="store.setInputCellModelAlias"
+          @set-input-mode="store.setInputCellMode"
           @select-cell="store.selectCell"
         />
         <div v-else class="empty-canvas">

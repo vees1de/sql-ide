@@ -159,7 +159,13 @@ async def send_message(
         raise HTTPException(status_code=409, detail="Chat session is busy.")
 
     try:
-        result = chat_adapter.generate_response(db, session_id, payload.text)
+        result = chat_adapter.generate_response(
+            db,
+            session_id,
+            payload.text,
+            query_mode=payload.query_mode,
+            llm_model_alias=payload.llm_model_alias,
+        )
         return SendMessageResponse(
             session=_session_to_read(result.session),
             user_message=_message_to_read(result.user_message),

@@ -37,11 +37,14 @@ class LLMService:
 
     @property
     def configured(self) -> bool:
+        return self._configured_for_model(settings.llm_model)
+
+    def _configured_for_model(self, model: str | None) -> bool:
         return bool(
             OpenAI is not None
             and settings.llm_api_base_url
             and settings.llm_api_key
-            and settings.llm_model
+            and model
         )
 
     def plan_query(
@@ -51,8 +54,10 @@ class LLMService:
         previous_intent: IntentPayload | None = None,
         history_text: str | None = None,
         temperature: float = 0.1,
+        model: str | None = None,
     ) -> LLMQueryPlan | None:
-        if not self.configured:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model):
             return None
 
         previous_intent_payload = previous_intent.model_dump(mode="json") if previous_intent else None
@@ -103,6 +108,7 @@ class LLMService:
                 ],
                 max_tokens=1400,
                 temperature=temperature,
+                model=target_model,
             )
             payload = json.loads(self._extract_json_object(content))
             payload.setdefault("intent", {})
@@ -121,8 +127,10 @@ class LLMService:
         columns: list[str],
         rows: list[dict[str, Any]],
         row_count: int,
+        model: str | None = None,
     ) -> str | None:
-        if not self.configured or not rows:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model) or not rows:
             return None
 
         try:
@@ -152,24 +160,37 @@ class LLMService:
                 ],
                 max_tokens=220,
                 temperature=0.2,
+                model=target_model,
             )
             return content.strip() or None
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM summarization request failed: %s", exc)
             return None
 
-    def _chat_json(self, messages: list[dict[str, str]], max_tokens: int, temperature: float) -> str:
+    def _chat_json(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float,
+        model: str,
+    ) -> str:
         response = self._get_client().chat.completions.create(
-            model=str(settings.llm_model),
+            model=str(model),
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
         )
         return self._extract_text(response.choices[0].message.content)
 
-    def _chat_text(self, messages: list[dict[str, str]], max_tokens: int, temperature: float) -> str:
+    def _chat_text(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        temperature: float,
+        model: str,
+    ) -> str:
         response = self._get_client().chat.completions.create(
-            model=str(settings.llm_model),
+            model=str(model),
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,

@@ -12,20 +12,26 @@ from app.agents.intent import IntentAgent
 from app.agents.semantic import SemanticMappingAgent
 from app.agents.sql_generation import SQLGenerationAgent
 from app.agents.validation import SQLValidationAgent
-from app.core.config import settings
+from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_alias
 from app.db.models import ChatMessageModel, ChatSessionModel
 from app.schemas.chat import (
+    ClarificationBlock,
     ClarificationOption,
-    ChatMessageRead,
-    ChatSessionRead,
-    ChatSessionUpdate,
+    ErrorBlock,
     Interpretation,
     StructuredPayload,
     TableUsage,
 )
 from app.schemas.dictionary import DictionaryEntryRead
-from app.schemas.query import IntentPayload, SemanticMappingPayload
+from app.schemas.query import (
+    ClarificationAnswerRecord,
+    IntentPayload,
+    QueryMode,
+    SemanticMappingPayload,
+    normalize_query_mode,
+)
 from app.services.chat_service import ChatService
+from app.services.clarification_resolver import apply_answers
 from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
 from app.services.llm_service import LLMQueryPlan, LLMService
 from app.services.schema_context_provider import SchemaContextProvider
@@ -54,7 +60,18 @@ class ChatSqlAdapter:
         self.clarification_agent = ClarificationAgent()
         self.llm_service = LLMService()
 
-    def generate_response(self, db: Session, session_id: str, user_text: str) -> AdapterResult:
+    def generate_response(
+        self,
+        db: Session,
+        session_id: str,
+        user_text: str,
+        *,
+        query_mode: QueryMode = "fast",
+        llm_model_alias: str | None = None,
+    ) -> AdapterResult:
+        query_mode = normalize_query_mode(query_mode)
+        normalized_model_alias = normalize_llm_model_alias(llm_model_alias)
+        llm_model = resolve_llm_model_from_alias(normalized_model_alias)
         session = self.chat_service.get_session(db, session_id)
         if session is None:
             raise ValueError("Chat session not found.")
@@ -66,25 +83,41 @@ class ChatSqlAdapter:
         allowed_tables = resolve_allowed_tables(db, session.database_connection_id, engine)
         schema = self.schema_provider.get_schema_for_llm(db, session.database_connection_id)
         dictionary_entries = self._load_dictionary_entries(db)
+        complexity = self._classify_prompt_complexity(user_text, previous_intent)
+        mode_warnings: list[str] = []
 
-        plan = self._try_llm_plan(user_text, schema, previous_intent, history_text)
-        if plan is not None:
-            result = self._from_plan(
-                db=db,
-                session=session,
-                plan=plan,
-                dialect=dialect,
-                allowed_tables=allowed_tables,
-                schema=schema,
-                dictionary_entries=dictionary_entries,
-                user_text=user_text,
-                previous_intent=previous_intent,
+        if query_mode == "thinking":
+            plan = self._try_llm_plan(
+                user_text,
+                schema,
+                previous_intent,
+                history_text,
+                llm_model=llm_model,
             )
-            if result is not None:
-                return result
+            if plan is not None:
+                result = self._from_plan(
+                    db=db,
+                    session=session,
+                    plan=plan,
+                    dialect=dialect,
+                    allowed_tables=allowed_tables,
+                    schema=schema,
+                    dictionary_entries=dictionary_entries,
+                    user_text=user_text,
+                    previous_intent=previous_intent,
+                    query_mode=query_mode,
+                    complexity=complexity,
+                    llm_model_alias=normalized_model_alias,
+                )
+                if result is not None:
+                    return result
 
         intent = self.intent_agent.run(user_text, previous_intent=previous_intent)
-        if intent.clarification_question:
+        if query_mode == "fast":
+            intent, mode_warnings = self._apply_fast_mode_defaults(intent, previous_intent)
+            if complexity == "complex":
+                mode_warnings.append("Сложный запрос выполнен в Fast режиме. Результат может быть приближённым.")
+        elif intent.clarification_question:
             return self._build_clarification_result(
                 db=db,
                 session=session,
@@ -93,6 +126,9 @@ class ChatSqlAdapter:
                 user_text=user_text,
                 dialect=dialect,
                 commit_updates=True,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=normalized_model_alias,
             )
 
         semantic = self.semantic_agent.run(intent, dictionary_entries, dialect, schema)
@@ -106,6 +142,10 @@ class ChatSqlAdapter:
                 validation_warnings=[str(exc)],
                 dialect=dialect,
                 validation_errors=[str(exc)],
+                query_mode=query_mode,
+                complexity=complexity,
+                mode_warnings=mode_warnings,
+                llm_model_alias=normalized_model_alias,
             )
             return self._persist_result(
                 db=db,
@@ -127,6 +167,10 @@ class ChatSqlAdapter:
                 validation_warnings=validation.warnings,
                 validation_errors=validation.errors,
                 dialect=dialect,
+                query_mode=query_mode,
+                complexity=complexity,
+                mode_warnings=mode_warnings,
+                llm_model_alias=normalized_model_alias,
             )
             assistant_text = validation.errors[0] if validation.errors else "Не удалось безопасно подготовить SQL."
             return self._persist_result(
@@ -147,8 +191,12 @@ class ChatSqlAdapter:
             validation_warnings=validation.warnings,
             validation_errors=validation.errors,
             dialect=dialect,
+            query_mode=query_mode,
+            complexity=complexity,
+            mode_warnings=mode_warnings,
+            llm_model_alias=normalized_model_alias,
         )
-        assistant_text = "SQL подготовлен и подставлен в редактор. Запуск останется ручным."
+        assistant_text = self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
             db=db,
             session=session,
@@ -166,15 +214,15 @@ class ChatSqlAdapter:
         schema,
         previous_intent: IntentPayload | None,
         history_text: str,
+        llm_model: str,
     ) -> LLMQueryPlan | None:
-        if not self.llm_service.configured:
-            return None
         return self.llm_service.plan_query(
             prompt=user_text,
             schema=schema,
             previous_intent=previous_intent,
             history_text=history_text,
             temperature=0.0,
+            model=llm_model,
         )
 
     def _from_plan(
@@ -188,19 +236,31 @@ class ChatSqlAdapter:
         dictionary_entries: list[DictionaryEntryRead],
         user_text: str,
         previous_intent: IntentPayload | None,
+        query_mode: QueryMode,
+        complexity: str,
+        llm_model_alias: str,
     ) -> AdapterResult | None:
         intent = plan.intent
+        mode_warnings: list[str] = []
         if intent.clarification_question and not plan.sql:
-            return self._build_clarification_result(
-                db=db,
-                session=session,
-                intent=intent,
-                schema=schema,
-                user_text=user_text,
-                dialect=dialect,
-                commit_updates=True,
-                previous_intent=previous_intent,
-            )
+            if query_mode == "fast":
+                intent, mode_warnings = self._apply_fast_mode_defaults(intent, previous_intent)
+                if complexity == "complex":
+                    mode_warnings.append("Сложный запрос выполнен в Fast режиме. Результат может быть приближённым.")
+            else:
+                return self._build_clarification_result(
+                    db=db,
+                    session=session,
+                    intent=intent,
+                    schema=schema,
+                    user_text=user_text,
+                    dialect=dialect,
+                    commit_updates=True,
+                    previous_intent=previous_intent,
+                    query_mode=query_mode,
+                    complexity=complexity,
+                    llm_model_alias=llm_model_alias,
+                )
         semantic = self.semantic_agent.run(intent, dictionary_entries, dialect, schema)
         if not plan.sql:
             try:
@@ -213,6 +273,10 @@ class ChatSqlAdapter:
                     validation_warnings=[str(exc)],
                     validation_errors=[str(exc)],
                     dialect=dialect,
+                    query_mode=query_mode,
+                    complexity=complexity,
+                    mode_warnings=mode_warnings,
+                    llm_model_alias=llm_model_alias,
                 )
                 return self._persist_result(
                     db=db,
@@ -236,6 +300,10 @@ class ChatSqlAdapter:
                 validation_warnings=list(dict.fromkeys([*plan.warnings, *validation.warnings])),
                 validation_errors=validation.errors,
                 dialect=dialect,
+                query_mode=query_mode,
+                complexity=complexity,
+                mode_warnings=mode_warnings,
+                llm_model_alias=llm_model_alias,
             )
             assistant_text = validation.errors[0] if validation.errors else "Не удалось безопасно подготовить SQL."
             return self._persist_result(
@@ -256,8 +324,12 @@ class ChatSqlAdapter:
             validation_warnings=list(dict.fromkeys([*plan.warnings, *validation.warnings])),
             validation_errors=validation.errors,
             dialect=dialect,
+            query_mode=query_mode,
+            complexity=complexity,
+            mode_warnings=mode_warnings,
+            llm_model_alias=llm_model_alias,
         )
-        assistant_text = "SQL подготовлен и подставлен в редактор. Запуск останется ручным."
+        assistant_text = self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
             db=db,
             session=session,
@@ -279,6 +351,9 @@ class ChatSqlAdapter:
         dialect: str,
         commit_updates: bool,
         previous_intent: IntentPayload | None = None,
+        query_mode: QueryMode = "thinking",
+        complexity: str = "complex",
+        llm_model_alias: str | None = None,
     ) -> AdapterResult:
         clarification = self.clarification_agent.run(intent, schema=schema)
         options = [
@@ -298,6 +373,11 @@ class ChatSqlAdapter:
             clarification_question=clarification.get("question") or intent.clarification_question,
             clarification_options=options or None,
             dialect=dialect,
+            query_mode=query_mode,
+            llm_model_alias=llm_model_alias,
+            complexity=complexity,
+            mode_suggestion=None,
+            mode_suggestion_reason=None,
         )
         assistant_text = payload.clarification_question or "Нужны дополнительные детали."
         return self._persist_result(
@@ -364,6 +444,65 @@ class ChatSqlAdapter:
             sql_draft_version=session.sql_draft_version,
         )
 
+    def _apply_fast_mode_defaults(
+        self,
+        intent: IntentPayload,
+        previous_intent: IntentPayload | None,
+    ) -> tuple[IntentPayload, list[str]]:
+        adjusted = intent.model_copy(deep=True)
+        warnings: list[str] = []
+
+        if adjusted.metric is None:
+            fallback_metric = previous_intent.metric if previous_intent and previous_intent.metric else "revenue"
+            adjusted.metric = fallback_metric
+            warnings.append(f"Метрика не указана явно. В Fast режиме выбрана «{fallback_metric}».")
+
+        if adjusted.clarification_question:
+            warnings.append("Clarification пропущен для ускорения ответа в Fast режиме.")
+        adjusted.clarification_question = None
+        adjusted.ambiguities = []
+        adjusted.confidence = max(0.45, adjusted.confidence - 0.05)
+        return adjusted, warnings
+
+    def _classify_prompt_complexity(
+        self,
+        prompt: str,
+        previous_intent: IntentPayload | None,
+    ) -> str:
+        lowered = prompt.lower()
+        score = 0
+        if len(prompt) > 120:
+            score += 1
+        markers = (
+            "compare",
+            "vs",
+            "growth",
+            "trend",
+            "anomaly",
+            "cohort",
+            "retention",
+            "против",
+            "сравн",
+            "рост",
+            "динам",
+            "аномал",
+            "когорт",
+        )
+        if any(marker in lowered for marker in markers):
+            score += 2
+        if any(token in lowered for token in (" and ", " и ", " against ", " между ", "по сравнению")):
+            score += 1
+        if previous_intent and previous_intent.follow_up:
+            score += 1
+        return "complex" if score >= 3 else "simple"
+
+    def _build_assistant_text(self, query_mode: QueryMode, complexity: str) -> str:
+        if query_mode == "fast":
+            if complexity == "complex":
+                return "SQL быстро подготовлен в Fast режиме. Для более точной интерпретации можно переключиться на Thinking."
+            return "SQL быстро подготовлен в Fast режиме. Запуск останется ручным."
+        return "SQL подготовлен в Thinking режиме с более глубокой интерпретацией. Запуск останется ручным."
+
     def _build_structured_payload(
         self,
         intent: IntentPayload,
@@ -372,9 +511,28 @@ class ChatSqlAdapter:
         validation_warnings: list[str],
         validation_errors: list[str],
         dialect: str,
+        query_mode: QueryMode,
+        complexity: str,
+        mode_warnings: list[str] | None = None,
+        llm_model_alias: str | None = None,
     ) -> StructuredPayload:
         tables_used = self._derive_table_usage(semantic)
-        warnings = list(dict.fromkeys([*semantic.warnings, *validation_warnings, *validation_errors]))
+        warnings = list(
+            dict.fromkeys(
+                [
+                    *semantic.warnings,
+                    *validation_warnings,
+                    *validation_errors,
+                    *(mode_warnings or []),
+                ]
+            )
+        )
+        mode_suggestion = "thinking" if query_mode == "fast" and complexity == "complex" else None
+        mode_suggestion_reason = (
+            "Запрос выглядит сложным: для более точной интерпретации лучше использовать Thinking режим."
+            if mode_suggestion == "thinking"
+            else None
+        )
         return StructuredPayload(
             interpretation=self._build_interpretation(intent),
             tables_used=tables_used,
@@ -384,6 +542,11 @@ class ChatSqlAdapter:
             clarification_question=None,
             clarification_options=None,
             dialect=dialect,
+            query_mode=query_mode,
+            llm_model_alias=llm_model_alias,
+            complexity=complexity,
+            mode_suggestion=mode_suggestion,
+            mode_suggestion_reason=mode_suggestion_reason,
         )
 
     def _build_interpretation(self, intent: IntentPayload) -> Interpretation:

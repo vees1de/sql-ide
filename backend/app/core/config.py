@@ -12,7 +12,7 @@ YANDEX_MODEL_ALIASES = {
     "qwen": "qwen3.5-35b-a3b-fp8/latest",
 }
 DEFAULT_YANDEX_FOLDER_ID = "b1gste4lfr39is20f5r8"
-DEFAULT_YANDEX_MODEL_ALIAS = "qwen"
+DEFAULT_YANDEX_MODEL_ALIAS = "gpt120"
 
 
 def _load_env_file(env_path: Path) -> None:
@@ -72,6 +72,32 @@ def _resolve_llm_model() -> str | None:
         return f"gpt://{folder_id}/{YANDEX_MODEL_ALIASES[alias]}"
 
     return configured
+
+
+def normalize_llm_model_alias(value: str | None) -> str:
+    candidate = (value or "").strip().lower()
+    if candidate in YANDEX_MODEL_ALIASES:
+        return candidate
+    return DEFAULT_YANDEX_MODEL_ALIAS
+
+
+def resolve_llm_model_from_alias(alias: str | None) -> str:
+    normalized_alias = normalize_llm_model_alias(alias)
+    folder_id = _read_optional("YANDEX_AI_FOLDER_ID") or DEFAULT_YANDEX_FOLDER_ID
+    return f"gpt://{folder_id}/{YANDEX_MODEL_ALIASES[normalized_alias]}"
+
+
+def detect_llm_model_alias(model: str | None) -> str:
+    normalized_model = (model or "").strip()
+    if not normalized_model:
+        return DEFAULT_YANDEX_MODEL_ALIAS
+    lowered_model = normalized_model.lower()
+    for alias, model_path in YANDEX_MODEL_ALIASES.items():
+        if lowered_model == alias:
+            return alias
+        if normalized_model.endswith(f"/{model_path}") or normalized_model.endswith(model_path):
+            return alias
+    return DEFAULT_YANDEX_MODEL_ALIAS
 
 
 @dataclass(frozen=True)

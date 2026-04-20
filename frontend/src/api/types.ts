@@ -6,6 +6,19 @@ export interface ApiWorkspaceRead {
   updated_at: string;
 }
 
+export type ApiQueryMode = 'fast' | 'thinking';
+
+export interface ApiLlmModelAlias {
+  alias: string;
+  model: string;
+}
+
+export interface ApiLlmModelAliasesResponse {
+  aliases: ApiLlmModelAlias[];
+  default_alias: string;
+  current_alias: string;
+}
+
 export interface ApiChatDateRange {
   kind: string;
   start?: string | null;
@@ -50,6 +63,11 @@ export interface ApiChatStructuredPayload {
   clarification_question: string | null;
   clarification_options: ApiChatClarificationOption[] | null;
   dialect: string;
+  query_mode: ApiQueryMode;
+  llm_model_alias?: string | null;
+  complexity: 'simple' | 'complex';
+  mode_suggestion?: ApiQueryMode | null;
+  mode_suggestion_reason?: string | null;
 }
 
 export interface ApiChatSessionRead {
@@ -113,6 +131,8 @@ export interface ApiChatSessionUpdate {
 
 export interface ApiChatMessageCreate {
   text: string;
+  query_mode?: ApiQueryMode;
+  llm_model_alias?: string | null;
 }
 
 export interface ApiChatSqlDraftUpdate {
@@ -355,6 +375,11 @@ export interface ApiNotebookCellCreate {
 
 export interface ApiNotebookCellUpdate {
   content: Record<string, unknown>;
+}
+
+export interface ApiNotebookCellRunRequest {
+  query_mode?: ApiQueryMode;
+  llm_model_alias?: string | null;
 }
 
 export interface ApiNotebookCellReorder {
