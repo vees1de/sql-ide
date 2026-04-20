@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.db.models import ChatSessionModel, QueryExecutionModel
 from app.schemas.chat import ChartRecommendation
 from app.services.chart_recommendation_service import ChartRecommendationService
-from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
+from app.services.database_resolution import resolve_dialect, resolve_engine
 
 
 class ChatExecutionService:
@@ -28,9 +28,7 @@ class ChatExecutionService:
         session = self._get_session(db, session_id)
         dialect = resolve_dialect(db, session.database_connection_id)
         engine = resolve_engine(db, session.database_connection_id)
-        allowed_tables = resolve_allowed_tables(db, session.database_connection_id, engine)
-
-        validation = self.validation_agent.run(sql, dialect, allowed_tables=allowed_tables)
+        validation = self.validation_agent.run(sql, dialect)
         if not validation.valid:
             raise ValueError("; ".join(validation.errors) or "SQL validation failed.")
 
@@ -130,4 +128,3 @@ class ChatExecutionService:
         if len(preview) < len(rows_full):
             truncated = True
         return preview, truncated
-

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from fastapi import Depends
 
 from app.core.config import (
     YANDEX_MODEL_ALIASES,
@@ -9,17 +10,39 @@ from app.core.config import (
 )
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.metadata import LLMModelAliasItem, LLMModelAliasesResponse
+from app.schemas.semantic_catalog import SemanticCatalog, SemanticCatalogActivationRequest
+from app.api.deps import get_db
+from sqlalchemy.orm import Session
 from app.services.metadata_service import MetadataService
+from app.services.semantic_catalog_service import SemanticCatalogService
 from app.services.query_templates import get_query_templates
 
 
 router = APIRouter()
 metadata_service = MetadataService()
+semantic_catalog_service = SemanticCatalogService()
 
 
 @router.get("/metadata/schema", response_model=SchemaMetadataResponse)
 def get_schema() -> SchemaMetadataResponse:
     return metadata_service.get_schema()
+
+
+@router.get("/metadata/semantic-catalog", response_model=SemanticCatalog)
+def get_semantic_catalog(
+    database_id: str = settings.demo_database_id,
+    refresh: bool = False,
+    db: Session = Depends(get_db),
+) -> SemanticCatalog:
+    return semantic_catalog_service.get_catalog(db, database_id, refresh=refresh)
+
+
+@router.post("/metadata/semantic-catalog/activate", response_model=SemanticCatalog)
+def activate_semantic_catalog(
+    payload: SemanticCatalogActivationRequest,
+    db: Session = Depends(get_db),
+) -> SemanticCatalog:
+    return semantic_catalog_service.activate_catalog(db, payload.database_id, refresh=payload.refresh)
 
 
 @router.get("/query-templates")

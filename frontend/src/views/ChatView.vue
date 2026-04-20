@@ -84,8 +84,8 @@ function selectSession(sessionId: string) {
   void chat.selectSession(sessionId);
 }
 
-function createSession() {
-  void chat.createSession();
+function createSession(databaseId?: string) {
+  void chat.createSession(databaseId);
 }
 
 function renameSession(sessionId: string, title: string) {

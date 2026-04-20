@@ -20,6 +20,8 @@ import type {
   ApiQueryMode,
   ApiQueryTemplate,
   ApiReportRead,
+  ApiSemanticCatalog,
+  ApiSemanticCatalogActivationRequest,
   ApiSchemaMetadataResponse,
   ApiWorkspaceRead
 } from '@/api/types';
@@ -182,6 +184,21 @@ export const api = {
   },
   getSchema() {
     return request<ApiSchemaMetadataResponse>('/api/metadata/schema');
+  },
+  getSemanticCatalog(databaseId: string, refresh = false) {
+    const params = new URLSearchParams({
+      database_id: databaseId
+    });
+    if (refresh) {
+      params.set('refresh', 'true');
+    }
+    return request<ApiSemanticCatalog>(`/api/metadata/semantic-catalog?${params.toString()}`);
+  },
+  activateSemanticCatalog(payload: ApiSemanticCatalogActivationRequest) {
+    return request<ApiSemanticCatalog>('/api/metadata/semantic-catalog/activate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
   getLlmModels() {
     return request<ApiLlmModelAliasesResponse>('/api/metadata/llm-models');

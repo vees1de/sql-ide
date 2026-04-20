@@ -227,6 +227,103 @@ export interface ApiSchemaMetadataResponse {
   relationships: ApiSchemaRelationship[];
 }
 
+export interface ApiSemanticCatalogActivationRequest {
+  database_id: string;
+  refresh?: boolean;
+}
+
+export interface ApiSemanticColumnProfile {
+  distinct_count?: number | null;
+  null_ratio?: number | null;
+  min_value?: string | null;
+  max_value?: string | null;
+  avg_length?: number | null;
+  top_values: unknown[];
+  uniqueness_ratio?: number | null;
+  numeric_mean?: number | null;
+  numeric_min?: number | null;
+  numeric_max?: number | null;
+}
+
+export interface ApiSemanticColumn {
+  schema_name: string;
+  table_name: string;
+  column_name: string;
+  label: string;
+  business_description: string;
+  semantic_types: string[];
+  analytics_roles: string[];
+  value_type?: string | null;
+  aggregation: string[];
+  filterable: boolean;
+  groupable: boolean;
+  sortable: boolean;
+  synonyms: string[];
+  example_values: unknown[];
+  data_type: string;
+  nullable: boolean;
+  default_value?: string | null;
+  max_length?: number | null;
+  ordinal_position: number;
+  is_pk: boolean;
+  is_fk: boolean;
+  referenced_table?: string | null;
+  referenced_column?: string | null;
+  comment?: string | null;
+  profile: ApiSemanticColumnProfile;
+}
+
+export interface ApiSemanticRelationship {
+  from_table: string;
+  from_column: string;
+  to_table: string;
+  to_column: string;
+  relationship_type: string;
+  join_type: string;
+  business_meaning: string;
+  join_priority: string;
+  confidence: number;
+  path_id?: string | null;
+}
+
+export interface ApiSemanticJoinPath {
+  path_id: string;
+  from_table: string;
+  to_table: string;
+  joins: string[];
+  business_use_case: string;
+  tables: string[];
+}
+
+export interface ApiSemanticTable {
+  schema_name: string;
+  table_name: string;
+  label: string;
+  business_description: string;
+  table_role: 'fact' | 'dimension' | 'bridge' | 'lookup' | 'event' | 'snapshot';
+  grain?: string | null;
+  main_date_column?: string | null;
+  main_entity?: string | null;
+  synonyms: string[];
+  important_metrics: string[];
+  important_dimensions: string[];
+  row_count_estimate?: number | null;
+  primary_key: string[];
+  indexes: Array<Record<string, unknown>>;
+  comment?: string | null;
+  columns: ApiSemanticColumn[];
+  relationships: ApiSemanticRelationship[];
+  join_paths: ApiSemanticJoinPath[];
+}
+
+export interface ApiSemanticCatalog {
+  database_id: string;
+  dialect: string;
+  tables: ApiSemanticTable[];
+  relationships: ApiSemanticRelationship[];
+  join_paths: ApiSemanticJoinPath[];
+}
+
 export interface ApiKnowledgeScanRun {
   id: string;
   database_id: string;

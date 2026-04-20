@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import IntentPayload
+from app.schemas.semantic_catalog import SemanticTable, SemanticTableEnrichment
 
 try:
     from openai import OpenAI
@@ -165,6 +166,76 @@ class LLMService:
             return content.strip() or None
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM summarization request failed: %s", exc)
+            return None
+
+    def enrich_semantic_table(
+        self,
+        table: SemanticTable,
+        relationships: list[dict[str, Any]] | None = None,
+        join_paths: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+    ) -> SemanticTableEnrichment | None:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model):
+            return None
+
+        try:
+            content = self._chat_json(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a semantic data modeler. "
+                            "Return exactly one JSON object and no markdown. "
+                            "Your task is to improve business labels and descriptions without inventing new columns. "
+                            "Never reference tables or columns that are not present in the input. "
+                            "Prefer conservative updates over speculative ones."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {
+                                "table": table.model_dump(mode="json"),
+                                "relationships": relationships or [],
+                                "join_paths": join_paths or [],
+                                "response_shape": {
+                                    "table_name": "string",
+                                    "label": "string|null",
+                                    "business_description": "string|null",
+                                    "table_role": "fact|dimension|bridge|lookup|event|snapshot|null",
+                                    "grain": "string|null",
+                                    "main_date_column": "string|null",
+                                    "main_entity": "string|null",
+                                    "synonyms": ["string"],
+                                    "important_metrics": ["string"],
+                                    "important_dimensions": ["string"],
+                                    "columns": [
+                                        {
+                                            "column_name": "string",
+                                            "label": "string|null",
+                                            "business_description": "string|null",
+                                            "semantic_types": ["string"],
+                                            "analytics_roles": ["string"],
+                                            "synonyms": ["string"],
+                                        }
+                                    ],
+                                },
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                    },
+                ],
+                max_tokens=1200,
+                temperature=0.1,
+                model=str(target_model),
+            )
+            payload = json.loads(self._extract_json_object(content))
+            payload.setdefault("table_name", table.table_name)
+            return SemanticTableEnrichment.model_validate(payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("LLM semantic enrichment failed: %s", exc)
             return None
 
     def _chat_json(

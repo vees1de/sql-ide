@@ -7,13 +7,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.agents.clarification import ClarificationAgent
-from app.agents.intent import IntentAgent
-from app.agents.semantic import SemanticMappingAgent
-from app.agents.sql_generation import SQLGenerationAgent
-from app.agents.validation import SQLValidationAgent
 from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_alias
 from app.db.models import ChatMessageModel, ChatSessionModel
+from app.schemas.analytics import AnalyticsContext, AnalyticsQueryRequest
 from app.schemas.chat import (
     ClarificationBlock,
     ClarificationOption,
@@ -32,10 +28,9 @@ from app.schemas.query import (
 )
 from app.services.chat_service import ChatService
 from app.services.clarification_resolver import apply_answers
-from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
 from app.services.llm_service import LLMQueryPlan, LLMService
-from app.services.schema_context_provider import SchemaContextProvider
 from app.services.dictionary_service import DictionaryService
+from app.services.analytics_agent_service import AnalyticsAgentService
 
 
 @dataclass
@@ -51,13 +46,9 @@ class AdapterResult:
 class ChatSqlAdapter:
     def __init__(self) -> None:
         self.chat_service = ChatService()
-        self.schema_provider = SchemaContextProvider()
         self.dictionary_service = DictionaryService()
-        self.intent_agent = IntentAgent()
-        self.semantic_agent = SemanticMappingAgent()
-        self.sql_generation_agent = SQLGenerationAgent()
-        self.validation_agent = SQLValidationAgent()
-        self.clarification_agent = ClarificationAgent()
+        self.analytics_agent = AnalyticsAgentService()
+        self.clarification_agent = self.analytics_agent.clarification_agent
         self.llm_service = LLMService()
 
     def generate_response(
@@ -78,15 +69,12 @@ class ChatSqlAdapter:
 
         previous_intent = self._load_previous_intent(session.last_intent_json)
         history_text = self._build_history_text(session.messages)
-        dialect = resolve_dialect(db, session.database_connection_id)
-        engine = resolve_engine(db, session.database_connection_id)
-        allowed_tables = resolve_allowed_tables(db, session.database_connection_id, engine)
-        schema = self.schema_provider.get_schema_for_llm(db, session.database_connection_id)
         dictionary_entries = self._load_dictionary_entries(db)
         complexity = self._classify_prompt_complexity(user_text, previous_intent)
         mode_warnings: list[str] = []
 
         if query_mode == "thinking":
+            schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
             plan = self._try_llm_plan(
                 user_text,
                 schema,
@@ -99,8 +87,6 @@ class ChatSqlAdapter:
                     db=db,
                     session=session,
                     plan=plan,
-                    dialect=dialect,
-                    allowed_tables=allowed_tables,
                     schema=schema,
                     dictionary_entries=dictionary_entries,
                     user_text=user_text,
@@ -112,72 +98,59 @@ class ChatSqlAdapter:
                 if result is not None:
                     return result
 
-        intent = self.intent_agent.run(user_text, previous_intent=previous_intent)
-        if query_mode == "fast":
-            intent, mode_warnings = self._apply_fast_mode_defaults(intent, previous_intent)
-            if complexity == "complex":
-                mode_warnings.append("Сложный запрос выполнен в Fast режиме. Результат может быть приближённым.")
-        elif intent.clarification_question:
-            return self._build_clarification_result(
-                db=db,
-                session=session,
-                intent=intent,
-                schema=schema,
-                user_text=user_text,
-                dialect=dialect,
-                commit_updates=True,
-                query_mode=query_mode,
-                complexity=complexity,
-                llm_model_alias=normalized_model_alias,
-            )
+        plan = self.analytics_agent.prepare_query(
+            db,
+            AnalyticsQueryRequest(
+                query=user_text,
+                context=AnalyticsContext(
+                    previous_intent=previous_intent,
+                    database=session.database_connection_id,
+                    notebook_id=None,
+                ),
+            ),
+        )
 
-        semantic = self.semantic_agent.run(intent, dictionary_entries, dialect, schema)
-        try:
-            sql = self.sql_generation_agent.run(intent, semantic)
-        except Exception as exc:  # noqa: BLE001
-            payload = self._build_structured_payload(
-                intent=intent,
-                semantic=semantic,
-                sql=None,
-                validation_warnings=[str(exc)],
-                dialect=dialect,
-                validation_errors=[str(exc)],
+        if plan.status == "clarification_required" and plan.clarification is not None:
+            payload = self._build_clarification_payload(
+                intent=plan.intent,
+                clarification=plan.clarification,
                 query_mode=query_mode,
                 complexity=complexity,
-                mode_warnings=mode_warnings,
                 llm_model_alias=normalized_model_alias,
             )
+            assistant_text = payload.clarification_question or "Нужны дополнительные детали."
             return self._persist_result(
                 db=db,
                 session=session,
                 user_text=user_text,
-                intent=intent,
+                intent=plan.intent,
                 payload=payload,
                 sql_draft=None,
-                assistant_text=str(exc),
+                assistant_text=assistant_text,
                 commit_updates=True,
             )
 
-        validation = self.validation_agent.run(sql, dialect, allowed_tables=allowed_tables)
-        if not validation.valid:
+        if plan.status == "error" or plan.sql is None:
             payload = self._build_structured_payload(
-                intent=intent,
-                semantic=semantic,
+                intent=plan.intent,
+                semantic=plan.semantic,
                 sql=None,
-                validation_warnings=validation.warnings,
-                validation_errors=validation.errors,
-                dialect=dialect,
+                validation_warnings=plan.validation_warnings,
+                validation_errors=plan.validation_errors,
+                dialect="postgresql",
                 query_mode=query_mode,
                 complexity=complexity,
                 mode_warnings=mode_warnings,
                 llm_model_alias=normalized_model_alias,
             )
-            assistant_text = validation.errors[0] if validation.errors else "Не удалось безопасно подготовить SQL."
+            assistant_text = plan.error or (
+                plan.validation_errors[0] if plan.validation_errors else "Не удалось безопасно подготовить SQL."
+            )
             return self._persist_result(
                 db=db,
                 session=session,
                 user_text=user_text,
-                intent=intent,
+                intent=plan.intent,
                 payload=payload,
                 sql_draft=None,
                 assistant_text=assistant_text,
@@ -185,12 +158,12 @@ class ChatSqlAdapter:
             )
 
         payload = self._build_structured_payload(
-            intent=intent,
-            semantic=semantic,
-            sql=validation.sql,
-            validation_warnings=validation.warnings,
-            validation_errors=validation.errors,
-            dialect=dialect,
+            intent=plan.intent,
+            semantic=plan.semantic,
+            sql=plan.sql,
+            validation_warnings=plan.validation_warnings,
+            validation_errors=plan.validation_errors,
+            dialect="postgresql",
             query_mode=query_mode,
             complexity=complexity,
             mode_warnings=mode_warnings,
@@ -201,9 +174,9 @@ class ChatSqlAdapter:
             db=db,
             session=session,
             user_text=user_text,
-            intent=intent,
+            intent=plan.intent,
             payload=payload,
-            sql_draft=validation.sql,
+            sql_draft=plan.sql,
             assistant_text=assistant_text,
             commit_updates=True,
         )
@@ -230,8 +203,6 @@ class ChatSqlAdapter:
         db: Session,
         session: ChatSessionModel,
         plan: LLMQueryPlan,
-        dialect: str,
-        allowed_tables: list[str],
         schema,
         dictionary_entries: list[DictionaryEntryRead],
         user_text: str,
@@ -254,76 +225,25 @@ class ChatSqlAdapter:
                     intent=intent,
                     schema=schema,
                     user_text=user_text,
-                    dialect=dialect,
                     commit_updates=True,
                     previous_intent=previous_intent,
                     query_mode=query_mode,
                     complexity=complexity,
                     llm_model_alias=llm_model_alias,
                 )
-        semantic = self.semantic_agent.run(intent, dictionary_entries, dialect, schema)
-        if not plan.sql:
-            try:
-                sql = self.sql_generation_agent.run(intent, semantic)
-            except Exception as exc:  # noqa: BLE001
-                payload = self._build_structured_payload(
-                    intent=intent,
-                    semantic=semantic,
-                    sql=None,
-                    validation_warnings=[str(exc)],
-                    validation_errors=[str(exc)],
-                    dialect=dialect,
-                    query_mode=query_mode,
-                    complexity=complexity,
-                    mode_warnings=mode_warnings,
-                    llm_model_alias=llm_model_alias,
-                )
-                return self._persist_result(
-                    db=db,
-                    session=session,
-                    user_text=user_text,
-                    intent=intent,
-                    payload=payload,
-                    sql_draft=None,
-                    assistant_text=str(exc),
-                    commit_updates=True,
-                )
-        else:
-            sql = plan.sql
-
-        validation = self.validation_agent.run(sql, dialect, allowed_tables=allowed_tables)
-        if not validation.valid:
-            payload = self._build_structured_payload(
-                intent=intent,
-                semantic=semantic,
-                sql=None,
-                validation_warnings=list(dict.fromkeys([*plan.warnings, *validation.warnings])),
-                validation_errors=validation.errors,
-                dialect=dialect,
-                query_mode=query_mode,
-                complexity=complexity,
-                mode_warnings=mode_warnings,
-                llm_model_alias=llm_model_alias,
-            )
-            assistant_text = validation.errors[0] if validation.errors else "Не удалось безопасно подготовить SQL."
-            return self._persist_result(
-                db=db,
-                session=session,
-                user_text=user_text,
-                intent=intent,
-                payload=payload,
-                sql_draft=None,
-                assistant_text=assistant_text,
-                commit_updates=True,
-            )
-
+        semantic = self.analytics_agent.semantic_agent.run(
+            intent,
+            dictionary_entries,
+            schema.dialect,
+            schema,
+        )
         payload = self._build_structured_payload(
             intent=intent,
             semantic=semantic,
-            sql=validation.sql,
-            validation_warnings=list(dict.fromkeys([*plan.warnings, *validation.warnings])),
-            validation_errors=validation.errors,
-            dialect=dialect,
+            sql=plan.sql,
+            validation_warnings=list(dict.fromkeys([*getattr(plan, "warnings", [])])),
+            validation_errors=[],
+            dialect=schema.dialect,
             query_mode=query_mode,
             complexity=complexity,
             mode_warnings=mode_warnings,
@@ -336,9 +256,42 @@ class ChatSqlAdapter:
             user_text=user_text,
             intent=intent,
             payload=payload,
-            sql_draft=validation.sql,
+            sql_draft=plan.sql,
             assistant_text=assistant_text,
             commit_updates=True,
+        )
+
+    def _build_clarification_payload(
+        self,
+        intent: IntentPayload,
+        clarification: Any,
+        query_mode: QueryMode,
+        complexity: str,
+        llm_model_alias: str | None,
+    ) -> StructuredPayload:
+        first_question = clarification.questions[0] if getattr(clarification, "questions", None) else None
+        options = [
+            ClarificationOption(
+                id=option.label,
+                label=option.label,
+                detail=None,
+            )
+            for option in getattr(first_question, "options", [])[:6]
+        ] if first_question else []
+        return StructuredPayload(
+            interpretation=self._build_interpretation(intent),
+            tables_used=[],
+            sql=None,
+            warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            needs_clarification=True,
+            clarification_question=getattr(first_question, "text", None) or intent.clarification_question,
+            clarification_options=options or None,
+            dialect="postgresql",
+            query_mode=query_mode,
+            llm_model_alias=llm_model_alias,
+            complexity=complexity,
+            mode_suggestion=None,
+            mode_suggestion_reason=None,
         )
 
     def _build_clarification_result(

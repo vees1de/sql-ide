@@ -236,6 +236,20 @@ class KnowledgeService:
             .all()
         )
 
+    def delete_database_metadata(self, db: Session, database_id: str) -> None:
+        db.query(DatabaseKnowledgeRelationshipModel).filter(
+            DatabaseKnowledgeRelationshipModel.database_id == database_id
+        ).delete(synchronize_session=False)
+        db.query(DatabaseKnowledgeColumnModel).filter(
+            DatabaseKnowledgeColumnModel.database_id == database_id
+        ).delete(synchronize_session=False)
+        db.query(DatabaseKnowledgeTableModel).filter(
+            DatabaseKnowledgeTableModel.database_id == database_id
+        ).delete(synchronize_session=False)
+        db.query(DatabaseKnowledgeScanRunModel).filter(
+            DatabaseKnowledgeScanRunModel.database_id == database_id
+        ).delete(synchronize_session=False)
+
     def get_scan_run(self, db: Session, scan_run_id: str) -> DatabaseKnowledgeScanRunModel | None:
         return (
             db.query(DatabaseKnowledgeScanRunModel)

@@ -19,6 +19,10 @@ from app.services.database_connection_utils import (
 _ENGINE_CACHE: WeakValueDictionary[str, Any] = WeakValueDictionary()
 
 
+def invalidate_engine_cache(database_connection_id: str) -> None:
+    _ENGINE_CACHE.pop(database_connection_id, None)
+
+
 def resolve_dialect(db: Session, database_connection_id: str) -> str:
     if database_connection_id == settings.demo_database_id:
         return normalize_dialect(analytics_engine.dialect.name)

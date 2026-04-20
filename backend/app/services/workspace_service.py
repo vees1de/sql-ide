@@ -4,7 +4,14 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import DatabaseConnectionModel, DatabaseKnowledgeScanRunModel, WorkspaceModel
+from app.db.models import (
+    ChatSessionModel,
+    DatabaseConnectionModel,
+    DatabaseKnowledgeScanRunModel,
+    NotebookModel,
+    SemanticDictionaryModel,
+    WorkspaceModel,
+)
 from app.db.session import analytics_engine
 from app.schemas.workspace import (
     DatabaseConnectionCreate,
@@ -20,7 +27,9 @@ from app.services.database_connection_utils import (
     normalize_dialect,
     ping_engine,
 )
+from app.services.database_resolution import invalidate_engine_cache
 from app.services.knowledge_service import KnowledgeService
+from app.services.semantic_catalog_service import SemanticCatalogService
 
 
 def _introspect_engine_tables(engine) -> tuple[list[dict[str, object]], list[str]]:
@@ -45,6 +54,7 @@ def _introspect_engine_tables(engine) -> tuple[list[dict[str, object]], list[str
 class WorkspaceService:
     def __init__(self) -> None:
         self.knowledge_service = KnowledgeService()
+        self.semantic_catalog_service = SemanticCatalogService()
 
     def list_workspaces(self, db: Session) -> list[WorkspaceModel]:
         return db.query(WorkspaceModel).order_by(WorkspaceModel.created_at.asc()).all()
@@ -219,8 +229,23 @@ class WorkspaceService:
         )
         if connection is None:
             return False
+        sessions = db.query(ChatSessionModel).filter(ChatSessionModel.database_connection_id == database_id).all()
+        for session in sessions:
+            db.delete(session)
+        notebooks = db.query(NotebookModel).filter(NotebookModel.database_id == database_id).all()
+        for notebook in notebooks:
+            db.delete(notebook)
+        for workspace in db.query(WorkspaceModel).all():
+            workspace.databases = [item for item in (workspace.databases or []) if item != database_id]
+        self.knowledge_service.delete_database_metadata(db, database_id)
+        self.semantic_catalog_service.delete_database_catalog(db, database_id)
+        if connection.name:
+            db.query(SemanticDictionaryModel).filter(
+                SemanticDictionaryModel.source_database == connection.name
+            ).delete(synchronize_session=False)
         db.delete(connection)
         db.commit()
+        invalidate_engine_cache(database_id)
         return True
 
     def _knowledge_status(self, db: Session, database_id: str) -> str:

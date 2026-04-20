@@ -272,6 +272,185 @@ class DatabaseKnowledgeRelationshipModel(Base):
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
 
 
+class SemanticCatalogModel(Base):
+    __tablename__ = "semantic_catalogs"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_id = Column(String(32), nullable=False, index=True)
+    dialect = Column(String(64), nullable=False, default="postgresql")
+    source_scan_run_id = Column(String(32), nullable=True, index=True)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    build_mode = Column(String(64), nullable=False, default="rule_based")
+    llm_model = Column(String(255), nullable=True)
+    summary = Column(JSON, nullable=False, default=dict)
+    notes = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    tables = relationship(
+        "SemanticCatalogTableModel",
+        back_populates="catalog",
+        cascade="all, delete-orphan",
+        order_by="SemanticCatalogTableModel.schema_name, SemanticCatalogTableModel.table_name",
+    )
+    columns = relationship(
+        "SemanticCatalogColumnModel",
+        back_populates="catalog",
+        cascade="all, delete-orphan",
+    )
+    relationships = relationship(
+        "SemanticCatalogRelationshipModel",
+        back_populates="catalog",
+        cascade="all, delete-orphan",
+    )
+    join_paths = relationship(
+        "SemanticCatalogJoinPathModel",
+        back_populates="catalog",
+        cascade="all, delete-orphan",
+    )
+
+
+class SemanticCatalogTableModel(Base):
+    __tablename__ = "semantic_catalog_tables"
+    __table_args__ = (
+        UniqueConstraint("catalog_id", "schema_name", "table_name", name="uq_semantic_catalog_table"),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    catalog_id = Column(String(32), ForeignKey("semantic_catalogs.id", ondelete="CASCADE"), nullable=False, index=True)
+    database_id = Column(String(32), nullable=False, index=True)
+    schema_name = Column(String(255), nullable=False, default="public")
+    table_name = Column(String(255), nullable=False)
+    label = Column(String(255), nullable=False)
+    business_description = Column(Text, nullable=False, default="")
+    table_role = Column(String(32), nullable=False, default="dimension")
+    grain = Column(Text, nullable=True)
+    main_date_column = Column(String(255), nullable=True)
+    main_entity = Column(String(255), nullable=True)
+    synonyms = Column(JSON, nullable=False, default=list)
+    important_metrics = Column(JSON, nullable=False, default=list)
+    important_dimensions = Column(JSON, nullable=False, default=list)
+    row_count_estimate = Column(Integer, nullable=True)
+    primary_key = Column(JSON, nullable=False, default=list)
+    indexes = Column(JSON, nullable=False, default=list)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    catalog = relationship("SemanticCatalogModel", back_populates="tables")
+    columns = relationship(
+        "SemanticCatalogColumnModel",
+        back_populates="table",
+        cascade="all, delete-orphan",
+    )
+
+
+class SemanticCatalogColumnModel(Base):
+    __tablename__ = "semantic_catalog_columns"
+    __table_args__ = (
+        UniqueConstraint(
+            "catalog_id",
+            "schema_name",
+            "table_name",
+            "column_name",
+            name="uq_semantic_catalog_column",
+        ),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    catalog_id = Column(String(32), ForeignKey("semantic_catalogs.id", ondelete="CASCADE"), nullable=False, index=True)
+    table_id = Column(String(32), ForeignKey("semantic_catalog_tables.id", ondelete="CASCADE"), nullable=False, index=True)
+    database_id = Column(String(32), nullable=False, index=True)
+    schema_name = Column(String(255), nullable=False, default="public")
+    table_name = Column(String(255), nullable=False)
+    column_name = Column(String(255), nullable=False)
+    label = Column(String(255), nullable=False)
+    business_description = Column(Text, nullable=False, default="")
+    semantic_types = Column(JSON, nullable=False, default=list)
+    analytics_roles = Column(JSON, nullable=False, default=list)
+    value_type = Column(String(64), nullable=True)
+    aggregation = Column(JSON, nullable=False, default=list)
+    filterable = Column(Boolean, nullable=False, default=True)
+    groupable = Column(Boolean, nullable=False, default=False)
+    sortable = Column(Boolean, nullable=False, default=True)
+    synonyms = Column(JSON, nullable=False, default=list)
+    example_values = Column(JSON, nullable=False, default=list)
+    data_type = Column(String(255), nullable=False)
+    nullable = Column(Boolean, nullable=False, default=True)
+    default_value = Column(Text, nullable=True)
+    max_length = Column(Integer, nullable=True)
+    ordinal_position = Column(Integer, nullable=False, default=0)
+    is_pk = Column(Boolean, nullable=False, default=False)
+    is_fk = Column(Boolean, nullable=False, default=False)
+    referenced_table = Column(String(255), nullable=True)
+    referenced_column = Column(String(255), nullable=True)
+    comment = Column(Text, nullable=True)
+    profile = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    catalog = relationship("SemanticCatalogModel", back_populates="columns")
+    table = relationship("SemanticCatalogTableModel", back_populates="columns")
+
+
+class SemanticCatalogRelationshipModel(Base):
+    __tablename__ = "semantic_catalog_relationships"
+    __table_args__ = (
+        UniqueConstraint(
+            "catalog_id",
+            "from_schema_name",
+            "from_table_name",
+            "from_column_name",
+            "to_schema_name",
+            "to_table_name",
+            "to_column_name",
+            "relationship_type",
+            name="uq_semantic_catalog_relationship",
+        ),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    catalog_id = Column(String(32), ForeignKey("semantic_catalogs.id", ondelete="CASCADE"), nullable=False, index=True)
+    database_id = Column(String(32), nullable=False, index=True)
+    from_schema_name = Column(String(255), nullable=False, default="public")
+    from_table_name = Column(String(255), nullable=False)
+    from_column_name = Column(String(255), nullable=False)
+    to_schema_name = Column(String(255), nullable=False, default="public")
+    to_table_name = Column(String(255), nullable=False)
+    to_column_name = Column(String(255), nullable=False)
+    relationship_type = Column(String(32), nullable=False, default="many-to-one")
+    join_type = Column(String(16), nullable=False, default="inner")
+    business_meaning = Column(Text, nullable=False, default="")
+    join_priority = Column(String(16), nullable=False, default="medium")
+    confidence = Column(Float, nullable=False, default=1.0)
+    path_id = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    catalog = relationship("SemanticCatalogModel", back_populates="relationships")
+
+
+class SemanticCatalogJoinPathModel(Base):
+    __tablename__ = "semantic_catalog_join_paths"
+    __table_args__ = (
+        UniqueConstraint("catalog_id", "path_id", name="uq_semantic_catalog_join_path"),
+    )
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    catalog_id = Column(String(32), ForeignKey("semantic_catalogs.id", ondelete="CASCADE"), nullable=False, index=True)
+    database_id = Column(String(32), nullable=False, index=True)
+    path_id = Column(String(255), nullable=False)
+    from_table = Column(String(255), nullable=False)
+    to_table = Column(String(255), nullable=False)
+    joins = Column(JSON, nullable=False, default=list)
+    business_use_case = Column(Text, nullable=False, default="")
+    tables = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
+
+    catalog = relationship("SemanticCatalogModel", back_populates="join_paths")
+
+
 # TODO(alembic): the three models below (chat_sessions, chat_messages, chat_query_executions)
 # should be included in the first Alembic revision when the knowledge/metadata agent
 # introduces proper migrations. For now they are picked up via bootstrap_application()'s
