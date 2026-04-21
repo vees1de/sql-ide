@@ -1,24 +1,29 @@
 <template>
   <article class="chat-assistant-message">
-    <p class="chat-assistant-message__text">{{ message.text }}</p>
+    <section v-if="hasReasoning" class="chat-assistant-message__reasoning">
+      <button
+        class="chat-assistant-message__reasoning-toggle"
+        type="button"
+        :aria-expanded="!reasoningCollapsed"
+        @click="reasoningCollapsed = !reasoningCollapsed"
+      >
+        <span class="chat-assistant-message__reasoning-label">
+          Логика ответа
+          <small>{{ reasoningCollapsed ? 'показать' : 'скрыть' }}</small>
+        </span>
+        <span class="chat-assistant-message__reasoning-icon" aria-hidden="true">
+          {{ reasoningCollapsed ? '▾' : '▴' }}
+        </span>
+      </button>
 
-    <div v-if="payload?.sql" class="chat-assistant-message__actions">
-      <button
-        class="chat-assistant-message__btn"
-        type="button"
-        @click="$emit('apply-sql', payload.sql!)"
-      >
-        Подставить SQL
-      </button>
-      <button
-        v-if="payload?.mode_suggestion && payload.mode_suggestion_reason"
-        class="chat-assistant-message__btn"
-        type="button"
-        @click="$emit('switch-mode', payload.mode_suggestion)"
-      >
-        {{ payload.mode_suggestion === 'thinking' ? 'Thinking' : 'Fast' }}
-      </button>
-    </div>
+      <div v-show="!reasoningCollapsed" class="chat-assistant-message__reasoning-body">
+        <div v-if="reasoningLines.length" class="chat-assistant-message__reasoning-lines">
+          <p v-for="line in reasoningLines" :key="line">{{ line }}</p>
+        </div>
+      </div>
+    </section>
+
+    <p class="chat-assistant-message__text">{{ message.text }}</p>
 
     <div v-if="payload?.clarification_question" class="chat-assistant-message__clarification">
       <p>{{ payload.clarification_question }}</p>
@@ -36,13 +41,37 @@
     </div>
 
     <section v-if="payload?.sql" class="chat-assistant-message__sql">
-      <SQLCell :content="sqlCellContent" />
+      <SQLCell :content="sqlCellContent" :collapsed="sqlCollapsed" />
+      <div class="chat-assistant-message__actions chat-assistant-message__actions--below">
+        <button
+          class="chat-assistant-message__btn"
+          type="button"
+          @click="$emit('apply-sql', payload.sql!)"
+        >
+          Подставить SQL
+        </button>
+        <button
+          class="chat-assistant-message__btn chat-assistant-message__btn--secondary"
+          type="button"
+          @click="sqlCollapsed = !sqlCollapsed"
+        >
+          {{ sqlCollapsed ? 'Показать SQL' : 'Скрыть SQL' }}
+        </button>
+        <button
+          v-if="payload?.mode_suggestion && payload.mode_suggestion_reason"
+          class="chat-assistant-message__btn"
+          type="button"
+          @click="$emit('switch-mode', payload.mode_suggestion)"
+        >
+          {{ payload.mode_suggestion === 'thinking' ? 'Thinking' : 'Fast' }}
+        </button>
+      </div>
     </section>
   </article>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import SQLCell from '@/components/cells/SQLCell.vue';
 import type {
   ApiChatMessageRead,
@@ -61,18 +90,87 @@ defineEmits<{
 }>();
 
 const payload = computed<ApiChatStructuredPayload | null>(() => props.message.structured_payload);
+const sqlCollapsed = ref(false);
+const reasoningCollapsed = ref(true);
+
+watch(
+  () => payload.value?.sql,
+  () => {
+    sqlCollapsed.value = false;
+  }
+);
+
+watch(
+  () => props.message.id,
+  () => {
+    reasoningCollapsed.value = true;
+  }
+);
 
 const warnings = computed(() => [
   ...(payload.value?.warnings ?? []),
   ...(payload.value?.interpretation.ambiguities ?? []).map((item) => `Неоднозначность: ${item.replaceAll('_', ' ')}`)
 ]);
 
+const reasoningLines = computed(() => {
+  const lines: string[] = [];
+  const interpretation = payload.value?.interpretation;
+
+  if (interpretation?.metric) {
+    lines.push(`Метрика: ${interpretation.metric}`);
+  }
+
+  if (interpretation?.dimensions?.length) {
+    lines.push(`Измерения: ${interpretation.dimensions.join(', ')}`);
+  }
+
+  if (interpretation?.date_range) {
+    const parts: string[] = [];
+    if (interpretation.date_range.start) {
+      parts.push(`с ${interpretation.date_range.start}`);
+    }
+    if (interpretation.date_range.end) {
+      parts.push(`по ${interpretation.date_range.end}`);
+    }
+    if (parts.length) {
+      lines.push(`Период: ${parts.join(' ')}`);
+    }
+  }
+
+  if (interpretation?.filters?.length) {
+    lines.push(
+      `Фильтры: ${interpretation.filters
+        .map((filter) => `${filter.field} ${filter.operator} ${String(filter.value)}`)
+        .join('; ')}`
+    );
+  }
+
+  if (typeof interpretation?.confidence === 'number') {
+    lines.push(`Confidence: ${Math.round(interpretation.confidence * 100)}%`);
+  }
+
+  if (payload.value?.tables_used?.length) {
+    lines.push(
+      `Таблицы: ${payload.value.tables_used.map((item) => `${item.table} (${item.reason})`).join('; ')}`
+    );
+  }
+
+  if (payload.value?.mode_suggestion_reason) {
+    lines.push(`Подсказка режима: ${payload.value.mode_suggestion_reason}`);
+  }
+
+  if (warnings.value.length) {
+    lines.push(`Предупреждения: ${warnings.value.join('; ')}`);
+  }
+
+  return lines;
+});
+
+const hasReasoning = computed(() => reasoningLines.value.length > 0);
+
 const sqlCellContent = computed(() => ({
   sql: payload.value?.sql ?? '',
-  explanation:
-    payload.value?.query_mode === 'thinking'
-      ? 'Thinking режим, автоисполнение выключено.'
-      : 'Fast режим, автоисполнение выключено.',
+  explanation: '',
   warnings: warnings.value
 }));
 </script>
@@ -85,6 +183,63 @@ const sqlCellContent = computed(() => ({
   background: rgba(0, 0, 0, 0.16);
   display: grid;
   gap: 10px;
+}
+
+.chat-assistant-message__reasoning {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.chat-assistant-message__reasoning-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.chat-assistant-message__reasoning-label {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.chat-assistant-message__reasoning-label small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chat-assistant-message__reasoning-icon {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.chat-assistant-message__reasoning-body {
+  padding: 0 10px 10px;
+}
+
+.chat-assistant-message__reasoning-lines {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-assistant-message__reasoning-lines p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.77rem;
+  line-height: 1.5;
 }
 
 .chat-assistant-message__text {
@@ -102,6 +257,10 @@ const sqlCellContent = computed(() => ({
   flex-wrap: wrap;
 }
 
+.chat-assistant-message__actions--below {
+  margin-top: 0.15rem;
+}
+
 .chat-assistant-message__btn {
   min-height: 28px;
   padding: 0 10px;
@@ -110,6 +269,21 @@ const sqlCellContent = computed(() => ({
   background: rgba(112, 59, 247, 0.18);
   color: var(--ink-strong);
   font-size: 0.74rem;
+}
+
+.chat-assistant-message__btn--secondary {
+  min-height: 24px;
+  padding: 0 8px;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.chat-assistant-message__btn--secondary:hover {
+  color: var(--ink-strong);
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .chat-assistant-message__clarification {

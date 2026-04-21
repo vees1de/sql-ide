@@ -11,26 +11,22 @@
     />
     <div class="chat-input__footer">
       <div class="chat-input__controls">
-        <div class="chat-input__mode" role="group" aria-label="Query mode">
-          <button
-            class="chat-input__mode-btn"
-            :class="{ 'chat-input__mode-btn--active': queryMode === 'fast' }"
-            type="button"
-            :disabled="busy"
-            @click="setMode('fast')"
-          >
-            Fast
-          </button>
-          <button
-            class="chat-input__mode-btn"
-            :class="{ 'chat-input__mode-btn--active': queryMode === 'thinking' }"
-            type="button"
-            :disabled="busy"
-            @click="setMode('thinking')"
-          >
+        <button
+          class="chat-input__mode chat-input__mode--active"
+          type="button"
+          :disabled="busy"
+          role="switch"
+          aria-checked="true"
+          aria-label="Thinking режим"
+        >
+          <span class="chat-input__mode-label">
             Thinking
-          </button>
-        </div>
+            <small>on</small>
+          </span>
+          <span class="chat-input__mode-track" aria-hidden="true">
+            <span class="chat-input__mode-thumb" />
+          </span>
+        </button>
         <select
           class="chat-input__model"
           :value="modelAlias"
@@ -79,6 +75,8 @@ const emit = defineEmits<{
   (event: 'send'): void;
 }>();
 
+emit('update:queryMode', 'thinking');
+
 function onInput(event: Event) {
   const target = event.target as HTMLTextAreaElement;
   emit('update:modelValue', target.value);
@@ -96,13 +94,6 @@ function submit() {
     return;
   }
   emit('send');
-}
-
-function setMode(mode: 'fast' | 'thinking') {
-  if (props.busy || props.queryMode === mode) {
-    return;
-  }
-  emit('update:queryMode', mode);
 }
 
 function onModelChange(event: Event) {
@@ -153,28 +144,84 @@ function onModelChange(event: Event) {
   min-width: 0;
 }
 
-.chat-input__mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.chat-input__mode-btn,
+.chat-input__mode,
 .chat-input__model,
 .chat-input__send {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.2);
   color: var(--muted);
-  font-size: 0.75rem;
-  min-height: 30px;
-  padding: 0 10px;
 }
 
-.chat-input__mode-btn--active {
+.chat-input__mode {
+  min-height: 30px;
+  min-width: 112px;
+  padding: 0 8px 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.75rem;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.chat-input__mode-label {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1;
+}
+
+.chat-input__mode-label small {
+  font-size: 0.64rem;
+  color: var(--muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chat-input__mode-track {
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1px;
+  display: inline-flex;
+  align-items: center;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.chat-input__mode-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transform: translateX(0);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.chat-input__mode--active {
   border-color: rgba(112, 59, 247, 0.8);
   color: var(--ink-strong);
   background: rgba(112, 59, 247, 0.2);
+}
+
+.chat-input__mode--active .chat-input__mode-label small {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.chat-input__mode--active .chat-input__mode-track {
+  background: rgba(112, 59, 247, 0.3);
+  border-color: rgba(112, 59, 247, 0.35);
+}
+
+.chat-input__mode--active .chat-input__mode-thumb {
+  transform: translateX(12px);
+  background: var(--ink-strong);
 }
 
 .chat-input__model {
@@ -192,7 +239,7 @@ function onModelChange(event: Event) {
 }
 
 .chat-input__send:disabled,
-.chat-input__mode-btn:disabled,
+.chat-input__mode:disabled,
 .chat-input__model:disabled {
   opacity: 0.45;
   cursor: not-allowed;

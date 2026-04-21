@@ -296,7 +296,7 @@ class SemanticMappingAgent:
         time_expression = None
         if time_candidate is not None and time_candidate.table in alias_map:
             time_alias = alias_map[time_candidate.table]
-            time_expression = f"{time_alias}.{time_candidate.column}"
+            time_expression = f"{time_alias}.{self._quote_identifier(time_candidate.column)}"
         elif time_candidate is not None:
             warnings.append(f"Time column '{time_candidate.table}.{time_candidate.column}' could not be joined.")
 
@@ -310,7 +310,7 @@ class SemanticMappingAgent:
                 DimensionMapping(
                     key=dimension,
                     label=dimension.replace("_", " ").title(),
-                    expression=f"{table_alias}.{candidate.column}",
+                    expression=f"{table_alias}.{self._quote_identifier(candidate.column)}",
                     alias=alias,
                     requires_join=None if candidate.table == base_table else candidate.table,
                 )
@@ -346,7 +346,7 @@ class SemanticMappingAgent:
             filter_mappings.append(
                 FilterMapping(
                     field=field,
-                    expression=f"{table_alias}.{candidate.column}",
+                    expression=f"{table_alias}.{self._quote_identifier(candidate.column)}",
                     operator=operator,
                     value=value,
                     requires_join=None if candidate.table == base_table else candidate.table,
@@ -502,10 +502,10 @@ class SemanticMappingAgent:
         if normalized_dimension in self.TIME_DIMENSIONS:
             return normalized_dimension
         if candidate_name == normalized_dimension:
-            return candidate.column
+            return self._safe_alias(candidate.column)
         if candidate_name in {"name", "title", "label"}:
-            return f"{normalized_dimension}_{candidate.column}"
-        return candidate.column
+            return self._safe_alias(f"{normalized_dimension}_{candidate.column}")
+        return self._safe_alias(candidate.column)
 
     def _dictionary_candidate(
         self,
@@ -691,10 +691,10 @@ class SemanticMappingAgent:
 
         alias = alias_map.get(measure_candidate.table, base_alias)
         if metric_operation == "avg":
-            metric_alias = "avg_order_value" if metric_key == "avg_order_value" else f"avg_{measure_candidate.column}"
+            metric_alias = "avg_order_value" if metric_key == "avg_order_value" else f"avg_{self._safe_alias(measure_candidate.column)}"
         else:
-            metric_alias = "total_revenue" if metric_key == "revenue" else f"total_{measure_candidate.column}"
-        return (f"{metric_operation.upper()}({alias}.{measure_candidate.column})", metric_alias)
+            metric_alias = "total_revenue" if metric_key == "revenue" else f"total_{self._safe_alias(measure_candidate.column)}"
+        return (f"{metric_operation.upper()}({alias}.{self._quote_identifier(measure_candidate.column)})", metric_alias)
 
     def _score_measure_column(self, metric_key: str | None, table_name: str, column: ColumnMetadata) -> int:
         type_name = column.type.lower()
@@ -851,13 +851,28 @@ class SemanticMappingAgent:
         relationship = edge.relationship
         if edge.forward:
             return (
-                f"LEFT JOIN {edge.next_table} {next_alias} "
-                f"ON {current_alias}.{relationship.from_column} = {next_alias}.{relationship.to_column}"
+                f"LEFT JOIN {self._quote_identifier(edge.next_table)} {next_alias} "
+                f"ON {current_alias}.{self._quote_identifier(relationship.from_column)} = "
+                f"{next_alias}.{self._quote_identifier(relationship.to_column)}"
             )
         return (
-            f"LEFT JOIN {edge.next_table} {next_alias} "
-            f"ON {current_alias}.{relationship.to_column} = {next_alias}.{relationship.from_column}"
+            f"LEFT JOIN {self._quote_identifier(edge.next_table)} {next_alias} "
+            f"ON {current_alias}.{self._quote_identifier(relationship.to_column)} = "
+            f"{next_alias}.{self._quote_identifier(relationship.from_column)}"
         )
+
+    def _quote_identifier(self, value: str) -> str:
+        parts = [part for part in value.split(".") if part]
+        if not parts:
+            return '""'
+        quoted_parts = []
+        for part in parts:
+            quoted_parts.append('"' + part.replace('"', '""') + '"')
+        return ".".join(quoted_parts)
+
+    def _safe_alias(self, value: str) -> str:
+        normalized = re.sub(r"\W+", "_", value.casefold()).strip("_")
+        return normalized or "value"
 
     def _is_numeric_type(self, type_name: str) -> bool:
         return any(

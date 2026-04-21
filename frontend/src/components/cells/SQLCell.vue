@@ -1,16 +1,5 @@
 <template>
   <div class="sql-cell">
-    <div class="sql-cell__toolbar">
-      <p>{{ content.explanation }}</p>
-      <button
-        class="app-button app-button--ghost app-button--tiny"
-        type="button"
-        @click="collapsed = !collapsed"
-      >
-        {{ collapsed ? 'Показать SQL' : 'Скрыть SQL' }}
-      </button>
-    </div>
-
     <div v-if="content.warnings?.length" class="sql-cell__warnings">
       <span
         v-for="warning in content.warnings"
@@ -26,14 +15,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { SqlCellContent } from '@/types/app';
 
 const props = defineProps<{
   content: SqlCellContent;
+  collapsed?: boolean;
 }>();
-
-const collapsed = ref(false);
 
 function escapeHtml(value: string) {
   return value
@@ -103,9 +91,4 @@ pre {
   color: #8ab4f8;
 }
 
-@media (max-width: 640px) {
-  .sql-cell__toolbar {
-    flex-direction: column;
-  }
-}
 </style>

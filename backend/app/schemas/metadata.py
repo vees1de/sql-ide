@@ -17,6 +17,12 @@ class RelationshipMetadata(BaseModel):
     cardinality: str | None = None
 
 
+class RelationshipGraphEdge(BaseModel):
+    from_table: str
+    to_table: str
+    on: str
+
+
 class TableMetadata(BaseModel):
     name: str
     columns: list[ColumnMetadata] = Field(default_factory=list)
@@ -27,6 +33,7 @@ class SchemaMetadataResponse(BaseModel):
     dialect: str
     tables: list[TableMetadata] = Field(default_factory=list)
     relationships: list[RelationshipMetadata] = Field(default_factory=list)
+    relationship_graph: list[RelationshipGraphEdge] = Field(default_factory=list)
 
 
 class LLMModelAliasItem(BaseModel):

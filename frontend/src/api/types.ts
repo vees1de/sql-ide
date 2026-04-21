@@ -220,11 +220,18 @@ export interface ApiSchemaRelationship {
   cardinality?: string | null;
 }
 
+export interface ApiSchemaRelationshipGraphEdge {
+  from_table: string;
+  to_table: string;
+  on: string;
+}
+
 export interface ApiSchemaMetadataResponse {
   database_id: string;
   dialect: string;
   tables: ApiTableMetadata[];
   relationships: ApiSchemaRelationship[];
+  relationship_graph: ApiSchemaRelationshipGraphEdge[];
 }
 
 export interface ApiSemanticCatalogActivationRequest {
@@ -295,6 +302,12 @@ export interface ApiSemanticJoinPath {
   tables: string[];
 }
 
+export interface ApiSemanticRelationshipGraphEdge {
+  from_table: string;
+  to_table: string;
+  on: string;
+}
+
 export interface ApiSemanticTable {
   schema_name: string;
   table_name: string;
@@ -322,6 +335,7 @@ export interface ApiSemanticCatalog {
   tables: ApiSemanticTable[];
   relationships: ApiSemanticRelationship[];
   join_paths: ApiSemanticJoinPath[];
+  relationship_graph: ApiSemanticRelationshipGraphEdge[];
 }
 
 export interface ApiKnowledgeScanRun {

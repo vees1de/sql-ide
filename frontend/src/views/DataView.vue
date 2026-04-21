@@ -308,6 +308,40 @@
         </button>
       </header>
       <p v-if="semanticFeedback" class="data-view__feedback">{{ semanticFeedback }}</p>
+      <div class="data-view__semantic-source">
+        <article class="data-view__semantic-source-item">
+          <span>Selected database</span>
+          <strong>{{ selectedDatabase?.name || semanticCatalog.database_id }}</strong>
+          <small>{{ semanticCatalog.database_id }}</small>
+        </article>
+        <article class="data-view__semantic-source-item">
+          <span>Activation endpoint</span>
+          <strong>/api/metadata/semantic-catalog/activate</strong>
+          <small>Response is rendered below and persisted in service DB.</small>
+        </article>
+        <article class="data-view__semantic-source-item">
+          <span>Semantic status</span>
+          <strong>{{ semanticCatalog.tables.length ? 'active' : 'empty' }}</strong>
+          <small>{{ semanticCatalog.relationships.length }} relationships · {{ semanticCatalog.join_paths.length }} join paths</small>
+        </article>
+      </div>
+      <section class="data-view__subpanel data-view__subpanel--tight">
+        <header class="data-view__subhead">
+          <h3>Relationship Graph</h3>
+          <p>Отдельный граф связей, который сохраняется в каталоге и передаётся в LLM-контекст.</p>
+        </header>
+        <div v-if="semanticCatalog.relationship_graph.length" class="data-view__graph-list">
+          <article
+            v-for="edge in semanticCatalog.relationship_graph"
+            :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
+            class="data-view__graph-card"
+          >
+            <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
+            <strong>{{ edge.on }}</strong>
+          </article>
+        </div>
+        <div v-else class="data-view__empty">Для этой базы graph edges пока отсутствуют.</div>
+      </section>
       <div class="data-view__semantic-grid">
         <article class="data-view__semantic-stat">
           <span>Tables</span>
@@ -657,15 +691,17 @@ async function loadKnowledge() {
   }
 
   knowledgeFeedback.value = '';
-  try {
-    const [summary, runs, graph] = await Promise.all([
-      api.getKnowledge(selectedDatabaseId.value),
-      api.getKnowledgeScanRuns(selectedDatabaseId.value),
-      api.getERD(selectedDatabaseId.value)
-    ]);
+  semanticFeedback.value = '';
+  const [summaryResult, runsResult, graphResult, semanticResult] = await Promise.allSettled([
+    api.getKnowledge(selectedDatabaseId.value),
+    api.getKnowledgeScanRuns(selectedDatabaseId.value),
+    api.getERD(selectedDatabaseId.value),
+    api.getSemanticCatalog(selectedDatabaseId.value)
+  ]);
+
+  if (summaryResult.status === 'fulfilled') {
+    const summary = summaryResult.value;
     knowledgeSummary.value = summary;
-    scanRuns.value = runs;
-    erdGraph.value = graph;
 
     const stillExists = summary.tables.find((table) => table.id === selectedTableId.value);
     if (!stillExists) {
@@ -677,29 +713,44 @@ async function loadKnowledge() {
     } else {
       selectedTable.value = null;
     }
-    await loadSemanticCatalog();
-  } catch (error) {
+  } else {
     knowledgeSummary.value = null;
     selectedTable.value = null;
+    selectedTableId.value = null;
+    knowledgeFeedback.value = summaryResult.reason instanceof Error
+      ? summaryResult.reason.message
+      : 'Не удалось загрузить knowledge layer.';
+  }
+
+  if (runsResult.status === 'fulfilled') {
+    scanRuns.value = runsResult.value;
+  } else {
     scanRuns.value = [];
+    if (!knowledgeFeedback.value) {
+      knowledgeFeedback.value = runsResult.reason instanceof Error
+        ? runsResult.reason.message
+        : 'Не удалось загрузить scan runs.';
+    }
+  }
+
+  if (graphResult.status === 'fulfilled') {
+    erdGraph.value = graphResult.value;
+  } else {
     erdGraph.value = null;
-    semanticCatalog.value = null;
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось загрузить knowledge layer.';
-  }
-}
-
-async function loadSemanticCatalog() {
-  if (!selectedDatabaseId.value) {
-    semanticCatalog.value = null;
-    return;
+    if (!knowledgeFeedback.value) {
+      knowledgeFeedback.value = graphResult.reason instanceof Error
+        ? graphResult.reason.message
+        : 'Не удалось загрузить ERD graph.';
+    }
   }
 
-  semanticFeedback.value = '';
-  try {
-    semanticCatalog.value = await api.getSemanticCatalog(selectedDatabaseId.value);
-  } catch (error) {
+  if (semanticResult.status === 'fulfilled') {
+    semanticCatalog.value = semanticResult.value;
+  } else {
     semanticCatalog.value = null;
-    semanticFeedback.value = error instanceof Error ? error.message : 'Не удалось загрузить semantic catalog.';
+    semanticFeedback.value = semanticResult.reason instanceof Error
+      ? semanticResult.reason.message
+      : 'Не удалось загрузить semantic catalog.';
   }
 }
 
@@ -749,7 +800,7 @@ async function activateSemantic() {
       database_id: selectedDatabaseId.value,
       refresh: true
     });
-    semanticFeedback.value = 'Semantic catalog activated.';
+    semanticFeedback.value = `Semantic catalog activated for ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
   } catch (error) {
     semanticFeedback.value = error instanceof Error ? error.message : 'Не удалось активировать semantic.';
   } finally {
@@ -1193,6 +1244,12 @@ onMounted(async () => {
   padding-top: 0.85rem;
 }
 
+.data-view__subpanel--tight {
+  border-top: 0;
+  padding-top: 0;
+  margin-bottom: 0.8rem;
+}
+
 .data-view__subhead h3 {
   margin: 0;
   font-size: 0.98rem;
@@ -1268,6 +1325,65 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.75rem;
   margin-bottom: 0.9rem;
+}
+
+.data-view__graph-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.data-view__graph-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: rgba(18, 20, 27, 0.92);
+}
+
+.data-view__graph-card span,
+.data-view__graph-card strong {
+  display: block;
+}
+
+.data-view__graph-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-bottom: 0.2rem;
+}
+
+.data-view__graph-card strong {
+  color: var(--ink-strong);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.data-view__semantic-source {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.data-view__semantic-source-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: rgba(18, 20, 27, 0.92);
+}
+
+.data-view__semantic-source-item span,
+.data-view__semantic-source-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.data-view__semantic-source-item strong {
+  display: block;
+  margin: 0.25rem 0 0.15rem;
+  color: var(--ink-strong);
+  word-break: break-word;
 }
 
 .data-view__semantic-stat {

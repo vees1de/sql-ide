@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.metadata import SchemaMetadataResponse
+from app.schemas.metadata import RelationshipGraphEdge, SchemaMetadataResponse
 
 
 SemanticType = Literal[
@@ -121,6 +121,7 @@ class SemanticCatalog(BaseModel):
     tables: list[SemanticTable] = Field(default_factory=list)
     relationships: list[SemanticRelationship] = Field(default_factory=list)
     join_paths: list[SemanticJoinPath] = Field(default_factory=list)
+    relationship_graph: list[RelationshipGraphEdge] = Field(default_factory=list)
 
 
 class SemanticRetrievalContext(BaseModel):

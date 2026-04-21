@@ -52,10 +52,29 @@ def _ensure_semantic_dictionary_context_columns(engine: Engine) -> None:
         pass
 
 
+def _ensure_semantic_catalog_relationship_graph_column(engine: Engine) -> None:
+    try:
+        inspector = inspect(engine)
+        if "semantic_catalogs" not in inspector.get_table_names():
+            return
+        columns = {col["name"] for col in inspector.get_columns("semantic_catalogs")}
+        if "relationship_graph" in columns:
+            return
+        with engine.begin() as connection:
+            dialect = connection.dialect.name
+            if dialect == "sqlite":
+                connection.execute(text("ALTER TABLE semantic_catalogs ADD COLUMN relationship_graph JSON"))
+            else:
+                connection.execute(text("ALTER TABLE semantic_catalogs ADD COLUMN relationship_graph JSONB"))
+    except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
+        pass
+
+
 def bootstrap_application() -> None:
     Base.metadata.create_all(bind=service_engine)
     _ensure_database_connections_allowed_tables_column(service_engine)
     _ensure_semantic_dictionary_context_columns(service_engine)
+    _ensure_semantic_catalog_relationship_graph_column(service_engine)
     if settings.analytics_uses_demo_data:
         ensure_demo_analytics_database(analytics_engine)
     with Session(service_engine) as session:

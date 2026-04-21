@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.schemas.dictionary import DictionaryEntryRead
-from app.schemas.metadata import ColumnMetadata, RelationshipMetadata, SchemaMetadataResponse, TableMetadata
+from app.schemas.metadata import ColumnMetadata, RelationshipGraphEdge, RelationshipMetadata, SchemaMetadataResponse, TableMetadata
 from app.schemas.semantic_catalog import (
     AnalyticsRole,
     ColumnProfile,
@@ -35,6 +35,7 @@ from app.db.models import (
 from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
 from app.services.knowledge_service import KnowledgeService
 from app.services.llm_service import LLMService
+from app.services.relationship_graph import build_relationship_graph
 
 
 _METRIC_NAME_HINTS = ("amount", "revenue", "sales", "price", "cost", "fee", "profit", "balance", "value")
@@ -78,6 +79,7 @@ class SemanticCatalogService:
                 "table_count": len(catalog.tables),
                 "relationship_count": len(catalog.relationships),
                 "join_path_count": len(catalog.join_paths),
+                "graph_edge_count": len(catalog.relationship_graph),
             },
             notes=self._catalog_notes(catalog),
         )
@@ -206,9 +208,10 @@ class SemanticCatalogService:
             relationships.extend(table.relationships)
 
         join_paths = self._build_join_paths(tables, relationships)
+        relationship_graph = build_relationship_graph(relationships)
         for table in tables:
             table.join_paths = [path for path in join_paths if path.from_table == table.table_name or path.to_table == table.table_name]
-        tables = self._apply_llm_enrichment(tables)
+        tables = self._apply_llm_enrichment(tables, relationship_graph)
 
         return SemanticCatalog(
             database_id=database_id,
@@ -216,6 +219,7 @@ class SemanticCatalogService:
             tables=tables,
             relationships=relationships,
             join_paths=join_paths,
+            relationship_graph=relationship_graph,
         )
 
     def delete_database_catalog(self, db: Session, database_id: str) -> None:
@@ -268,7 +272,19 @@ class SemanticCatalogService:
             for path in catalog.join_paths
             if path.from_table in selected_table_names or path.to_table in selected_table_names
         ]
-        schema = self._catalog_to_schema(catalog.database_id, catalog.dialect, selected_tables, selected_join_paths)
+        selected_relationships = [
+            rel
+            for rel in catalog.relationships
+            if rel.from_table in selected_table_names or rel.to_table in selected_table_names
+        ]
+        selected_graph = build_relationship_graph(selected_relationships)
+        schema = self._catalog_to_schema(
+            catalog.database_id,
+            catalog.dialect,
+            selected_tables,
+            selected_join_paths,
+            selected_graph,
+        )
         catalog_entries = self._catalog_to_dictionary_entries(selected_tables, selected_join_paths)
         dictionary_entries = self._merge_dictionary_entries(dictionary_entries, catalog_entries, selected_columns)
 
@@ -277,8 +293,9 @@ class SemanticCatalogService:
                 database_id=catalog.database_id,
                 dialect=catalog.dialect,
                 tables=selected_tables,
-                relationships=[rel for rel in catalog.relationships if rel.from_table in selected_table_names or rel.to_table in selected_table_names],
+                relationships=selected_relationships,
                 join_paths=selected_join_paths,
+                relationship_graph=selected_graph,
             ),
             schema=schema,
             dictionary_entries=[entry.model_dump(mode="json") for entry in dictionary_entries],
@@ -450,6 +467,7 @@ class SemanticCatalogService:
             tables=tables,
             relationships=relationships,
             join_paths=join_paths,
+            relationship_graph=[RelationshipGraphEdge.model_validate(edge) for edge in list(catalog_model.relationship_graph or [])],
         )
 
     def _deactivate_catalogs(self, db: Session, database_id: str) -> None:
@@ -474,12 +492,17 @@ class SemanticCatalogService:
             f"tables={len(catalog.tables)}",
             f"relationships={len(catalog.relationships)}",
             f"join_paths={len(catalog.join_paths)}",
+            f"graph_edges={len(catalog.relationship_graph)}",
         ]
         if self.llm_service.configured:
             notes.append("enriched_with_llm")
         return notes
 
-    def _apply_llm_enrichment(self, tables: list[SemanticTable]) -> list[SemanticTable]:
+    def _apply_llm_enrichment(
+        self,
+        tables: list[SemanticTable],
+        relationship_graph: list[RelationshipGraphEdge],
+    ) -> list[SemanticTable]:
         if not self.llm_service.configured:
             return tables
 
@@ -487,7 +510,12 @@ class SemanticCatalogService:
         for table in tables:
             relationships = [rel.model_dump(mode="json") for rel in table.relationships]
             join_paths = [path.model_dump(mode="json") for path in table.join_paths]
-            enrichment = self.llm_service.enrich_semantic_table(table, relationships, join_paths)
+            graph_edges = [
+                edge.model_dump(mode="json")
+                for edge in relationship_graph
+                if edge.from_table == table.table_name or edge.to_table == table.table_name
+            ]
+            enrichment = self.llm_service.enrich_semantic_table(table, relationships, join_paths, graph_edges)
             if enrichment is None:
                 enriched_tables.append(table)
                 continue
@@ -1029,6 +1057,7 @@ class SemanticCatalogService:
         dialect: str,
         tables: list[SemanticTable],
         join_paths: list[SemanticJoinPath],
+        relationship_graph: list[RelationshipGraphEdge],
     ) -> SchemaMetadataResponse:
         relationships = []
         for table in tables:
@@ -1057,6 +1086,7 @@ class SemanticCatalogService:
                 for table in tables
             ],
             relationships=relationships,
+            relationship_graph=relationship_graph,
         )
 
     def _catalog_to_dictionary_entries(

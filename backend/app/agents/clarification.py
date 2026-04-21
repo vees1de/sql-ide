@@ -22,6 +22,12 @@ _METRIC_NAME_HINTS = (
     "order",
 )
 
+# Keywords per ambiguity type — checked against lowercased ambiguity strings
+_DATE_KEYWORDS   = ("date", "time", "period", "range", "year", "month", "interval", "дата", "период", "год", "месяц", "диапазон", "время")
+_LIMIT_KEYWORDS  = ("количество", "сколько", "limit", "top", "топ", "число", "записей", "строк", "команд", "игроков", "результатов", "показать")
+_METRIC_KEYWORDS = ("metric", "метрика", "показатель", "measure", "sales", "what", "какую")
+_DIM_KEYWORDS    = ("dimension", "измерение", "группировка", "group", "segment", "breakdown")
+
 
 @dataclass
 class ClarificationOptionData:
@@ -49,6 +55,30 @@ class ClarificationAgent:
         intent: IntentPayload,
         schema: SchemaMetadataResponse | None = None,
     ) -> ClarificationBlockData:
+        # 1. Prefer LLM-generated options when available — the LLM knows the actual context
+        llm_options = getattr(intent, "clarification_options", None) or []
+        if llm_options:
+            options = [
+                ClarificationOptionData(
+                    id=opt.id,
+                    label=opt.label,
+                    detail=opt.detail,
+                    reason=opt.reason,
+                )
+                for opt in llm_options
+            ]
+            ambiguity_type = self._infer_ambiguity_type_from_options(options, intent)
+            question = intent.clarification_question or self._default_question(ambiguity_type)
+            return ClarificationBlockData(
+                clarification_id=str(uuid.uuid4()),
+                question=question,
+                ambiguity_type=ambiguity_type,
+                answer_type="single_select",
+                options=options,
+                recommended_option_id=options[0].id if options else None,
+            )
+
+        # 2. Fallback to rule-based classification when LLM did not provide options
         ambiguity_type, options = self._build_options(intent, schema)
 
         question = intent.clarification_question or self._default_question(ambiguity_type)
@@ -57,7 +87,7 @@ class ClarificationAgent:
                 ClarificationOptionData(
                     id=f"{ambiguity_type}:free_text",
                     label="Уточнить в следующем сообщении",
-                    detail="Опишите метрику, таблицу или период свободным текстом.",
+                    detail="Опишите деталь свободным текстом.",
                 )
             ]
 
@@ -70,61 +100,98 @@ class ClarificationAgent:
             recommended_option_id=options[0].id if options else None,
         )
 
+    @staticmethod
+    def _infer_ambiguity_type_from_options(
+        options: list[ClarificationOptionData], intent: IntentPayload
+    ) -> str:
+        """Infer ambiguity type from LLM-provided option ids when they follow a prefix convention."""
+        ids_lower = [(o.id or "").lower() for o in options]
+        if any(i.startswith(("limit", "top")) for i in ids_lower):
+            return "limit"
+        if any(i.startswith(("time", "date", "year", "period")) for i in ids_lower):
+            return "time_range"
+        if any(i.startswith("metric") for i in ids_lower):
+            return "metric"
+        if any(i.startswith("dim") for i in ids_lower):
+            return "dimension"
+        if any(i.startswith("join") for i in ids_lower):
+            return "join_path"
+        return "other"
+
     # ------------------------------------------------------------------
     def _build_options(
         self,
         intent: IntentPayload,
         schema: SchemaMetadataResponse | None,
     ) -> tuple[str, list[ClarificationOptionData]]:
-        ambiguities = [a.lower() for a in intent.ambiguities]
+        ambiguities = [a.lower() for a in (intent.ambiguities or [])]
+        ambiguity_text = " ".join(ambiguities)
 
-        if "sales" in ambiguities or intent.metric is None:
+        def matches(keywords: tuple[str, ...]) -> bool:
+            return any(kw in ambiguity_text for kw in keywords)
+
+        # 1. Limit / count ambiguity ("сколько команд?", "top N")
+        if matches(_LIMIT_KEYWORDS):
+            return "limit", self._limit_options()
+
+        # 2. Date / time ambiguity ("date_range", "период", "год")
+        if intent.date_range is None and matches(_DATE_KEYWORDS):
+            return "time_range", self._time_options(schema)
+
+        # 3. Metric ambiguity
+        if intent.metric is None or matches(_METRIC_KEYWORDS):
             return "metric", self._metric_options(schema)
 
-        if not intent.dimensions and any("dimension" in a for a in ambiguities):
+        # 4. Dimension ambiguity
+        if not intent.dimensions and matches(_DIM_KEYWORDS):
             return "dimension", self._dimension_options(schema)
 
-        if intent.date_range is None and any("time" in a or "period" in a for a in ambiguities):
-            return "time_range", self._time_options()
+        # 5. Default: if date is missing try time, otherwise infer from schema
+        if intent.date_range is None and self._schema_has_date_column(schema):
+            return "time_range", self._time_options(schema)
 
-        # Default — treat as metric ambiguity when we have no better signal.
-        return "other", self._metric_options(schema)
+        schema_opts = self._metric_options_from_schema(schema)
+        return "other", schema_opts[:6] if schema_opts else self._limit_options()
+
+    # ------------------------------------------------------------------
+    # Option builders
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _limit_options() -> list[ClarificationOptionData]:
+        return [
+            ClarificationOptionData(id="limit:5",   label="Топ 5",  detail="Первые 5 записей"),
+            ClarificationOptionData(id="limit:10",  label="Топ 10", detail="Первые 10 записей", reason="Рекомендуется"),
+            ClarificationOptionData(id="limit:20",  label="Топ 20", detail="Первые 20 записей"),
+            ClarificationOptionData(id="limit:50",  label="Топ 50", detail="Первые 50 записей"),
+            ClarificationOptionData(id="limit:all", label="Все",    detail="Без ограничения по количеству"),
+        ]
 
     def _metric_options(self, schema: SchemaMetadataResponse | None) -> list[ClarificationOptionData]:
-        options: list[ClarificationOptionData] = [
-            ClarificationOptionData(id="metric:revenue", label="Выручка", detail="Сумма продаж"),
-            ClarificationOptionData(id="metric:order_count", label="Количество заказов"),
+        schema_options = self._metric_options_from_schema(schema)
+        if schema_options:
+            return schema_options[:6]
+        # Fallback only when schema unavailable
+        return [
+            ClarificationOptionData(id="metric:revenue",         label="Выручка",            detail="Сумма продаж"),
+            ClarificationOptionData(id="metric:order_count",     label="Количество заказов"),
             ClarificationOptionData(id="metric:avg_order_value", label="Средний чек"),
         ]
-        if schema and schema.tables:
-            extra = self._metric_options_from_schema(schema)
-            known_ids = {opt.id for opt in options}
-            for opt in extra:
-                if opt.id not in known_ids:
-                    options.append(opt)
-                    known_ids.add(opt.id)
-                if len(options) >= 6:
-                    break
-        return options
 
     def _metric_options_from_schema(
-        self, schema: SchemaMetadataResponse
+        self, schema: SchemaMetadataResponse | None
     ) -> list[ClarificationOptionData]:
+        if not schema:
+            return []
         results: list[ClarificationOptionData] = []
         for table in schema.tables:
             metric_cols = [c.name for c in table.columns if self._looks_like_metric_column(c)][:4]
-            if not metric_cols:
-                continue
             for col in metric_cols:
-                option_id = f"metric:{table.name}.{col}"
-                label = f"{table.name}.{col}"
-                results.append(
-                    ClarificationOptionData(
-                        id=option_id,
-                        label=label,
-                        detail=f"Колонка таблицы «{table.name}»",
-                    )
-                )
+                results.append(ClarificationOptionData(
+                    id=f"metric:{table.name}.{col}",
+                    label=f"{table.name}.{col}",
+                    detail=f"Колонка таблицы «{table.name}»",
+                ))
                 if len(results) >= 6:
                     return results
         return results
@@ -132,47 +199,63 @@ class ClarificationAgent:
     def _dimension_options(self, schema: SchemaMetadataResponse | None) -> list[ClarificationOptionData]:
         base = [
             ClarificationOptionData(id="dimension:month", label="По месяцам"),
-            ClarificationOptionData(id="dimension:week", label="По неделям"),
-            ClarificationOptionData(id="dimension:day", label="По дням"),
+            ClarificationOptionData(id="dimension:week",  label="По неделям"),
+            ClarificationOptionData(id="dimension:day",   label="По дням"),
         ]
         if schema and schema.tables:
             for table in schema.tables[:4]:
                 for col in table.columns[:3]:
-                    if "id" in col.name.lower():
+                    if "id" in col.name.lower() or self._looks_like_metric_column(col):
                         continue
-                    if self._looks_like_metric_column(col):
-                        continue
-                    base.append(
-                        ClarificationOptionData(
-                            id=f"dimension:{table.name}.{col.name}",
-                            label=f"{table.name}.{col.name}",
-                            detail="Колонка для группировки",
-                        )
-                    )
+                    base.append(ClarificationOptionData(
+                        id=f"dimension:{table.name}.{col.name}",
+                        label=f"{table.name}.{col.name}",
+                        detail="Колонка для группировки",
+                    ))
         return base[:6]
 
-    def _time_options(self) -> list[ClarificationOptionData]:
+    def _time_options(self, schema: SchemaMetadataResponse | None = None) -> list[ClarificationOptionData]:
+        if self._schema_has_date_column(schema):
+            return [
+                ClarificationOptionData(id="time_range:all",       label="Весь период",              detail="Без фильтра по дате"),
+                ClarificationOptionData(id="time_range:last_year", label="Последний год в данных"),
+                ClarificationOptionData(id="time_range:last_3y",   label="Последние 3 года в данных"),
+                ClarificationOptionData(id="time_range:custom",    label="Указать диапазон",         detail="Например: 2013–2015"),
+            ]
         return [
             ClarificationOptionData(id="time_range:last_30d", label="Последние 30 дней"),
             ClarificationOptionData(id="time_range:last_90d", label="Последние 90 дней"),
-            ClarificationOptionData(id="time_range:ytd", label="С начала года"),
-            ClarificationOptionData(id="time_range:all", label="Без фильтра по времени"),
+            ClarificationOptionData(id="time_range:ytd",      label="С начала года"),
+            ClarificationOptionData(id="time_range:all",      label="Весь период"),
         ]
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _schema_has_date_column(schema: SchemaMetadataResponse | None) -> bool:
+        if not schema:
+            return False
+        for table in schema.tables:
+            for col in table.columns:
+                if any(kw in col.name.lower() for kw in ("date", "year", "time", "period", "season")):
+                    return True
+                if any(kw in col.type.lower() for kw in ("date", "timestamp", "time")):
+                    return True
+        return False
 
     @staticmethod
     def _default_question(ambiguity_type: str) -> str:
-        if ambiguity_type == "metric":
-            return "Какую метрику имеете в виду?"
-        if ambiguity_type == "dimension":
-            return "По какому измерению сгруппировать?"
-        if ambiguity_type == "time_range":
-            return "За какой период показать данные?"
-        return "Уточните, что именно показать."
+        return {
+            "metric":     "Какую метрику имеете в виду?",
+            "dimension":  "По какому измерению сгруппировать?",
+            "time_range": "За какой период показать данные?",
+            "limit":      "Сколько записей показать?",
+        }.get(ambiguity_type, "Уточните, что именно показать.")
 
     @staticmethod
     def _looks_like_metric_column(column: ColumnMetadata) -> bool:
-        type_lower = column.type.lower()
-        if any(x in type_lower for x in ("int", "numeric", "decimal", "float", "double", "real", "money")):
+        if any(x in column.type.lower() for x in ("int", "numeric", "decimal", "float", "double", "real", "money")):
             return True
-        name_lower = column.name.lower()
-        return any(h in name_lower for h in _METRIC_NAME_HINTS)
+        return any(h in column.name.lower() for h in _METRIC_NAME_HINTS)

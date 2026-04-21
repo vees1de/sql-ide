@@ -27,6 +27,7 @@ export const useChatStore = defineStore('chat', () => {
   const activeDbId = ref('');
   const activeSessionId = ref('');
   const lastSyncedSqlDraft = ref('');
+  const pendingUserMessage = ref('');
   const generating = ref(false);
   const executing = ref(false);
   const loadingSessions = ref(false);
@@ -100,6 +101,7 @@ export const useChatStore = defineStore('chat', () => {
         messages.value = [];
         sqlDraft.value = '';
         sqlDraftVersion.value = 0;
+        pendingUserMessage.value = '';
         setSessionResult(null);
         return;
       }
@@ -183,6 +185,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = [];
     setSessionDraft(session.current_sql_draft, session.sql_draft_version);
     setSessionResult(null);
+    pendingUserMessage.value = '';
     setStatus('Новый чат создан');
     return session.id;
   }
@@ -194,6 +197,7 @@ export const useChatStore = defineStore('chat', () => {
     activeDbId.value = databaseId;
     activeSessionId.value = '';
     messages.value = [];
+    pendingUserMessage.value = '';
     setSessionDraft('', 0);
     setSessionResult(null);
     await loadSessions(databaseId);
@@ -211,6 +215,7 @@ export const useChatStore = defineStore('chat', () => {
       activeDbId.value = detail.database_connection_id;
       syncSession(detail);
       messages.value = detail.messages;
+      pendingUserMessage.value = '';
       setSessionDraft(detail.current_sql_draft, detail.sql_draft_version);
       setSessionResult(detail.last_execution);
       setStatus(detail.title || 'Чат готов');
@@ -234,6 +239,7 @@ export const useChatStore = defineStore('chat', () => {
     await chatApi.deleteSession(sessionId);
     const nextSessions = sessions.value.filter((session) => session.id !== sessionId);
     sessions.value = nextSessions;
+    pendingUserMessage.value = '';
 
     if (activeSessionId.value === sessionId) {
       activeSessionId.value = '';
@@ -331,6 +337,7 @@ export const useChatStore = defineStore('chat', () => {
     }
 
     generating.value = true;
+    pendingUserMessage.value = text;
     setError(null);
     setStatus(mode === 'thinking' ? 'Генерирую SQL (Thinking)' : 'Генерирую SQL (Fast)');
     try {
@@ -360,6 +367,7 @@ export const useChatStore = defineStore('chat', () => {
       throw error;
     } finally {
       generating.value = false;
+      pendingUserMessage.value = '';
     }
   }
 
@@ -442,6 +450,7 @@ export const useChatStore = defineStore('chat', () => {
     loadDatabases,
     llmModelAlias,
     llmModelAliases,
+    pendingUserMessage,
     loadSessions,
     messages,
     queryMode,

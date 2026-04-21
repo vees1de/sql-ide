@@ -284,6 +284,7 @@ class SemanticCatalogModel(Base):
     llm_model = Column(String(255), nullable=True)
     summary = Column(JSON, nullable=False, default=dict)
     notes = Column(JSON, nullable=False, default=list)
+    relationship_graph = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
 

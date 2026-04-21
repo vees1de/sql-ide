@@ -10,6 +10,7 @@ from app.db.session import analytics_engine
 from app.schemas.metadata import ColumnMetadata, RelationshipMetadata, SchemaMetadataResponse, TableMetadata
 from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
 from app.services.knowledge_service import KnowledgeService
+from app.services.relationship_graph import build_relationship_graph
 
 
 SchemaContext = SchemaMetadataResponse
@@ -73,6 +74,7 @@ class SchemaContextProvider:
         if not tables:
             return None
 
+        relationship_graph = build_relationship_graph(list(relationships))
         return SchemaMetadataResponse(
             database_id=summary.database_id,
             dialect=summary.dialect,
@@ -90,6 +92,7 @@ class SchemaContextProvider:
                     for relationship in relationships
                 }.values()
             ),
+            relationship_graph=relationship_graph,
         )
 
     def _schema_from_live_introspection(self, db: Session, database_connection_id: str) -> SchemaContext:
@@ -159,4 +162,5 @@ class SchemaContextProvider:
                     for relationship in relationships
                 }.values()
             ),
+            relationship_graph=build_relationship_graph(relationships),
         )

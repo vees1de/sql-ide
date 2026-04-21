@@ -12,9 +12,13 @@
           @switch-mode="$emit('set-query-mode', $event)"
         />
       </template>
-      <div v-else class="chat-assistant__empty">
+      <div v-else-if="!busy" class="chat-assistant__empty">
         Чем я могу помочь?
       </div>
+      <ChatUserMessage
+        v-if="busy && pendingMessage"
+        :message="pendingMessage"
+      />
       <div v-if="busy" class="chat-assistant__loader">
         <span class="chat-assistant__dot" />
         <span class="chat-assistant__dot" />
@@ -37,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import ChatAssistantMessage from '@/components/chat/ChatAssistantMessage.vue';
 import ChatInput from '@/components/chat/ChatInput.vue';
 import ChatUserMessage from '@/components/chat/ChatUserMessage.vue';
@@ -47,11 +51,13 @@ const props = withDefaults(
   defineProps<{
     messages: ApiChatMessageRead[];
     busy: boolean;
+    pendingUserMessage?: string;
     queryMode?: ApiQueryMode;
     llmModelAlias?: string;
     llmModelAliases?: string[];
   }>(),
   {
+    pendingUserMessage: '',
     queryMode: 'fast',
     llmModelAlias: 'gpt120',
     llmModelAliases: () => ['gpt120']
@@ -68,6 +74,21 @@ const emit = defineEmits<{
 
 const draft = ref('');
 const scrollRef = ref<HTMLElement | null>(null);
+const pendingMessage = computed<ApiChatMessageRead | null>(() => {
+  const text = props.pendingUserMessage?.trim();
+  if (!text) {
+    return null;
+  }
+
+  return {
+    id: 'pending-user-message',
+    session_id: 'pending',
+    role: 'user',
+    text,
+    structured_payload: null,
+    created_at: new Date().toISOString()
+  };
+});
 
 async function scrollToBottom() {
   await nextTick();
@@ -86,6 +107,13 @@ watch(
 
 watch(
   () => props.busy,
+  () => {
+    void scrollToBottom();
+  }
+);
+
+watch(
+  () => props.pendingUserMessage,
   () => {
     void scrollToBottom();
   }

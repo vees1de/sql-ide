@@ -45,7 +45,7 @@ SQLITE_TO_PG_TYPES = {
     "float": "REAL",
     "numeric": "NUMERIC",
     "decimal": "NUMERIC",
-    "boolean": "BOOLEAN",
+    "boolean": "INTEGER",
     "date": "TEXT",  # Spider dates are stored as text
     "datetime": "TEXT",
     "timestamp": "TEXT",
@@ -157,13 +157,21 @@ def load_sqlite_to_pg(sqlite_path: Path, pg_dbname: str):
                 placeholders = ", ".join(["%s"] * len(col_names))
                 insert_sql = f'INSERT INTO {quote_ident(table)} ({cols_quoted}) VALUES ({placeholders})'
 
+                # Determine which columns are non-text (need empty string → NULL)
+                non_text_cols = set()
+                for col in columns:
+                    pg_type = map_type(col[2])
+                    if pg_type not in ("TEXT",):
+                        non_text_cols.add(col[0])  # col index
+
                 batch = []
                 for row in rows:
-                    # Convert row values: handle bytes, bools, etc.
                     values = []
-                    for v in row:
+                    for idx, v in enumerate(row):
                         if isinstance(v, bytes):
                             v = psycopg2.Binary(v)
+                        elif isinstance(v, str) and v == "" and idx in non_text_cols:
+                            v = None
                         values.append(v)
                     batch.append(tuple(values))
 

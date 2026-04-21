@@ -77,6 +77,16 @@ class LLMService:
             "6. Keep warnings concise.\n"
             "7. Match the user's language in clarification text.\n"
             "8. Use conversation history when provided to resolve follow-up intent.\n"
+            "9. Prefer join paths that are present in relationship_graph when choosing table traversal.\n"
+            "10. When you set clarification_question, ALSO populate clarification_options with 3–5 concrete, "
+            "actionable answer choices specific to the user's request and the actual schema. "
+            "Each option must have a stable machine id (snake_case), a short human-readable label, and "
+            "optionally a detail/reason explaining the choice. Do NOT use generic placeholder options — "
+            "derive them from the real tables, columns, values, date ranges, or structural choices at play. "
+            "Examples of good options: {id:'limit_10', label:'Топ 10'}; "
+            "{id:'join_via_match_table', label:'Через таблицу match', detail:'match.league_id → league.id связывает команды с лигой'}; "
+            "{id:'year_2013_2015', label:'2013–2015', detail:'Три сезона'}. "
+            "Write labels and details in the user's language.\n"
             "Return this JSON shape:\n"
             "{"
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
@@ -84,7 +94,9 @@ class LLMService:
             '"comparison":"string|null","date_range":{"kind":"absolute|relative","start":"YYYY-MM-DD|null",'
             '"end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null,'
             '"visualization_preference":"line|bar|pie|table|null","ambiguities":["string"],'
-            '"clarification_question":"string|null","confidence":"number","follow_up":"boolean"},'
+            '"clarification_question":"string|null",'
+            '"clarification_options":[{"id":"string","label":"string","detail":"string|null","reason":"string|null"}],'
+            '"confidence":"number","follow_up":"boolean"},'
             '"sql":"string|null","chart_type":"line|bar|pie|table|null","chart_x_field":"string|null",'
             '"chart_y_field":"string|null","chart_title":"string|null","warnings":["string"]}'
         )
@@ -173,6 +185,7 @@ class LLMService:
         table: SemanticTable,
         relationships: list[dict[str, Any]] | None = None,
         join_paths: list[dict[str, Any]] | None = None,
+        relationship_graph: list[dict[str, Any]] | None = None,
         model: str | None = None,
     ) -> SemanticTableEnrichment | None:
         target_model = model or settings.llm_model
@@ -199,6 +212,7 @@ class LLMService:
                                 "table": table.model_dump(mode="json"),
                                 "relationships": relationships or [],
                                 "join_paths": join_paths or [],
+                                "relationship_graph": relationship_graph or [],
                                 "response_shape": {
                                     "table_name": "string",
                                     "label": "string|null",
@@ -297,6 +311,14 @@ class LLMService:
                     "cardinality": relationship.cardinality,
                 }
                 for relationship in schema.relationships
+            ],
+            "relationship_graph": [
+                {
+                    "from": edge.from_table,
+                    "to": edge.to_table,
+                    "on": edge.on,
+                }
+                for edge in schema.relationship_graph
             ],
         }
 

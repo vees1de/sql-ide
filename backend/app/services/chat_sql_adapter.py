@@ -225,6 +225,7 @@ class ChatSqlAdapter:
                     intent=intent,
                     schema=schema,
                     user_text=user_text,
+                    dialect=schema.dialect,
                     commit_updates=True,
                     previous_intent=previous_intent,
                     query_mode=query_mode,
@@ -309,13 +310,16 @@ class ChatSqlAdapter:
         llm_model_alias: str | None = None,
     ) -> AdapterResult:
         clarification = self.clarification_agent.run(intent, schema=schema)
+        question = self._clarification_value(clarification, "question") or intent.clarification_question
+        raw_options = self._clarification_value(clarification, "options", []) or []
         options = [
             ClarificationOption(
-                id=f"option-{index + 1}",
-                label=str(option),
-                detail=str(option),
+                id=self._clarification_value(option, "id") or f"option-{index + 1}",
+                label=self._clarification_value(option, "label") or str(option),
+                detail=self._clarification_value(option, "detail"),
+                reason=self._clarification_value(option, "reason"),
             )
-            for index, option in enumerate(clarification.get("options", []))
+            for index, option in enumerate(raw_options)
         ]
         payload = StructuredPayload(
             interpretation=self._build_interpretation(intent),
@@ -323,7 +327,7 @@ class ChatSqlAdapter:
             sql=None,
             warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
             needs_clarification=True,
-            clarification_question=clarification.get("question") or intent.clarification_question,
+            clarification_question=question,
             clarification_options=options or None,
             dialect=dialect,
             query_mode=query_mode,
@@ -343,6 +347,14 @@ class ChatSqlAdapter:
             assistant_text=assistant_text,
             commit_updates=commit_updates,
         )
+
+    @staticmethod
+    def _clarification_value(source: Any, key: str, default: Any | None = None) -> Any | None:
+        if source is None:
+            return default
+        if isinstance(source, dict):
+            return source.get(key, default)
+        return getattr(source, key, default)
 
     def _persist_result(
         self,

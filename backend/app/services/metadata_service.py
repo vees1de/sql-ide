@@ -5,6 +5,7 @@ from sqlalchemy import inspect
 from app.core.config import settings
 from app.db.session import analytics_engine
 from app.schemas.metadata import ColumnMetadata, RelationshipMetadata, SchemaMetadataResponse, TableMetadata
+from app.services.relationship_graph import build_relationship_graph
 
 
 class MetadataService:
@@ -40,11 +41,13 @@ class MetadataService:
                         )
                     )
 
+        relationship_graph = build_relationship_graph(relationships)
         return SchemaMetadataResponse(
             database_id=settings.demo_database_id,
             dialect=analytics_engine.dialect.name,
             tables=tables,
             relationships=relationships,
+            relationship_graph=relationship_graph,
         )
 
     def list_table_names(self) -> list[str]:

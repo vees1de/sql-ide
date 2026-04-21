@@ -163,4 +163,13 @@ class SQLGenerationAgent:
 
     def _source_sql(self, semantic: SemanticMappingPayload, joins: str) -> tuple[str, str]:
         base_alias = semantic.base_alias or "t0"
-        return (f"FROM {semantic.base_table} {base_alias}", joins)
+        return (f"FROM {self._quote_identifier(semantic.base_table)} {base_alias}", joins)
+
+    def _quote_identifier(self, value: str) -> str:
+        parts = [part for part in value.split(".") if part]
+        if not parts:
+            return '""'
+        quoted_parts = []
+        for part in parts:
+            quoted_parts.append('"' + part.replace('"', '""') + '"')
+        return ".".join(quoted_parts)
