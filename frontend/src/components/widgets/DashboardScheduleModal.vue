@@ -35,8 +35,13 @@
             </div>
             <div class="form-field">
               <label class="form-field__label">Timezone</label>
-              <input v-model="timezone" class="form-field__input" type="text" />
+              <input v-model="timezone" class="form-field__input" type="text" readonly />
             </div>
+          </div>
+
+          <div class="schedule-note">
+            <strong>Важно:</strong> расписание считается по Москве
+            <span>(Europe/Moscow, UTC+3)</span>.
           </div>
 
           <div class="form-field">
@@ -65,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import type { ApiDashboardScheduleRead, ApiDashboardScheduleUpsert } from '@/api/types';
 
 const props = defineProps<{
@@ -91,7 +96,7 @@ const dayOptions = [
 const recipientsText = ref('');
 const selectedDays = ref<string[]>([]);
 const sendTime = ref('09:00');
-const timezone = ref('Asia/Yakutsk');
+const timezone = ref('Europe/Moscow');
 const subject = ref('Dashboard digest');
 const enabled = ref(false);
 const saving = ref(false);
@@ -103,7 +108,7 @@ watch(
     recipientsText.value = props.schedule?.recipient_emails.join(', ') ?? '';
     selectedDays.value = props.schedule?.weekdays?.length ? [...props.schedule.weekdays] : ['mon'];
     sendTime.value = props.schedule?.send_time ?? '09:00';
-    timezone.value = props.schedule?.timezone ?? 'Asia/Yakutsk';
+    timezone.value = 'Europe/Moscow';
     subject.value = props.schedule?.subject ?? 'Dashboard digest';
     enabled.value = props.schedule?.enabled ?? false;
   },
@@ -122,7 +127,7 @@ async function save() {
       recipient_emails: emails,
       weekdays: selectedDays.value,
       send_time: sendTime.value || '09:00',
-      timezone: timezone.value || 'Asia/Yakutsk',
+      timezone: 'Europe/Moscow',
       enabled: enabled.value,
       subject: subject.value || 'Dashboard digest'
     });
@@ -247,6 +252,25 @@ async function save() {
   padding: 0 16px 12px;
   color: #ff7b7b;
   font-size: 0.78rem;
+}
+
+.schedule-note {
+  margin: 0 16px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(112, 59, 247, 0.22);
+  background: rgba(112, 59, 247, 0.06);
+  color: #4b5563;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.schedule-note strong {
+  color: #111827;
+}
+
+.schedule-note span {
+  color: #6b7280;
 }
 
 .btn {

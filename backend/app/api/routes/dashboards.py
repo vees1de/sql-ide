@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_db
 from app.db.models import DashboardModel, DashboardWidgetModel, WidgetModel
@@ -27,10 +27,18 @@ dashboard_service = DashboardService()
 
 
 def _get_dashboard_or_404(db: Session, dashboard_id: str) -> DashboardModel:
-    dashboard = db.query(DashboardModel).filter(
-        (DashboardModel.id == dashboard_id) | (DashboardModel.slug == dashboard_id),
-        DashboardModel.deleted_at.is_(None),
-    ).first()
+    dashboard = (
+        db.query(DashboardModel)
+        .options(
+            selectinload(DashboardModel.dashboard_widgets).selectinload(DashboardWidgetModel.widget).selectinload(WidgetModel.runs),
+            selectinload(DashboardModel.schedule),
+        )
+        .filter(
+            (DashboardModel.id == dashboard_id) | (DashboardModel.slug == dashboard_id),
+            DashboardModel.deleted_at.is_(None),
+        )
+        .first()
+    )
     if dashboard is None:
         raise HTTPException(status_code=404, detail="Dashboard not found.")
     return dashboard
@@ -143,7 +151,7 @@ def update_dashboard(
 @router.delete("/dashboards/{dashboard_id}", status_code=204)
 def delete_dashboard(dashboard_id: str, db: Session = Depends(get_db)) -> Response:
     dashboard = _get_dashboard_or_404(db, dashboard_id)
-    dashboard.deleted_at = datetime.utcnow()
+    dashboard.deleted_at = datetime.now(UTC)
     db.commit()
     return Response(status_code=204)
 
@@ -201,6 +209,8 @@ def upsert_dashboard_schedule(
 ) -> DashboardScheduleRead:
     dashboard = _get_dashboard_or_404(db, dashboard_id)
     schedule = dashboard_service.upsert_schedule(db, dashboard, payload.model_dump(mode="json"))
+    db.commit()
+    db.refresh(schedule)
     return DashboardScheduleRead.model_validate(schedule)
 
 
@@ -209,6 +219,7 @@ def delete_dashboard_schedule(dashboard_id: str, db: Session = Depends(get_db)) 
     dashboard = _get_dashboard_or_404(db, dashboard_id)
     if not dashboard_service.delete_schedule(db, dashboard):
         raise HTTPException(status_code=404, detail="Dashboard schedule not found.")
+    db.commit()
     return Response(status_code=204)
 
 
@@ -217,7 +228,7 @@ def export_dashboard_pdf(dashboard_id: str, db: Session = Depends(get_db)) -> Re
     dashboard = _get_dashboard_or_404(db, dashboard_id)
     dashboard_url = f"/dashboards/{dashboard.slug or dashboard.id}"
     pdf_bytes = dashboard_service.generate_dashboard_pdf(db, dashboard, dashboard_url)
-    filename = dashboard_service._slugify(dashboard.slug or dashboard.title)
+    filename = dashboard_service.slugify(dashboard.slug or dashboard.title)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

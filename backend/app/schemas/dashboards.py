@@ -84,7 +84,7 @@ class DashboardScheduleUpsert(BaseModel):
     recipient_emails: list[str] = Field(default_factory=list)
     weekdays: list[str] = Field(default_factory=list)
     send_time: str = Field(pattern=r"^\d{2}:\d{2}$", default="09:00")
-    timezone: str = Field(default="Asia/Yakutsk")
+    timezone: str = Field(default="Europe/Moscow")
     enabled: bool = False
     subject: str = Field(default="Dashboard digest", max_length=255)
 

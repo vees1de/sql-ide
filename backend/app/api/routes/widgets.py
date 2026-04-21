@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -103,7 +103,7 @@ def update_widget(widget_id: str, payload: WidgetUpdate, db: Session = Depends(g
 @router.delete("/widgets/{widget_id}", status_code=204)
 def delete_widget(widget_id: str, db: Session = Depends(get_db)) -> Response:
     widget = _get_widget_or_404(db, widget_id)
-    widget.deleted_at = datetime.utcnow()
+    widget.deleted_at = datetime.now(UTC)
     db.commit()
     return Response(status_code=204)
 
@@ -132,7 +132,7 @@ def run_widget(widget_id: str, db: Session = Depends(get_db)) -> WidgetDetail:
             row_count=1,
             execution_time_ms=0,
             error_text=None,
-            finished_at=datetime.utcnow(),
+            finished_at=datetime.now(UTC),
         )
         db.add(run)
         db.commit()
@@ -175,14 +175,14 @@ def run_widget(widget_id: str, db: Session = Depends(get_db)) -> WidgetDetail:
         run.rows_preview_truncated = truncated
         run.row_count = int(len(df.index))
         run.execution_time_ms = elapsed
-        run.finished_at = datetime.utcnow()
+        run.finished_at = datetime.now(UTC)
 
         # Cache schema on widget
         widget.result_schema = {"columns": columns}
     except Exception as exc:
         run.status = "error"
         run.error_text = str(exc)
-        run.finished_at = datetime.utcnow()
+        run.finished_at = datetime.now(UTC)
 
     db.commit()
     db.refresh(widget)

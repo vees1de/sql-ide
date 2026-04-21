@@ -316,9 +316,15 @@
             Rule-based inference plus optional LLM enrichment. Catalog хранится в БД и используется retrieval-слоем.
           </p>
         </div>
-        <button class="app-button app-button--ghost" type="button" :disabled="isActivatingSemantic" @click="activateSemantic">
-          {{ isActivatingSemantic ? 'Обновляем…' : 'Refresh semantic' }}
-        </button>
+        <div class="data-view__semantic-actions">
+          <label class="data-view__toggle">
+            <input v-model="semanticAutoRefreshEnabled" type="checkbox" />
+            <span>Auto refresh</span>
+          </label>
+          <button class="app-button app-button--ghost" type="button" :disabled="isActivatingSemantic" @click="activateSemantic">
+            {{ isActivatingSemantic ? 'Обновляем…' : 'Refresh semantic' }}
+          </button>
+        </div>
       </header>
       <p v-if="semanticFeedback" class="data-view__feedback">{{ semanticFeedback }}</p>
       <div class="data-view__semantic-compose">
@@ -507,6 +513,9 @@ const showGraphSemantic = ref(true);
 const knowledgeFeedback = ref('');
 const dictionaryFeedback = ref('');
 const semanticFeedback = ref('');
+const semanticAutoRefreshEnabled = ref(true);
+const semanticAutoRefreshKey = ref('');
+const SEMANTIC_AUTO_REFRESH_LS_KEY = 'sql-ide.semantic-auto-refresh-enabled';
 
 const draft = reactive({
   term: '',
@@ -850,6 +859,52 @@ async function loadSelectedTable() {
   }
 }
 
+function buildSemanticDatabaseDescription() {
+  const explicitDescription = semanticDescription.value.trim();
+  if (explicitDescription) {
+    return `${explicitDescription}\n\nПиши все label, business_description и synonyms на русском языке.`;
+  }
+  const databaseName = selectedDatabase.value?.name?.trim() || selectedDatabaseId.value || 'database';
+  return `База данных «${databaseName}». Пиши все label, business_description и synonyms на русском языке.`;
+}
+
+async function refreshSemanticCatalog(options: { auto?: boolean; force?: boolean } = {}) {
+  if (!selectedDatabaseId.value) {
+    return;
+  }
+  if (options.auto && !semanticAutoRefreshEnabled.value) {
+    return;
+  }
+
+  const description = buildSemanticDatabaseDescription();
+  const lastScanId = knowledgeSummary.value?.last_scan?.id ?? 'no-scan';
+  const autoKey = `${selectedDatabaseId.value}::${lastScanId}::${description}`;
+  if (options.auto && !options.force && semanticAutoRefreshKey.value === autoKey) {
+    return;
+  }
+
+  isActivatingSemantic.value = true;
+  if (!options.auto) {
+    semanticFeedback.value = '';
+  }
+
+  try {
+    semanticCatalog.value = await api.activateSemanticCatalog({
+      database_id: selectedDatabaseId.value,
+      refresh: true,
+      database_description: description
+    });
+    semanticAutoRefreshKey.value = autoKey;
+    semanticFeedback.value = options.auto
+      ? `Семантический каталог автоматически обновлён для ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`
+      : `Семантический каталог активирован для ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
+  } catch (error) {
+    semanticFeedback.value = error instanceof Error ? error.message : 'Не удалось активировать semantic.';
+  } finally {
+    isActivatingSemantic.value = false;
+  }
+}
+
 async function loadKnowledge() {
   if (!selectedDatabaseId.value) {
     knowledgeSummary.value = null;
@@ -857,6 +912,7 @@ async function loadKnowledge() {
     scanRuns.value = [];
     erdGraph.value = null;
     semanticCatalog.value = null;
+    semanticAutoRefreshKey.value = '';
     return;
   }
 
@@ -922,6 +978,10 @@ async function loadKnowledge() {
       ? semanticResult.reason.message
       : 'Не удалось загрузить semantic catalog.';
   }
+
+  if (selectedDatabaseId.value && semanticCatalog.value && semanticAutoRefreshEnabled.value) {
+    await refreshSemanticCatalog({ auto: true });
+  }
 }
 
 async function reload() {
@@ -962,21 +1022,7 @@ async function runScan(mode: 'full' | 'incremental') {
 }
 
 async function activateSemantic() {
-  if (!selectedDatabaseId.value) return;
-  isActivatingSemantic.value = true;
-  semanticFeedback.value = '';
-  try {
-    semanticCatalog.value = await api.activateSemanticCatalog({
-      database_id: selectedDatabaseId.value,
-      refresh: true,
-      database_description: semanticDescription.value.trim() || null
-    });
-    semanticFeedback.value = `Semantic catalog activated for ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
-  } catch (error) {
-    semanticFeedback.value = error instanceof Error ? error.message : 'Не удалось активировать semantic.';
-  } finally {
-    isActivatingSemantic.value = false;
-  }
+  await refreshSemanticCatalog({ force: true });
 }
 
 async function deleteSelectedDatabase(databaseId?: string) {
@@ -1218,6 +1264,11 @@ watch(
 );
 
 onMounted(async () => {
+  const storedSemanticAutoRefresh =
+    typeof window !== 'undefined' ? window.localStorage.getItem(SEMANTIC_AUTO_REFRESH_LS_KEY) : null;
+  if (storedSemanticAutoRefresh !== null) {
+    semanticAutoRefreshEnabled.value = storedSemanticAutoRefresh !== 'false';
+  }
   await Promise.allSettled([
     store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep'),
     chat.initialize()
@@ -1225,6 +1276,15 @@ onMounted(async () => {
   selectedDatabaseId.value = chat.activeDbId || store.workspace.databases[0]?.id || '';
   if (selectedDatabaseId.value && chat.activeDbId !== selectedDatabaseId.value) {
     await chat.selectDatabase(selectedDatabaseId.value);
+  }
+});
+
+watch(semanticAutoRefreshEnabled, (enabled) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(SEMANTIC_AUTO_REFRESH_LS_KEY, String(enabled));
+  }
+  if (enabled && selectedDatabaseId.value && semanticCatalog.value) {
+    void refreshSemanticCatalog({ auto: true, force: true });
   }
 });
 </script>
@@ -1587,6 +1647,14 @@ onMounted(async () => {
   gap: 0.55rem;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.data-view__semantic-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .data-view__toggle {

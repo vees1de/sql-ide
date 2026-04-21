@@ -626,7 +626,7 @@ class DashboardScheduleModel(Base):
     recipient_emails = Column(JSON, nullable=False, default=list)
     weekdays = Column(JSON, nullable=False, default=list)
     send_time = Column(String(5), nullable=False, default="09:00")
-    timezone = Column(String(64), nullable=False, default="Asia/Yakutsk")
+    timezone = Column(String(64), nullable=False, default="Europe/Moscow")
     enabled = Column(Boolean, nullable=False, default=False)
     subject = Column(String(255), nullable=False, default="Dashboard digest")
     last_sent_at = Column(DateTime, nullable=True)

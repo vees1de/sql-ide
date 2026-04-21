@@ -218,6 +218,7 @@ class SemanticCatalogService:
     ) -> SemanticCatalog:
         target = self._resolve_target(db, database_id)
         inspector = sa_inspect(target["engine"])
+        language_hint = self._detect_language(database_description)
         schema_map = self._load_knowledge_tables(db, database_id)
 
         tables: list[SemanticTable] = []
@@ -232,6 +233,7 @@ class SemanticCatalogService:
                 schema_name=schema_name,
                 table_name=table_name,
                 physical=physical,
+                language_hint=language_hint,
             )
             tables.append(table)
             relationships.extend(table.relationships)
@@ -578,10 +580,12 @@ class SemanticCatalogService:
             column = updated_columns.get(column_enrichment.column_name)
             if column is None:
                 continue
-            if column_enrichment.label:
-                column.label = column_enrichment.label
-            if column_enrichment.business_description:
-                column.business_description = column_enrichment.business_description
+            candidate_label = self._clean_enriched_text(column_enrichment.label, column.column_name, table.table_name)
+            if candidate_label:
+                column.label = candidate_label
+            candidate_desc = self._clean_enriched_text(column_enrichment.business_description, column.column_name, table.table_name)
+            if candidate_desc:
+                column.business_description = candidate_desc
             if column_enrichment.semantic_types:
                 column.semantic_types = sorted({*column.semantic_types, *column_enrichment.semantic_types})
             if column_enrichment.analytics_roles:
@@ -590,10 +594,12 @@ class SemanticCatalogService:
                 column.synonyms = sorted({*column.synonyms, *column_enrichment.synonyms})
 
         update_payload: dict[str, Any] = {}
-        if enrichment.label:
-            update_payload["label"] = enrichment.label
-        if enrichment.business_description:
-            update_payload["business_description"] = enrichment.business_description
+        candidate_table_label = self._clean_enriched_text(enrichment.label, table.table_name, table.table_name)
+        if candidate_table_label:
+            update_payload["label"] = candidate_table_label
+        candidate_table_desc = self._clean_enriched_text(enrichment.business_description, table.table_name, table.table_name)
+        if candidate_table_desc:
+            update_payload["business_description"] = candidate_table_desc
         if enrichment.table_role:
             update_payload["table_role"] = enrichment.table_role
         if enrichment.grain:
@@ -609,6 +615,41 @@ class SemanticCatalogService:
         if enrichment.important_dimensions:
             update_payload["important_dimensions"] = sorted({*table.important_dimensions, *enrichment.important_dimensions})
         return table.model_copy(update=update_payload)
+
+    _GENERIC_TEXTS = {"no description", "n/a", "na", "unknown"}
+
+    def _clean_enriched_text(self, value: str | None, subject: str, table_name: str) -> str | None:
+        if value is None:
+            return None
+        candidate = value.strip()
+        if not candidate:
+            return None
+        lowered = re.sub(r"\s+", " ", candidate.lower())
+        subject_norm = re.sub(r"\s+", " ", subject.lower()).strip()
+        table_norm = re.sub(r"\s+", " ", table_name.lower()).strip()
+        if lowered in self._GENERIC_TEXTS:
+            return None
+        if subject_norm and lowered == subject_norm:
+            return None
+        if table_norm and lowered == table_norm:
+            return None
+        templated_variants = {
+            f"physical table {table_norm}",
+            f"table {table_norm}",
+            f"таблица {table_norm}",
+            f"column {subject_norm} in {table_norm}",
+            f"column {subject_norm} of {table_norm}",
+            f"field {subject_norm} in {table_norm}",
+            f"поле {subject_norm} в {table_norm}",
+            f"колонка {subject_norm} в {table_norm}",
+        }
+        if lowered in templated_variants:
+            return None
+        if lowered.startswith(("column ", "field ", "поле ", "колонка ")) and table_norm and table_norm in lowered and len(candidate) < 80:
+            return None
+        if len(candidate) < 4:
+            return None
+        return candidate
 
     def _resolve_target(self, db: Session, database_id: str) -> dict[str, Any]:
         engine = resolve_engine(db, database_id)
@@ -667,6 +708,7 @@ class SemanticCatalogService:
         schema_name: str,
         table_name: str,
         physical: Any | None,
+        language_hint: str = "unknown",
     ) -> SemanticTable:
         columns_meta = self._safe_get_columns(inspector, schema_name, table_name)
         pk_constraint = self._safe_get_pk(inspector, schema_name, table_name)
@@ -697,11 +739,11 @@ class SemanticCatalogService:
                 foreign_key=foreign_key,
             )
             label = self._humanize(column_name)
-            business_description = self._default_column_description(table_name, column_name)
+            business_description = self._default_column_description(table_name, column_name, language_hint=language_hint)
             if column_name in primary_key:
-                business_description = f"Primary key for {table_name}."
+                business_description = self._primary_key_description(table_name, language_hint=language_hint)
             if foreign_key:
-                business_description = f"Foreign key to {foreign_key.get('referred_table')}."
+                business_description = self._foreign_key_description(foreign_key.get("referred_table"), language_hint=language_hint)
 
             columns.append(
                 SemanticColumn(
@@ -757,7 +799,7 @@ class SemanticCatalogService:
             schema_name=schema_name,
             table_name=table_name,
             label=self._humanize(table_name),
-            business_description=self._default_table_description(table_name),
+            business_description=self._default_table_description(table_name, language_hint=language_hint),
             table_role=table_role,
             grain=self._infer_grain(table_name, columns),
             main_date_column=main_date_column,
@@ -1343,11 +1385,38 @@ class SemanticCatalogService:
         label = " ".join(part for part in cleaned.split() if part)
         return label.title() if plural else label.title().rstrip("S")
 
-    def _default_table_description(self, table_name: str) -> str:
+    def _default_table_description(self, table_name: str, language_hint: str = "unknown") -> str:
+        if language_hint == "ru":
+            return f"Физическая таблица {table_name.replace('_', ' ')}."
         return f"Physical table {table_name.replace('_', ' ')}."
 
-    def _default_column_description(self, table_name: str, column_name: str) -> str:
+    def _default_column_description(self, table_name: str, column_name: str, language_hint: str = "unknown") -> str:
+        if language_hint == "ru":
+            return f"Колонка {column_name} в таблице {table_name}."
         return f"Column {column_name} in {table_name}."
+
+    def _primary_key_description(self, table_name: str, language_hint: str = "unknown") -> str:
+        if language_hint == "ru":
+            return f"Первичный ключ таблицы {table_name}."
+        return f"Primary key for {table_name}."
+
+    def _foreign_key_description(self, referred_table: Any | None, language_hint: str = "unknown") -> str:
+        target = str(referred_table) if referred_table else "referenced table"
+        if language_hint == "ru":
+            return f"Внешний ключ на таблицу {target}."
+        return f"Foreign key to {target}."
+
+    def _detect_language(self, *texts: str | None) -> str:
+        joined = " ".join(text for text in texts if text)
+        if not joined:
+            return "unknown"
+        cyrillic = sum(1 for ch in joined if "\u0400" <= ch <= "\u04FF")
+        latin = sum(1 for ch in joined if "a" <= ch.lower() <= "z")
+        if cyrillic > latin:
+            return "ru"
+        if latin > 0:
+            return "en"
+        return "unknown"
 
     def _stringify(self, value: Any) -> str | None:
         if value is None:

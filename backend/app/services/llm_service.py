@@ -238,19 +238,31 @@ class LLMService:
         if not self._configured_for_model(target_model):
             return None
 
+        column_count = len(table.columns)
+        max_tokens = max(1600, 500 + column_count * 180)
+        language_hint = self._detect_language(database_description)
+        language_rule = {
+            "ru": "Все label, business_description и synonyms пиши на русском языке. Используй деловой, но понятный тон.",
+            "en": "Write all labels, descriptions and synonyms in English using concise business wording.",
+        }.get(language_hint, "Пиши label, business_description и synonyms на русском языке. Если предметная область явно англоязычная, допускается английский, но по умолчанию используй русский деловой стиль.")
+
         try:
             content = self._chat_json(
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "You are a semantic data modeler. "
-                            "Return exactly one JSON object and no markdown. "
-                            "Your task is to improve business labels and descriptions without inventing new columns. "
-                            "Never reference tables or columns that are not present in the input. "
-                            "Prefer conservative updates over speculative ones. "
-                            "If a database-level description is provided, use it as the highest-level context for naming "
-                            "tables, columns, roles, and business descriptions."
+                            "Ты — семантический моделлер данных для BI/аналитики. "
+                            "Верни ровно один JSON-объект без markdown и пояснений. "
+                            "Задача — улучшить бизнес-лейблы и описания колонок и таблиц, не придумывая новых. "
+                            "Нельзя упоминать таблицы/колонки, которых нет во входных данных. "
+                            "Запрещено возвращать шаблонные описания вида 'Column X in Y' или 'Physical table X' — "
+                            "если не можешь дать осмысленное описание, оставь поле null. "
+                            "Используй database_description как главный контекст предметной области. "
+                            "Анализируй example_values и имена колонок для вывода семантики. "
+                            "Выбирай table_role строго из: fact, dimension, bridge, lookup, event, snapshot. "
+                            "grain описывай одной короткой фразой (e.g. 'одна строка = один тендер на заказ'). "
+                            f"{language_rule}"
                         ),
                     },
                     {
@@ -290,7 +302,7 @@ class LLMService:
                         ),
                     },
                 ],
-                max_tokens=1200,
+                max_tokens=max_tokens,
                 temperature=0.1,
                 model=str(target_model),
             )
@@ -378,6 +390,18 @@ class LLMService:
                 for edge in schema.relationship_graph
             ],
         }
+
+    def _detect_language(self, *texts: str | None) -> str:
+        joined = " ".join(text for text in texts if text)
+        if not joined:
+            return "unknown"
+        cyrillic = sum(1 for ch in joined if "\u0400" <= ch <= "\u04FF")
+        latin = sum(1 for ch in joined if ("a" <= ch.lower() <= "z"))
+        if cyrillic > latin:
+            return "ru"
+        if latin > 0:
+            return "en"
+        return "unknown"
 
     def _extract_json_object(self, content: str) -> str:
         stripped = content.strip()

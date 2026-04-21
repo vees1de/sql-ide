@@ -170,13 +170,29 @@
 
                 <DashboardTileContent :dashboard-widget="dw" />
                 <button
-                  class="dashboard-view__resize-handle"
+                  class="dashboard-view__resize-handle dashboard-view__resize-handle--left"
                   type="button"
-                  title="Resize tile"
-                  @mousedown.prevent="startResize(dw, $event)"
-                >
-                  ⋰
-                </button>
+                  title="Resize left edge"
+                  @mousedown.prevent="startResize(dw, 'left', $event)"
+                />
+                <button
+                  class="dashboard-view__resize-handle dashboard-view__resize-handle--right"
+                  type="button"
+                  title="Resize right edge"
+                  @mousedown.prevent="startResize(dw, 'right', $event)"
+                />
+                <button
+                  class="dashboard-view__resize-handle dashboard-view__resize-handle--top"
+                  type="button"
+                  title="Resize top edge"
+                  @mousedown.prevent="startResize(dw, 'top', $event)"
+                />
+                <button
+                  class="dashboard-view__resize-handle dashboard-view__resize-handle--bottom"
+                  type="button"
+                  title="Resize bottom edge"
+                  @mousedown.prevent="startResize(dw, 'bottom', $event)"
+                />
               </div>
             </div>
           </div>
@@ -245,6 +261,7 @@ const dragging = ref<{
 const previewLayout = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 const resizing = ref<{
   widgetId: string;
+  edge: ResizeEdge;
   startX: number;
   startY: number;
   startLayout: { x: number; y: number; w: number; h: number };
@@ -255,15 +272,17 @@ const GRID_ROW_HEIGHT = 56;
 const GRID_ROW_GAP = 16;
 const MIN_TILE_WIDTH = 2;
 const MIN_TILE_HEIGHT = 3;
+type ResizeEdge = "left" | "right" | "top" | "bottom";
 
 const addedWidgetIds = computed(
   () => dashboard.value?.widgets.map((dw) => dw.widget.id) ?? [],
 );
 
 const previewOverlapIds = computed(() => {
-  if (!dashboard.value || !previewLayout.value || !dragging.value) return [];
+  if (!dashboard.value || !previewLayout.value) return [];
+  const activeWidgetId = dragging.value?.widgetId ?? resizing.value?.widgetId ?? null;
   return dashboard.value.widgets
-    .filter((item) => item.id !== dragging.value?.widgetId)
+    .filter((item) => item.id !== activeWidgetId)
     .filter((item) => layoutsOverlap(sanitizeLayout(item.layout), previewLayout.value!))
     .map((item) => item.id);
 });
@@ -476,19 +495,22 @@ function onGridDrop(event: DragEvent) {
   });
 }
 
-function startResize(dw: ApiDashboardWidgetDetail, event: MouseEvent) {
+function startResize(dw: ApiDashboardWidgetDetail, edge: ResizeEdge, event: MouseEvent) {
   if (!dashboard.value) return;
   dragging.value = null;
   resizing.value = {
     widgetId: dw.id,
+    edge,
     startX: event.clientX,
     startY: event.clientY,
     startLayout: { ...dw.layout },
   };
+  previewLayout.value = sanitizeLayout(dw.layout);
   document.addEventListener("mousemove", onResizeMove);
   document.addEventListener("mouseup", stopResize);
   document.body.style.userSelect = "none";
-  document.body.style.cursor = "nwse-resize";
+  document.body.style.cursor =
+    edge === "left" || edge === "right" ? "ew-resize" : "ns-resize";
 }
 
 function onResizeMove(event: MouseEvent) {
@@ -503,18 +525,19 @@ function onResizeMove(event: MouseEvent) {
   const rowHeight = GRID_ROW_HEIGHT + GRID_ROW_GAP;
   const deltaX = event.clientX - resizing.value.startX;
   const deltaY = event.clientY - resizing.value.startY;
-  const nextLayout = resolveLayout({
-    ...widget.layout,
-    w: Math.max(
-      2,
-      Math.min(
-        GRID_COLUMNS - widget.layout.x,
-        resizing.value.startLayout.w + Math.round(deltaX / colWidth),
-      ),
+  const nextLayout = resolveLayout(
+    getResizedLayout(
+      resizing.value.startLayout,
+      resizing.value.edge,
+      deltaX,
+      deltaY,
+      colWidth,
+      rowHeight,
     ),
-    h: Math.max(3, resizing.value.startLayout.h + Math.round(deltaY / rowHeight)),
-  }, widget.id);
+    widget.id,
+  );
   widget.layout = nextLayout;
+  previewLayout.value = nextLayout;
 }
 
 function stopResize() {
@@ -538,6 +561,81 @@ function stopInteraction() {
   dragging.value = null;
   previewLayout.value = null;
   resizing.value = null;
+}
+
+function getResizedLayout(
+  start: { x: number; y: number; w: number; h: number },
+  edge: ResizeEdge,
+  deltaX: number,
+  deltaY: number,
+  colWidth: number,
+  rowHeight: number,
+) {
+  const dx = Math.round(deltaX / colWidth);
+  const dy = Math.round(deltaY / rowHeight);
+  let next = { ...start };
+
+  if (edge === "right") {
+    next.w = start.w + dx;
+  } else if (edge === "left") {
+    next.x = start.x + dx;
+    next.w = start.w - dx;
+  } else if (edge === "bottom") {
+    next.h = start.h + dy;
+  } else if (edge === "top") {
+    next.y = start.y + dy;
+    next.h = start.h - dy;
+  }
+
+  return sanitizeResizedLayout(next, edge);
+}
+
+function sanitizeResizedLayout(
+  layout: { x: number; y: number; w: number; h: number },
+  edge: ResizeEdge,
+) {
+  let x = Math.round(layout.x);
+  let y = Math.round(layout.y);
+  let w = Math.round(layout.w);
+  let h = Math.round(layout.h);
+
+  if (w < MIN_TILE_WIDTH) {
+    if (edge === "left") {
+      x -= MIN_TILE_WIDTH - w;
+    }
+    w = MIN_TILE_WIDTH;
+  }
+  if (h < MIN_TILE_HEIGHT) {
+    if (edge === "top") {
+      y -= MIN_TILE_HEIGHT - h;
+    }
+    h = MIN_TILE_HEIGHT;
+  }
+
+  if (x < 0) {
+    if (edge === "left") {
+      w += x;
+    }
+    x = 0;
+  }
+  if (y < 0) {
+    if (edge === "top") {
+      h += y;
+    }
+    y = 0;
+  }
+
+  if (w > GRID_COLUMNS) w = GRID_COLUMNS;
+  if (h < MIN_TILE_HEIGHT) h = MIN_TILE_HEIGHT;
+  if (x + w > GRID_COLUMNS) {
+    if (edge === "left") {
+      x = GRID_COLUMNS - w;
+    } else {
+      w = GRID_COLUMNS - x;
+    }
+  }
+
+  return sanitizeLayout({ x, y, w, h });
 }
 
 async function saveSchedule(payload: ApiDashboardScheduleUpsert) {
@@ -825,17 +923,46 @@ onBeforeUnmount(() => {
 
 .dashboard-view__resize-handle {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: rgba(112, 59, 247, 0.18);
-  color: var(--ink-strong);
-  cursor: nwse-resize;
-  font-size: 0.9rem;
-  line-height: 1;
+  border: none;
+  background: rgba(112, 59, 247, 0.02);
+  padding: 0;
+  z-index: 3;
+}
+
+.dashboard-view__resize-handle:hover {
+  background: rgba(112, 59, 247, 0.12);
+}
+
+.dashboard-view__resize-handle--left,
+.dashboard-view__resize-handle--right {
+  top: 10px;
+  bottom: 10px;
+  width: 14px;
+  cursor: ew-resize;
+}
+
+.dashboard-view__resize-handle--left {
+  left: -3px;
+}
+
+.dashboard-view__resize-handle--right {
+  right: -3px;
+}
+
+.dashboard-view__resize-handle--top,
+.dashboard-view__resize-handle--bottom {
+  left: 10px;
+  right: 10px;
+  height: 14px;
+  cursor: ns-resize;
+}
+
+.dashboard-view__resize-handle--top {
+  top: -3px;
+}
+
+.dashboard-view__resize-handle--bottom {
+  bottom: -3px;
 }
 
 .dashboard-view__tile-header {
