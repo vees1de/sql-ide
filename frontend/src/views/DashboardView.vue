@@ -1,109 +1,175 @@
 <template>
-  <main class="dashboard-view">
-    <div v-if="loading" class="dashboard-view__loading">Загрузка…</div>
-    <div v-else-if="error" class="dashboard-view__error">{{ error }}</div>
+  <main class="dashboard-shell">
+    <aside class="dashboard-shell__sidebar">
+      <ChatSidebar
+        mode="dashboards"
+        v-model:dashboardView="sidebarMode"
+        :dashboards="dashboardsStore.dashboards"
+        :loading="dashboardsStore.loading || widgetsStore.loading"
+        :active-db-id="''"
+        :active-session-id="''"
+        :databases="[]"
+        :widgets="widgetsStore.widgets"
+        :sessions="[]"
+        @select-database="() => {}"
+        @select-session="() => {}"
+        @create-session="() => {}"
+        @rename-session="() => {}"
+        @delete-session="() => {}"
+        @add-database="() => {}"
+        @rename-database="() => {}"
+        @delete-database="() => {}"
+      />
+    </aside>
 
-    <template v-else-if="dashboard">
-      <div class="dashboard-view__header">
-        <div class="dashboard-view__meta">
-          <h1 v-if="!editingTitle" class="dashboard-view__title" @dblclick="startEditTitle">
-            {{ dashboard.title }}
-          </h1>
-          <input
-            v-else
-            ref="titleInput"
-            v-model="titleDraft"
-            class="dashboard-view__title-input"
-            @blur="saveTitle"
-            @keydown.enter="saveTitle"
-            @keydown.esc="editingTitle = false"
-          />
-          <span class="dashboard-view__updated">{{ dashboard.widgets.length }} виджетов</span>
-        </div>
+    <section class="dashboard-shell__content">
+      <div class="dashboard-view">
+        <div v-if="loading" class="dashboard-view__loading">Загрузка…</div>
+        <div v-else-if="error" class="dashboard-view__error">{{ error }}</div>
 
-        <div class="dashboard-view__header-actions">
-          <button class="wbtn wbtn--ghost" type="button" @click="copyLink">Копировать ссылку</button>
-          <button class="wbtn wbtn--ghost" type="button" @click="togglePublic">
-            {{ dashboard.is_public ? '🔓 Публичный' : '🔒 Приватный' }}
-          </button>
-          <button class="wbtn wbtn--ghost" type="button" @click="showAddWidget = true">+ Добавить виджет</button>
-          <button class="wbtn wbtn--danger" type="button" @click="confirmDelete">Удалить</button>
-        </div>
-      </div>
+        <template v-else-if="dashboard">
+          <div class="dashboard-view__panel dashboard-view__panel--hero">
+            <div class="dashboard-view__header">
+              <div class="dashboard-view__meta">
+                <h1
+                  v-if="!editingTitle"
+                  class="dashboard-view__title"
+                  @dblclick="startEditTitle"
+                >
+                  {{ dashboard.title }}
+                </h1>
+                <input
+                  v-else
+                  ref="titleInput"
+                  v-model="titleDraft"
+                  class="dashboard-view__title-input"
+                  @blur="saveTitle"
+                  @keydown.enter="saveTitle"
+                  @keydown.esc="editingTitle = false"
+                />
+                <span class="dashboard-view__updated"
+                  >{{ dashboard.widgets.length }} виджетов</span
+                >
+              </div>
 
-      <div v-if="!dashboard.widgets.length" class="dashboard-view__empty">
-        Добавьте виджеты с помощью кнопки «+ Добавить виджет»
-      </div>
-
-      <div v-else class="dashboard-view__grid">
-        <div
-          v-for="dw in dashboard.widgets"
-          :key="dw.id"
-          class="dashboard-view__tile"
-        >
-          <div class="dashboard-view__tile-header">
-            <span class="dashboard-view__tile-title">
-              {{ dw.title_override || dw.widget.title }}
-            </span>
-            <div class="dashboard-view__tile-actions">
-              <router-link
-                :to="`/widget/${dw.widget.id}`"
-                class="dashboard-view__tile-link"
-                title="Открыть виджет"
-              >↗</router-link>
-              <button
-                class="dashboard-view__tile-remove"
-                type="button"
-                title="Убрать из дашборда"
-                @click="removeWidget(dw.id)"
-              >✕</button>
+              <div class="dashboard-view__header-actions">
+                <button
+                  class="wbtn wbtn--ghost"
+                  type="button"
+                  @click="copyLink"
+                >
+                  Копировать ссылку
+                </button>
+                <button
+                  class="wbtn wbtn--ghost"
+                  type="button"
+                  @click="togglePublic"
+                >
+                  {{ dashboard.is_public ? "🔓 Публичный" : "🔒 Приватный" }}
+                </button>
+                <button
+                  class="wbtn wbtn--ghost"
+                  type="button"
+                  @click="showAddWidget = true"
+                >
+                  + Добавить виджет
+                </button>
+                <button
+                  class="wbtn wbtn--danger"
+                  type="button"
+                  @click="confirmDelete"
+                >
+                  Удалить
+                </button>
+              </div>
             </div>
           </div>
 
-          <DashboardTileContent :dashboard-widget="dw" />
+          <div class="dashboard-view__panel">
+            <div v-if="!dashboard.widgets.length" class="dashboard-view__empty">
+              Добавьте виджеты с помощью кнопки «+ Добавить виджет»
+            </div>
+
+            <div v-else class="dashboard-view__grid">
+              <div
+                v-for="dw in dashboard.widgets"
+                :key="dw.id"
+                class="dashboard-view__tile"
+              >
+                <div class="dashboard-view__tile-header">
+                  <span class="dashboard-view__tile-title">
+                    {{ dw.title_override || dw.widget.title }}
+                  </span>
+                  <div class="dashboard-view__tile-actions">
+                    <router-link
+                      :to="`/widget/${dw.widget.id}`"
+                      class="dashboard-view__tile-link"
+                      title="Открыть виджет"
+                      >↗</router-link
+                    >
+                    <button
+                      class="dashboard-view__tile-remove"
+                      type="button"
+                      title="Убрать из дашборда"
+                      @click="removeWidget(dw.id)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                <DashboardTileContent :dashboard-widget="dw" />
+              </div>
+            </div>
+          </div>
+
+          <AddWidgetToExistingDashboard
+            v-if="showAddWidget"
+            :dashboard-id="dashboard.id"
+            :already-added-ids="addedWidgetIds"
+            @close="showAddWidget = false"
+            @added="onWidgetAdded"
+          />
+        </template>
+
+        <div v-if="linkCopied" class="dashboard-view__toast">
+          Ссылка скопирована!
         </div>
       </div>
-
-      <!-- Add widget modal -->
-      <AddWidgetToExistingDashboard
-        v-if="showAddWidget"
-        :dashboard-id="dashboard.id"
-        :already-added-ids="addedWidgetIds"
-        @close="showAddWidget = false"
-        @added="onWidgetAdded"
-      />
-    </template>
-
-    <div v-if="linkCopied" class="dashboard-view__toast">Ссылка скопирована!</div>
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { api } from '@/api/client';
-import { useDashboardsStore } from '@/stores/dashboards';
-import DashboardTileContent from '@/components/widgets/DashboardTileContent.vue';
-import AddWidgetToExistingDashboard from '@/components/widgets/AddWidgetToExistingDashboard.vue';
-import type { ApiDashboardDetail } from '@/api/types';
+import { ref, computed, onMounted, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { api } from "@/api/client";
+import ChatSidebar from "@/components/chat/ChatSidebar.vue";
+import { useDashboardsStore } from "@/stores/dashboards";
+import { useWidgetsStore } from "@/stores/widgets";
+import DashboardTileContent from "@/components/widgets/DashboardTileContent.vue";
+import AddWidgetToExistingDashboard from "@/components/widgets/AddWidgetToExistingDashboard.vue";
+import type { ApiDashboardDetail } from "@/api/types";
 
 const route = useRoute();
 const router = useRouter();
 const dashboardsStore = useDashboardsStore();
+const widgetsStore = useWidgetsStore();
 
 const dashboard = ref<ApiDashboardDetail | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const sidebarMode = ref<"dashboards" | "widgets">("dashboards");
 
 const editingTitle = ref(false);
-const titleDraft = ref('');
+const titleDraft = ref("");
 const titleInput = ref<HTMLInputElement | null>(null);
 
 const showAddWidget = ref(false);
 const linkCopied = ref(false);
 
-const addedWidgetIds = computed(() =>
-  dashboard.value?.widgets.map((dw) => dw.widget.id) ?? []
+const addedWidgetIds = computed(
+  () => dashboard.value?.widgets.map((dw) => dw.widget.id) ?? [],
 );
 
 async function loadDashboard() {
@@ -112,29 +178,37 @@ async function loadDashboard() {
   try {
     dashboard.value = await api.getDashboard(route.params.id as string);
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Не удалось загрузить дашборд.';
+    error.value =
+      e instanceof Error ? e.message : "Не удалось загрузить дашборд.";
   } finally {
     loading.value = false;
   }
 }
 
 async function startEditTitle() {
-  titleDraft.value = dashboard.value?.title ?? '';
+  titleDraft.value = dashboard.value?.title ?? "";
   editingTitle.value = true;
   await nextTick();
   titleInput.value?.focus();
 }
 
 async function saveTitle() {
-  if (!dashboard.value || !titleDraft.value.trim()) { editingTitle.value = false; return; }
+  if (!dashboard.value || !titleDraft.value.trim()) {
+    editingTitle.value = false;
+    return;
+  }
   editingTitle.value = false;
-  const updated = await dashboardsStore.updateDashboard(dashboard.value.id, { title: titleDraft.value.trim() });
+  const updated = await dashboardsStore.updateDashboard(dashboard.value.id, {
+    title: titleDraft.value.trim(),
+  });
   dashboard.value = { ...dashboard.value, ...updated };
 }
 
 async function togglePublic() {
   if (!dashboard.value) return;
-  const updated = await dashboardsStore.updateDashboard(dashboard.value.id, { is_public: !dashboard.value.is_public });
+  const updated = await dashboardsStore.updateDashboard(dashboard.value.id, {
+    is_public: !dashboard.value.is_public,
+  });
   dashboard.value = { ...dashboard.value, ...updated };
 }
 
@@ -151,13 +225,15 @@ async function confirmDelete() {
   if (!dashboard.value) return;
   if (!window.confirm(`Удалить дашборд «${dashboard.value.title}»?`)) return;
   await dashboardsStore.deleteDashboard(dashboard.value.id);
-  void router.push('/dashboards');
+  void router.push("/dashboards");
 }
 
 function copyLink() {
   void navigator.clipboard.writeText(window.location.href);
   linkCopied.value = true;
-  setTimeout(() => { linkCopied.value = false; }, 2000);
+  setTimeout(() => {
+    linkCopied.value = false;
+  }, 2000);
 }
 
 async function onWidgetAdded() {
@@ -165,10 +241,34 @@ async function onWidgetAdded() {
   await loadDashboard();
 }
 
-onMounted(() => { void loadDashboard(); });
+onMounted(() => {
+  void loadDashboard();
+  void Promise.all([
+    dashboardsStore.loadDashboards(),
+    widgetsStore.loadWidgets(),
+  ]);
+});
 </script>
 
 <style scoped lang="scss">
+.dashboard-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  background: var(--bg);
+  padding: 1rem;
+}
+
+.dashboard-shell__sidebar {
+  min-height: 0;
+}
+
+.dashboard-shell__content {
+  min-height: 0;
+  overflow: auto;
+}
+
 .dashboard-view {
   padding: 20px 24px;
   max-width: 1400px;
@@ -179,6 +279,25 @@ onMounted(() => { void loadDashboard(); });
   flex: 1;
   min-height: 0;
   position: relative;
+}
+
+.dashboard-view__panel {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 12px;
+  box-shadow: var(--shadow-soft);
+}
+
+.dashboard-view__panel--hero {
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(138, 180, 248, 0.08),
+      transparent 28%
+    ),
+    linear-gradient(180deg, rgba(26, 29, 36, 0.96), rgba(18, 20, 27, 0.98));
 }
 
 .dashboard-view__loading,
@@ -291,7 +410,10 @@ onMounted(() => { void loadDashboard(); });
   text-decoration: none;
   padding: 2px 5px;
   border-radius: 4px;
-  &:hover { background: var(--line); color: var(--ink); }
+  &:hover {
+    background: var(--line);
+    color: var(--ink);
+  }
 }
 
 .dashboard-view__tile-remove {
@@ -302,7 +424,10 @@ onMounted(() => { void loadDashboard(); });
   font-size: 0.8rem;
   padding: 2px 5px;
   border-radius: 4px;
-  &:hover { background: rgba(255,80,80,0.15); color: #ff7070; }
+  &:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff7070;
+  }
 }
 
 .dashboard-view__toast {
@@ -318,6 +443,12 @@ onMounted(() => { void loadDashboard(); });
   pointer-events: none;
 }
 
+@media (max-width: 980px) {
+  .dashboard-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- shared button styles --- */
 .wbtn {
   min-height: 30px;
@@ -328,12 +459,19 @@ onMounted(() => { void loadDashboard(); });
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
-.wbtn--ghost:hover { background: var(--line); }
+.wbtn--ghost:hover {
+  background: var(--line);
+}
 .wbtn--danger {
   border-color: rgba(255, 80, 80, 0.5);
   color: #ff7070;
-  &:hover { background: rgba(255, 80, 80, 0.12); }
+  &:hover {
+    background: rgba(255, 80, 80, 0.12);
+  }
 }
 </style>

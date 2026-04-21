@@ -1,47 +1,191 @@
 <template>
-  <main class="dashboards-list-view">
-    <div class="dashboards-list-view__header">
-      <h1 class="dashboards-list-view__heading">Дашборды</h1>
-      <router-link to="/dashboards/new" class="wbtn wbtn--primary">+ Новый дашборд</router-link>
-    </div>
+  <main class="dashboards-shell">
+    <aside class="dashboards-shell__sidebar">
+      <ChatSidebar
+        mode="dashboards"
+        v-model:dashboardView="sidebarMode"
+        :dashboards="dashboardsStore.dashboards"
+        :loading="dashboardsStore.loading || widgetsStore.loading"
+        :active-db-id="''"
+        :active-session-id="''"
+        :databases="[]"
+        :widgets="widgetsStore.widgets"
+        :sessions="[]"
+        @select-database="() => {}"
+        @select-session="() => {}"
+        @create-session="() => {}"
+        @rename-session="() => {}"
+        @delete-session="() => {}"
+        @add-database="() => {}"
+        @rename-database="() => {}"
+        @delete-database="() => {}"
+      />
+    </aside>
 
-    <div v-if="dashboardsStore.loading" class="dashboards-list-view__hint">Загрузка…</div>
-    <div v-else-if="!dashboardsStore.dashboards.length" class="dashboards-list-view__empty">
-      <p>Дашбордов пока нет.</p>
-    </div>
-
-    <div v-else class="dashboards-list-view__grid">
-      <router-link
-        v-for="dashboard in dashboardsStore.dashboards"
-        :key="dashboard.id"
-        :to="`/dashboards/${dashboard.id}`"
-        class="dashboards-list-view__card"
-      >
-        <div class="dashboards-list-view__card-header">
-          <span class="dashboards-list-view__card-title">{{ dashboard.title }}</span>
-          <span v-if="dashboard.is_public" class="dashboards-list-view__card-badge">публичный</span>
+    <section class="dashboards-shell__content">
+      <div class="dashboards-list-view">
+        <div
+          class="dashboards-list-view__panel dashboards-list-view__panel--hero"
+        >
+          <div class="dashboards-list-view__header">
+            <div>
+              <p class="dashboards-list-view__eyebrow">Dashboards</p>
+              <h1 class="dashboards-list-view__heading">
+                {{ sidebarMode === "dashboards" ? "Дашборды" : "Виджеты" }}
+              </h1>
+            </div>
+            <router-link
+              v-if="sidebarMode === 'dashboards'"
+              to="/dashboards/new"
+              class="wbtn wbtn--primary"
+            >
+              + Новый дашборд
+            </router-link>
+            <router-link v-else to="/widgets" class="wbtn wbtn--primary">
+              Открыть каталог
+            </router-link>
+          </div>
         </div>
-        <p v-if="dashboard.description" class="dashboards-list-view__card-desc">{{ dashboard.description }}</p>
-        <span class="dashboards-list-view__card-updated">{{ formatDate(dashboard.updated_at) }}</span>
-      </router-link>
-    </div>
+
+        <div class="dashboards-list-view__panel">
+          <div v-if="sidebarMode === 'dashboards'">
+            <div
+              v-if="dashboardsStore.loading"
+              class="dashboards-list-view__hint"
+            >
+              Загрузка…
+            </div>
+            <div
+              v-else-if="!dashboardsStore.dashboards.length"
+              class="dashboards-list-view__empty"
+            >
+              <p>Дашбордов пока нет.</p>
+            </div>
+            <div v-else class="dashboards-list-view__grid">
+              <router-link
+                v-for="dashboard in dashboardsStore.dashboards"
+                :key="dashboard.id"
+                :to="`/dashboards/${dashboard.id}`"
+                class="dashboards-list-view__card"
+              >
+                <div class="dashboards-list-view__card-header">
+                  <span class="dashboards-list-view__card-title">{{
+                    dashboard.title
+                  }}</span>
+                  <span
+                    v-if="dashboard.is_public"
+                    class="dashboards-list-view__card-badge"
+                    >публичный</span
+                  >
+                </div>
+                <p
+                  v-if="dashboard.description"
+                  class="dashboards-list-view__card-desc"
+                >
+                  {{ dashboard.description }}
+                </p>
+                <span class="dashboards-list-view__card-updated">{{
+                  formatDate(dashboard.updated_at)
+                }}</span>
+              </router-link>
+            </div>
+          </div>
+
+          <div v-else>
+            <div v-if="widgetsStore.loading" class="dashboards-list-view__hint">
+              Загрузка виджетов…
+            </div>
+            <div
+              v-else-if="!widgetsStore.widgets.length"
+              class="dashboards-list-view__empty"
+            >
+              <p>Виджетов пока нет.</p>
+              <p class="dashboards-list-view__hint-sub">
+                Сохраните отчёт из чата, чтобы он появился здесь.
+              </p>
+            </div>
+            <div
+              v-else
+              class="dashboards-list-view__grid dashboards-list-view__grid--widgets"
+            >
+              <router-link
+                v-for="widget in widgetsStore.widgets"
+                :key="widget.id"
+                :to="`/widget/${widget.id}`"
+                class="dashboards-list-view__card"
+              >
+                <div class="dashboards-list-view__card-header">
+                  <span class="dashboards-list-view__card-title">{{
+                    widget.title
+                  }}</span>
+                  <span class="dashboards-list-view__card-badge">{{
+                    widget.visualization_type
+                  }}</span>
+                </div>
+                <p
+                  v-if="widget.description"
+                  class="dashboards-list-view__card-desc"
+                >
+                  {{ widget.description }}
+                </p>
+                <span class="dashboards-list-view__card-updated">{{
+                  formatDate(widget.updated_at)
+                }}</span>
+              </router-link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useDashboardsStore } from '@/stores/dashboards';
+import { onMounted, ref } from "vue";
+import ChatSidebar from "@/components/chat/ChatSidebar.vue";
+import { useDashboardsStore } from "@/stores/dashboards";
+import { useWidgetsStore } from "@/stores/widgets";
 
 const dashboardsStore = useDashboardsStore();
+const widgetsStore = useWidgetsStore();
+const sidebarMode = ref<"dashboards" | "widgets">("dashboards");
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-onMounted(() => { void dashboardsStore.loadDashboards(); });
+onMounted(() => {
+  void Promise.all([
+    dashboardsStore.loadDashboards(),
+    widgetsStore.loadWidgets(),
+  ]);
+});
 </script>
 
 <style scoped lang="scss">
+.dashboards-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  background: var(--bg);
+  padding: 1rem;
+}
+
+.dashboards-shell__sidebar {
+  min-height: 0;
+}
+
+.dashboards-shell__content {
+  min-height: 0;
+  overflow: auto;
+}
+
 .dashboards-list-view {
   padding: 20px 24px;
   max-width: 1100px;
@@ -50,6 +194,35 @@ onMounted(() => { void dashboardsStore.loadDashboards(); });
   flex-direction: column;
   gap: 20px;
   flex: 1;
+  min-height: 0;
+}
+
+.dashboards-list-view__panel {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 12px;
+  box-shadow: var(--shadow-soft);
+}
+
+.dashboards-list-view__panel--hero {
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(138, 180, 248, 0.08),
+      transparent 28%
+    ),
+    linear-gradient(180deg, rgba(26, 29, 36, 0.96), rgba(18, 20, 27, 0.98));
+}
+
+.dashboards-list-view__eyebrow {
+  margin: 0 0 0.15rem;
+  color: var(--muted-2);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .dashboards-list-view__header {
@@ -57,6 +230,7 @@ onMounted(() => { void dashboardsStore.loadDashboards(); });
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .dashboards-list-view__heading {
@@ -80,10 +254,25 @@ onMounted(() => { void dashboardsStore.loadDashboards(); });
   font-size: 0.9rem;
 }
 
+.dashboards-list-view__empty p {
+  margin: 0;
+}
+
+.dashboards-list-view__hint-sub {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
 .dashboards-list-view__grid {
+  margin-top: 12px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
+}
+
+.dashboards-list-view__grid--widgets {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
 .dashboards-list-view__card {
@@ -97,7 +286,9 @@ onMounted(() => { void dashboardsStore.loadDashboards(); });
   gap: 6px;
   transition: border-color 0.15s;
 
-  &:hover { border-color: rgba(112, 59, 247, 0.5); }
+  &:hover {
+    border-color: rgba(112, 59, 247, 0.5);
+  }
 }
 
 .dashboards-list-view__card-header {
@@ -158,6 +349,14 @@ onMounted(() => { void dashboardsStore.loadDashboards(); });
   background: rgba(112, 59, 247, 0.85);
   color: #fff;
   font-weight: 600;
-  &:hover { background: rgba(112, 59, 247, 1); }
+  &:hover {
+    background: rgba(112, 59, 247, 1);
+  }
+}
+
+@media (max-width: 980px) {
+  .dashboards-shell {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

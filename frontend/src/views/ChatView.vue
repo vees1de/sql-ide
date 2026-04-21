@@ -6,6 +6,7 @@
         :active-session-id="chat.activeSessionId"
         :databases="chat.databases"
         :loading="chat.loadingSessions || chat.loadingMessages"
+        mode="chat"
         :sessions="chat.sessions"
         @create-session="createSession"
         @delete-session="deleteSession"
@@ -16,22 +17,35 @@
 
       <div class="chat-view__panels" ref="panelsEl">
         <template v-if="!panelSwapped">
-          <section class="chat-view__panel chat-view__panel--center">
-            <ChatSqlEditor
-              :busy="chat.generating || chat.executing"
-              :model-value="chat.sqlDraft"
-              :status="editorStatus"
-              @run="runSql"
-              @update:modelValue="updateSqlDraft"
-            />
-            <ChatResultPanel
-              :execution="chat.executionResult"
-              :view="chat.resultView"
-              :sql-text="chat.sqlDraft"
-              :database-connection-id="chat.activeDbId"
-              @change-view="chat.setResultMode"
-            />
-          </section>
+          <div class="chat-view__center-area" ref="centerPanelEl">
+            <section class="chat-view__panel chat-view__panel--center-top" :style="{ height: centerTopHeightPx }">
+              <ChatSqlEditor
+                :busy="chat.generating || chat.executing"
+                :model-value="chat.sqlDraft"
+                :status="editorStatus"
+                @run="runSql"
+                @update:modelValue="updateSqlDraft"
+              />
+            </section>
+
+            <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
+              <button class="chat-view__swap-btn" @click.stop="swapPanels" title="Поменять панели">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/>
+                </svg>
+              </button>
+            </div>
+
+            <section class="chat-view__panel chat-view__panel--center-bottom">
+              <ChatResultPanel
+                :execution="chat.executionResult"
+                :view="chat.resultView"
+                :sql-text="chat.sqlDraft"
+                :database-connection-id="chat.activeDbId"
+                @change-view="chat.setResultMode"
+              />
+            </section>
+          </div>
 
           <div class="chat-view__resizer" @mousedown="startResize">
             <button class="chat-view__swap-btn" @click.stop="swapPanels" title="Поменять панели">
@@ -83,22 +97,35 @@
             </button>
           </div>
 
-          <section class="chat-view__panel chat-view__panel--center">
-            <ChatSqlEditor
-              :busy="chat.generating || chat.executing"
-              :model-value="chat.sqlDraft"
-              :status="editorStatus"
-              @run="runSql"
-              @update:modelValue="updateSqlDraft"
-            />
-            <ChatResultPanel
-              :execution="chat.executionResult"
-              :view="chat.resultView"
-              :sql-text="chat.sqlDraft"
-              :database-connection-id="chat.activeDbId"
-              @change-view="chat.setResultMode"
-            />
-          </section>
+          <div class="chat-view__center-area" ref="centerPanelEl">
+            <section class="chat-view__panel chat-view__panel--center-top" :style="{ height: centerTopHeightPx }">
+              <ChatSqlEditor
+                :busy="chat.generating || chat.executing"
+                :model-value="chat.sqlDraft"
+                :status="editorStatus"
+                @run="runSql"
+                @update:modelValue="updateSqlDraft"
+              />
+            </section>
+
+            <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
+              <button class="chat-view__swap-btn" @click.stop="swapPanels" title="Поменять панели">
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/>
+                </svg>
+              </button>
+            </div>
+
+            <section class="chat-view__panel chat-view__panel--center-bottom">
+              <ChatResultPanel
+                :execution="chat.executionResult"
+                :view="chat.resultView"
+                :sql-text="chat.sqlDraft"
+                :database-connection-id="chat.activeDbId"
+                @change-view="chat.setResultMode"
+              />
+            </section>
+          </div>
         </template>
       </div>
     </div>
@@ -118,12 +145,17 @@ const chat = useChatStore();
 const LS_KEY = 'chat-panel-layout';
 const CHAT_WIDTH_MIN = 240;
 const CHAT_WIDTH_MAX = 800;
+const CENTER_TOP_MIN = 180;
+const CENTER_TOP_MAX = 900;
 
 const chatWidth = ref(360);
+const centerTopHeight = ref(420);
 const panelSwapped = ref(false);
 const panelsEl = ref<HTMLElement | null>(null);
+const centerPanelEl = ref<HTMLElement | null>(null);
 
 const chatWidthPx = computed(() => `${chatWidth.value}px`);
+const centerTopHeightPx = computed(() => `${centerTopHeight.value}px`);
 
 const editorStatus = computed<'idle' | 'executing' | 'error' | 'generating'>(() => {
   if (chat.executing) return 'executing';
@@ -138,6 +170,7 @@ function loadLayout() {
     if (s) {
       const d = JSON.parse(s) as Record<string, unknown>;
       if (typeof d.chatWidth === 'number') chatWidth.value = d.chatWidth;
+      if (typeof d.centerTopHeight === 'number') centerTopHeight.value = d.centerTopHeight;
       if (typeof d.panelSwapped === 'boolean') panelSwapped.value = d.panelSwapped;
     }
   } catch {
@@ -146,7 +179,10 @@ function loadLayout() {
 }
 
 function saveLayout() {
-  localStorage.setItem(LS_KEY, JSON.stringify({ chatWidth: chatWidth.value, panelSwapped: panelSwapped.value }));
+  localStorage.setItem(
+    LS_KEY,
+    JSON.stringify({ chatWidth: chatWidth.value, centerTopHeight: centerTopHeight.value, panelSwapped: panelSwapped.value }),
+  );
 }
 
 function swapPanels() {
@@ -157,6 +193,8 @@ function swapPanels() {
 let dragStartX = 0;
 let dragStartWidth = 0;
 let dragSwapped = false;
+let centerDragStartY = 0;
+let centerDragStartHeight = 0;
 
 function startResize(e: MouseEvent) {
   e.preventDefault();
@@ -169,6 +207,16 @@ function startResize(e: MouseEvent) {
   document.body.style.userSelect = 'none';
 }
 
+function startCenterResize(e: MouseEvent) {
+  e.preventDefault();
+  centerDragStartY = e.clientY;
+  centerDragStartHeight = centerTopHeight.value;
+  document.addEventListener('mousemove', onCenterResize);
+  document.addEventListener('mouseup', stopCenterResize);
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+}
+
 function onResize(e: MouseEvent) {
   const delta = e.clientX - dragStartX;
   // when chat is on the right (not swapped): move left = wider chat
@@ -177,9 +225,25 @@ function onResize(e: MouseEvent) {
   chatWidth.value = Math.max(CHAT_WIDTH_MIN, Math.min(CHAT_WIDTH_MAX, newWidth));
 }
 
+function onCenterResize(e: MouseEvent) {
+  const delta = e.clientY - centerDragStartY;
+  const newHeight = centerDragStartHeight + delta;
+  const availableHeight = centerPanelEl.value?.clientHeight ?? CENTER_TOP_MAX;
+  const maxHeight = Math.max(CENTER_TOP_MIN, availableHeight - 220);
+  centerTopHeight.value = Math.max(CENTER_TOP_MIN, Math.min(maxHeight, newHeight));
+}
+
 function stopResize() {
   document.removeEventListener('mousemove', onResize);
   document.removeEventListener('mouseup', stopResize);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  saveLayout();
+}
+
+function stopCenterResize() {
+  document.removeEventListener('mousemove', onCenterResize);
+  document.removeEventListener('mouseup', stopCenterResize);
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
   saveLayout();
@@ -275,15 +339,38 @@ function applySql(sql: string) {
 .chat-view__panel--center {
   flex: 1;
   min-width: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
+}
+
+.chat-view__center-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.chat-view__panel--center-top {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chat-view__panel--center-bottom {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chat-view__panel--chat {
   flex-shrink: 0;
   display: flex;
   min-height: 0;
+}
+
+.chat-view__panel--center-top :deep(.chat-sql-editor),
+.chat-view__panel--center-bottom :deep(.chat-result-panel) {
+  height: 100%;
 }
 
 .chat-view__panel--chat :deep(.chat-assistant) {
@@ -317,6 +404,23 @@ function applySql(sql: string) {
   &:hover::before {
     background: var(--accent, #4f8ef7);
     height: 60px;
+  }
+}
+
+.chat-view__resizer--horizontal {
+  width: 100%;
+  height: 16px;
+  cursor: row-resize;
+  flex-direction: row;
+
+  &::before {
+    width: 40px;
+    height: 2px;
+  }
+
+  &:hover::before {
+    width: 60px;
+    height: 2px;
   }
 }
 
@@ -364,8 +468,9 @@ function applySql(sql: string) {
     height: auto;
   }
 
-  .chat-view__panel--center {
+  .chat-view__center-area {
     flex: 1;
+    min-height: 520px;
   }
 
   .chat-view__panel--chat {

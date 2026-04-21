@@ -158,3 +158,4 @@ class SemanticTableEnrichment(BaseModel):
 class SemanticCatalogActivationRequest(BaseModel):
     database_id: str
     refresh: bool = False
+    database_description: str | None = None

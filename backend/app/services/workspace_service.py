@@ -213,6 +213,10 @@ class WorkspaceService:
         )
         if connection is None:
             return None
+        if payload.name is not None:
+            connection.name = payload.name
+        if payload.description is not None:
+            connection.description = payload.description
         if payload.allowed_tables is not None:
             connection.allowed_tables = payload.allowed_tables
         db.commit()

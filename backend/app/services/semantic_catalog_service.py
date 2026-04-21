@@ -53,19 +53,43 @@ class SemanticCatalogService:
         self.knowledge_service = KnowledgeService()
         self.llm_service = LLMService()
 
-    def get_catalog(self, db: Session, database_id: str, *, refresh: bool = False) -> SemanticCatalog:
+    def get_catalog(
+        self,
+        db: Session,
+        database_id: str,
+        *,
+        refresh: bool = False,
+        database_description: str | None = None,
+    ) -> SemanticCatalog:
         if not refresh:
             cached = self._load_active_catalog(db, database_id)
             if cached is not None:
                 return cached
 
-        catalog = self.build_catalog(db, database_id)
-        return self.save_catalog(db, catalog)
+        catalog = self.build_catalog(db, database_id, database_description=database_description)
+        return self.save_catalog(db, catalog, database_description=database_description)
 
-    def activate_catalog(self, db: Session, database_id: str, *, refresh: bool = False) -> SemanticCatalog:
-        return self.get_catalog(db, database_id, refresh=refresh)
+    def activate_catalog(
+        self,
+        db: Session,
+        database_id: str,
+        *,
+        refresh: bool = False,
+        database_description: str | None = None,
+    ) -> SemanticCatalog:
+        return self.get_catalog(
+            db,
+            database_id,
+            refresh=refresh,
+            database_description=database_description,
+        )
 
-    def save_catalog(self, db: Session, catalog: SemanticCatalog) -> SemanticCatalog:
+    def save_catalog(
+        self,
+        db: Session,
+        catalog: SemanticCatalog,
+        database_description: str | None = None,
+    ) -> SemanticCatalog:
         source_scan_run_id = self._latest_scan_run_id(db, catalog.database_id)
         self._deactivate_catalogs(db, catalog.database_id)
         catalog_model = SemanticCatalogModel(
@@ -81,7 +105,7 @@ class SemanticCatalogService:
                 "join_path_count": len(catalog.join_paths),
                 "graph_edge_count": len(catalog.relationship_graph),
             },
-            notes=self._catalog_notes(catalog),
+            notes=self._catalog_notes(catalog, database_description=database_description),
         )
         db.add(catalog_model)
         db.flush()
@@ -186,7 +210,12 @@ class SemanticCatalogService:
     def load_catalog(self, db: Session, database_id: str) -> SemanticCatalog | None:
         return self._load_active_catalog(db, database_id)
 
-    def build_catalog(self, db: Session, database_id: str) -> SemanticCatalog:
+    def build_catalog(
+        self,
+        db: Session,
+        database_id: str,
+        database_description: str | None = None,
+    ) -> SemanticCatalog:
         target = self._resolve_target(db, database_id)
         inspector = sa_inspect(target["engine"])
         schema_map = self._load_knowledge_tables(db, database_id)
@@ -211,7 +240,11 @@ class SemanticCatalogService:
         relationship_graph = build_relationship_graph(relationships)
         for table in tables:
             table.join_paths = [path for path in join_paths if path.from_table == table.table_name or path.to_table == table.table_name]
-        tables = self._apply_llm_enrichment(tables, relationship_graph)
+        tables = self._apply_llm_enrichment(
+            tables,
+            relationship_graph,
+            database_description=database_description,
+        )
 
         return SemanticCatalog(
             database_id=database_id,
@@ -487,13 +520,19 @@ class SemanticCatalogService:
                 return table.schema_name
         return "public"
 
-    def _catalog_notes(self, catalog: SemanticCatalog) -> list[str]:
+    def _catalog_notes(
+        self,
+        catalog: SemanticCatalog,
+        database_description: str | None = None,
+    ) -> list[str]:
         notes = [
             f"tables={len(catalog.tables)}",
             f"relationships={len(catalog.relationships)}",
             f"join_paths={len(catalog.join_paths)}",
             f"graph_edges={len(catalog.relationship_graph)}",
         ]
+        if database_description and database_description.strip():
+            notes.append(f"database_description={database_description.strip()}")
         if self.llm_service.configured:
             notes.append("enriched_with_llm")
         return notes
@@ -502,6 +541,7 @@ class SemanticCatalogService:
         self,
         tables: list[SemanticTable],
         relationship_graph: list[RelationshipGraphEdge],
+        database_description: str | None = None,
     ) -> list[SemanticTable]:
         if not self.llm_service.configured:
             return tables
@@ -515,7 +555,13 @@ class SemanticCatalogService:
                 for edge in relationship_graph
                 if edge.from_table == table.table_name or edge.to_table == table.table_name
             ]
-            enrichment = self.llm_service.enrich_semantic_table(table, relationships, join_paths, graph_edges)
+            enrichment = self.llm_service.enrich_semantic_table(
+                table,
+                relationships,
+                join_paths,
+                graph_edges,
+                database_description=database_description,
+            )
             if enrichment is None:
                 enriched_tables.append(table)
                 continue

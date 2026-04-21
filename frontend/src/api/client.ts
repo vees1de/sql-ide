@@ -3,6 +3,7 @@ import type {
   ApiCellRead,
   ApiDictionaryEntryCreate,
   ApiDatabaseConnectionCreate,
+  ApiDatabaseConnectionUpdate,
   ApiDatabaseDescriptor,
   ApiKnowledgeScanRun,
   ApiKnowledgeSummary,
@@ -83,7 +84,7 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
-  updateDatabase(databaseId: string, payload: { allowed_tables: string[] | null }) {
+  updateDatabase(databaseId: string, payload: ApiDatabaseConnectionUpdate) {
     return request<ApiDatabaseDescriptor>(`/api/databases/${databaseId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload)

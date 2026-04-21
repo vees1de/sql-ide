@@ -42,7 +42,12 @@ def activate_semantic_catalog(
     payload: SemanticCatalogActivationRequest,
     db: Session = Depends(get_db),
 ) -> SemanticCatalog:
-    return semantic_catalog_service.activate_catalog(db, payload.database_id, refresh=payload.refresh)
+    return semantic_catalog_service.activate_catalog(
+        db,
+        payload.database_id,
+        refresh=payload.refresh,
+        database_description=payload.database_description,
+    )
 
 
 @router.get("/query-templates")

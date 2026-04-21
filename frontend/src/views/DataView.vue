@@ -6,9 +6,13 @@
         :active-session-id="chat.activeSessionId"
         :databases="chat.databases"
         :loading="chat.loadingSessions || chat.loadingMessages"
+        mode="database"
         :sessions="chat.sessions"
+        @add-database="showAddDatabase = true"
         @create-session="createChatSession"
         @delete-session="deleteChatSession"
+        @delete-database="deleteSelectedDatabase"
+        @rename-database="renameDatabase"
         @rename-session="renameChatSession"
         @select-database="selectDatabase"
         @select-session="selectChatSession"
@@ -28,11 +32,10 @@
               </p>
             </div>
             <div class="data-view__actions">
-              <select :value="selectedDatabaseId" class="data-view__select" @change="handleDatabaseSelectChange">
-                <option v-for="database in store.workspace.databases" :key="database.id" :value="database.id">
-                  {{ database.name }}
-                </option>
-              </select>
+              <div class="data-view__active-db" v-if="selectedDatabase">
+                <span>Selected DB</span>
+                <strong>{{ selectedDatabase.name }}</strong>
+              </div>
               <button class="app-button app-button--ghost" type="button" :disabled="store.isBootstrapping" @click="reload">
                 Обновить
               </button>
@@ -290,6 +293,16 @@
           <h2>Graph View</h2>
           <p class="data-view__hint">Physical FK graph по последнему scan snapshot.</p>
         </div>
+        <div class="data-view__graph-controls">
+          <label class="data-view__toggle">
+            <input v-model="showGraphColumns" type="checkbox" />
+            <span>Columns</span>
+          </label>
+          <label class="data-view__toggle">
+            <input v-model="showGraphSemantic" type="checkbox" :disabled="!semanticCatalog?.tables.length" />
+            <span>Semantic labels</span>
+          </label>
+        </div>
       </header>
       <VChart class="data-view__erd" :option="erdOption" autoresize />
     </section>
@@ -308,6 +321,17 @@
         </button>
       </header>
       <p v-if="semanticFeedback" class="data-view__feedback">{{ semanticFeedback }}</p>
+      <div class="data-view__semantic-compose">
+        <label class="data-view__semantic-description">
+          <span>Database description for semantic activation</span>
+          <textarea
+            v-model="semanticDescription"
+            rows="6"
+            placeholder="Опишите предметную область, ключевые сущности, что означает каждая строка, и любые важные бизнес-правила."
+          ></textarea>
+          <small>Это описание пойдёт в semantic catalog и поможет LLM разметить таблицы, колонки и роли.</small>
+        </label>
+      </div>
       <div class="data-view__semantic-source">
         <article class="data-view__semantic-source-item">
           <span>Selected database</span>
@@ -431,6 +455,12 @@
     </section>
   </div>
   </div>
+
+  <AddDatabaseModal
+    v-if="showAddDatabase"
+    @close="showAddDatabase = false"
+    @submit="submitDatabase"
+  />
   </main>
 </template>
 
@@ -439,6 +469,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import VChart from 'vue-echarts';
 
 import { api } from '@/api/client';
+import AddDatabaseModal from '@/components/layout/AddDatabaseModal.vue';
 import ChatSidebar from '@/components/chat/ChatSidebar.vue';
 import type {
   ApiERDGraph,
@@ -468,6 +499,10 @@ const isSavingTable = ref(false);
 const loadingTable = ref(false);
 const isActivatingSemantic = ref(false);
 const isDeletingDatabase = ref(false);
+const showAddDatabase = ref(false);
+const semanticDescription = ref('');
+const showGraphColumns = ref(true);
+const showGraphSemantic = ref(true);
 
 const knowledgeFeedback = ref('');
 const dictionaryFeedback = ref('');
@@ -507,6 +542,65 @@ const selectedDatabase = computed(() =>
   store.workspace.databases.find((database) => database.id === selectedDatabaseId.value) ?? null
 );
 
+const semanticTableLookup = computed(() => {
+  const map = new Map<string, ApiSemanticCatalog['tables'][number]>();
+  for (const table of semanticCatalog.value?.tables ?? []) {
+    map.set(`${table.schema_name}.${table.table_name}`, table);
+  }
+  return map;
+});
+
+function truncateText(value: string, limit = 88) {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= limit) {
+    return compact;
+  }
+  return `${compact.slice(0, Math.max(limit - 1, 0)).trimEnd()}…`;
+}
+
+function tableNodeKey(node: ApiERDGraph['nodes'][number]) {
+  return `${node.schema_name}.${node.table_name}`;
+}
+
+function tableNodeColumns(node: ApiERDGraph['nodes'][number]) {
+  const semantic = semanticTableLookup.value.get(tableNodeKey(node));
+  return semantic?.columns.map((column) => column.column_name) ?? [];
+}
+
+function tableNodeSemanticSummary(node: ApiERDGraph['nodes'][number]) {
+  const semantic = semanticTableLookup.value.get(tableNodeKey(node));
+  if (!semantic || !showGraphSemantic.value) {
+    return '';
+  }
+  const parts = [
+    semantic.table_role,
+    semantic.grain ? `grain: ${semantic.grain}` : '',
+    semantic.main_date_column ? `date: ${semantic.main_date_column}` : '',
+    semantic.business_description ? truncateText(semantic.business_description, 92) : ''
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
+function tableNodeColor(node: ApiERDGraph['nodes'][number]) {
+  const semantic = semanticTableLookup.value.get(tableNodeKey(node));
+  switch (semantic?.table_role) {
+    case 'fact':
+      return '#8aa4ff';
+    case 'dimension':
+      return '#81c995';
+    case 'bridge':
+      return '#f4c26b';
+    case 'snapshot':
+      return '#d9a3ff';
+    case 'event':
+      return '#5cc8ff';
+    case 'lookup':
+      return '#9ab1c3';
+    default:
+      return '#2b6fff';
+  }
+}
+
 const erdOption = computed(() => {
   const graph = erdGraph.value;
   if (!graph?.nodes.length) {
@@ -515,9 +609,74 @@ const erdOption = computed(() => {
     };
   }
 
+  const nodes = graph.nodes.map((node) => {
+    const columns = tableNodeColumns(node);
+    const semantic = semanticTableLookup.value.get(tableNodeKey(node));
+    const columnPreview = showGraphColumns.value
+      ? columns.slice(0, 3).join(', ') + (columns.length > 3 ? ` · +${columns.length - 3}` : '')
+      : '';
+    const semanticSummary = tableNodeSemanticSummary(node);
+
+    return {
+      id: node.id,
+      name: node.table_name,
+      value: node.row_count ?? node.column_count,
+      symbolSize: Math.max(
+        42,
+        Math.min(92, 24 + node.column_count * 2 + (showGraphSemantic.value && semantic ? 10 : 0))
+      ),
+      category: node.schema_name,
+      schema_name: node.schema_name,
+      table_name: node.table_name,
+      row_count: node.row_count,
+      column_count: node.column_count,
+      columns,
+      column_preview: columnPreview,
+      semantic_summary: semanticSummary,
+      table_role: semantic?.table_role ?? null,
+      business_description: semantic?.business_description ?? null,
+      main_date_column: semantic?.main_date_column ?? null,
+      itemStyle: {
+        color: tableNodeColor(node)
+      }
+    };
+  });
+
   return {
     tooltip: {
-      trigger: 'item'
+      trigger: 'item',
+      formatter: (params: { data?: Record<string, unknown>; name?: string }) => {
+        const data = (params.data ?? {}) as {
+          schema_name?: string;
+          table_name?: string;
+          column_count?: number;
+          row_count?: number | null;
+          columns?: string[];
+          column_preview?: string;
+          semantic_summary?: string;
+          business_description?: string | null;
+          table_role?: string | null;
+          main_date_column?: string | null;
+        };
+        const lines = [
+          `<strong>${data.schema_name ? `${data.schema_name}.` : ''}${data.table_name ?? params.name ?? ''}</strong>`,
+          `Columns: ${data.column_count ?? 0}`,
+          `Rows: ${data.row_count ?? '—'}`
+        ];
+        if (showGraphColumns.value && data.columns?.length) {
+          lines.push(`Columns list: ${data.columns.join(', ')}`);
+        }
+        if (showGraphSemantic.value && data.semantic_summary) {
+          lines.push(`Semantic: ${data.semantic_summary}`);
+        }
+        if (data.business_description) {
+          lines.push(`Description: ${data.business_description}`);
+        }
+        if (data.main_date_column) {
+          lines.push(`Main date: ${data.main_date_column}`);
+        }
+        return lines.join('<br/>');
+      }
     },
     series: [
       {
@@ -531,9 +690,26 @@ const erdOption = computed(() => {
         },
         label: {
           show: true,
-          formatter: '{b}',
+          formatter: (params: { data?: Record<string, unknown>; name?: string }) => {
+            const data = (params.data ?? {}) as {
+              name?: string;
+              column_preview?: string;
+              semantic_summary?: string;
+            };
+            const lines = [data.name ?? params.name ?? ''];
+            if (showGraphColumns.value && data.column_preview) {
+              lines.push(data.column_preview);
+            }
+            if (showGraphSemantic.value && data.semantic_summary) {
+              lines.push(data.semantic_summary);
+            }
+            return lines.filter(Boolean).join('\n');
+          },
           color: '#e8eaed',
-          fontSize: 11
+          fontSize: 11,
+          lineHeight: 15,
+          width: 170,
+          overflow: 'truncate'
         },
         lineStyle: {
           color: '#8aa4ff',
@@ -545,13 +721,7 @@ const erdOption = computed(() => {
           borderColor: '#dbe5ff',
           borderWidth: 2
         },
-        data: graph.nodes.map((node) => ({
-          id: node.id,
-          name: node.table_name,
-          value: node.row_count ?? node.column_count,
-          symbolSize: Math.max(34, Math.min(68, 22 + node.column_count * 2)),
-          category: node.schema_name
-        })),
+        data: nodes,
         links: graph.edges.map((edge) => ({
           source: edge.source,
           target: edge.target,
@@ -798,7 +968,8 @@ async function activateSemantic() {
   try {
     semanticCatalog.value = await api.activateSemanticCatalog({
       database_id: selectedDatabaseId.value,
-      refresh: true
+      refresh: true,
+      database_description: semanticDescription.value.trim() || null
     });
     semanticFeedback.value = `Semantic catalog activated for ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
   } catch (error) {
@@ -808,29 +979,40 @@ async function activateSemantic() {
   }
 }
 
-async function deleteSelectedDatabase() {
-  if (!selectedDatabase.value || selectedDatabase.value.isDemo || !selectedDatabaseId.value) {
+async function deleteSelectedDatabase(databaseId?: string) {
+  const targetId = databaseId ?? selectedDatabaseId.value;
+  const previousSelectedId = selectedDatabaseId.value;
+  const targetDatabase =
+    store.workspace.databases.find((database) => database.id === targetId) ??
+    selectedDatabase.value ??
+    null;
+  if (!targetDatabase || targetDatabase.isDemo || !targetId) {
     return;
   }
-  const confirmed = window.confirm(`Удалить базу данных «${selectedDatabase.value.name}»?`);
+  const confirmed = window.confirm(`Удалить базу данных «${targetDatabase.name}»?`);
   if (!confirmed) {
     return;
   }
   isDeletingDatabase.value = true;
   try {
-    await api.deleteDatabase(selectedDatabaseId.value);
+    await api.deleteDatabase(targetId);
     await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
     await chat.loadDatabases();
-    const nextDatabase = store.workspace.databases[0]?.id ?? '';
-    selectedDatabaseId.value = nextDatabase;
-    if (nextDatabase) {
-      await chat.selectDatabase(nextDatabase);
-    } else {
-      semanticCatalog.value = null;
-      knowledgeSummary.value = null;
-      selectedTable.value = null;
-      scanRuns.value = [];
-      erdGraph.value = null;
+    const stillSelectedExists = store.workspace.databases.some((database) => database.id === previousSelectedId);
+    if (targetId === previousSelectedId || !stillSelectedExists) {
+      const nextDatabase = store.workspace.databases[0]?.id ?? '';
+      selectedDatabaseId.value = nextDatabase;
+      if (nextDatabase) {
+        await chat.selectDatabase(nextDatabase);
+        semanticDescription.value = selectedDatabase.value?.description ?? '';
+      } else {
+        semanticCatalog.value = null;
+        knowledgeSummary.value = null;
+        selectedTable.value = null;
+        scanRuns.value = [];
+        erdGraph.value = null;
+        semanticDescription.value = '';
+      }
     }
     knowledgeFeedback.value = 'Database deleted.';
   } catch (error) {
@@ -846,18 +1028,16 @@ async function selectDatabase(databaseId: string) {
   }
   if (databaseId === selectedDatabaseId.value) {
     await chat.selectDatabase(databaseId);
+    if (!semanticDescription.value.trim()) {
+      semanticDescription.value = selectedDatabase.value?.description ?? '';
+    }
     return;
   }
   selectedDatabaseId.value = databaseId;
   await chat.selectDatabase(databaseId);
-}
-
-function handleDatabaseSelectChange(event: Event) {
-  const target = event.target as HTMLSelectElement | null;
-  if (!target) {
-    return;
+  if (!semanticDescription.value.trim()) {
+    semanticDescription.value = selectedDatabase.value?.description ?? '';
   }
-  void selectDatabase(target.value);
 }
 
 function selectChatSession(sessionId: string) {
@@ -874,6 +1054,61 @@ function renameChatSession(sessionId: string, title: string) {
 
 function deleteChatSession(sessionId: string) {
   void chat.deleteSession(sessionId);
+}
+
+async function renameDatabase(databaseId: string, title: string) {
+  if (!databaseId || !title.trim()) {
+    return;
+  }
+  try {
+    await api.updateDatabase(databaseId, { name: title.trim() });
+    await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+    await chat.loadDatabases();
+    if (databaseId === selectedDatabaseId.value) {
+      selectedDatabaseId.value = databaseId;
+      if (!semanticDescription.value.trim()) {
+        semanticDescription.value = selectedDatabase.value?.description ?? '';
+      }
+    }
+    knowledgeFeedback.value = 'Database renamed.';
+  } catch (error) {
+    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось переименовать базу.';
+  }
+}
+
+async function submitDatabase(payload: {
+  name: string;
+  engine: string;
+  host: string;
+  port: string;
+  database: string;
+  user: string;
+  password: string;
+  tables: number;
+  importSchemaToDictionary: boolean;
+  allowedTables: string[] | null;
+}) {
+  try {
+    const created = await store.connectDatabase({
+      name: payload.name,
+      engine: payload.engine,
+      host: payload.host,
+      port: payload.port,
+      database: payload.database,
+      user: payload.user,
+      password: payload.password,
+      tables: payload.tables,
+      importSchemaToDictionary: payload.importSchemaToDictionary,
+      allowedTables: payload.allowedTables
+    });
+    showAddDatabase.value = false;
+    selectedDatabaseId.value = created.id;
+    semanticDescription.value = created.description ?? '';
+    await chat.selectDatabase(created.id);
+    await reload();
+  } catch {
+    // banner already shows the error
+  }
 }
 
 async function saveTable() {
@@ -967,6 +1202,9 @@ watch(
     if (!value || value === previousValue) return;
     selectedTableId.value = null;
     selectedTable.value = null;
+    if (!semanticDescription.value.trim()) {
+      semanticDescription.value = selectedDatabase.value?.description ?? '';
+    }
     await loadKnowledge();
   }
 );
@@ -1075,6 +1313,30 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 0.55rem;
   align-items: center;
+}
+
+.data-view__active-db {
+  min-width: 220px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(18, 20, 27, 0.92);
+}
+
+.data-view__active-db span,
+.data-view__active-db strong {
+  display: block;
+}
+
+.data-view__active-db span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.data-view__active-db strong {
+  color: var(--ink-strong);
+  font-size: 0.88rem;
+  margin-top: 0.15rem;
 }
 
 .data-view__select,
@@ -1320,6 +1582,33 @@ onMounted(async () => {
     rgba(18, 20, 27, 0.92);
 }
 
+.data-view__graph-controls {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.data-view__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(18, 20, 27, 0.88);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.data-view__toggle input {
+  accent-color: #8aa4ff;
+}
+
+.data-view__toggle:has(input:disabled) {
+  opacity: 0.5;
+}
+
 .data-view__semantic-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1363,6 +1652,37 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 0.75rem;
   margin-bottom: 0.85rem;
+}
+
+.data-view__semantic-compose {
+  margin-bottom: 0.85rem;
+}
+
+.data-view__semantic-description {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.data-view__semantic-description span,
+.data-view__semantic-description small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.data-view__semantic-description textarea {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 0.8rem;
+  background: rgba(18, 20, 27, 0.92);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 140px;
+}
+
+.data-view__semantic-description textarea:focus {
+  outline: none;
+  border-color: rgba(138, 180, 248, 0.75);
 }
 
 .data-view__semantic-source-item {

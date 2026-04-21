@@ -8,7 +8,6 @@ from app.schemas.analytics import (
     AnalyticsQueryRequest,
     AnalyticsResponse,
     ClarificationRequest,
-    DashboardMetadata,
     DashboardRecommendationRequest,
     DashboardRecommendationResponse,
     MetadataBundleResponse,
@@ -51,10 +50,6 @@ def metadata(db: Session = Depends(get_db)) -> MetadataBundleResponse:
     bundle = analytics_service.list_metadata(db)
     return MetadataBundleResponse.model_validate(bundle)
 
-
-@router.get("/dashboards", response_model=list[DashboardMetadata])
-def dashboards() -> list[DashboardMetadata]:
-    return analytics_service.dashboard_service.list_dashboards()
 
 
 @router.post("/dashboards/recommend", response_model=DashboardRecommendationResponse)

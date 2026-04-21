@@ -40,6 +40,8 @@ class DatabaseConnectionCreate(BaseModel):
 
 
 class DatabaseConnectionUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
     allowed_tables: list[str] | None = None
 
 

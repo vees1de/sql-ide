@@ -191,6 +191,12 @@ export interface ApiDatabaseConnectionCreate {
   allowed_tables?: string[] | null;
 }
 
+export interface ApiDatabaseConnectionUpdate {
+  name?: string | null;
+  description?: string | null;
+  allowed_tables?: string[] | null;
+}
+
 export interface ApiSchemaPreviewTable {
   name: string;
   columns: string[];
@@ -237,6 +243,7 @@ export interface ApiSchemaMetadataResponse {
 export interface ApiSemanticCatalogActivationRequest {
   database_id: string;
   refresh?: boolean;
+  database_description?: string | null;
 }
 
 export interface ApiSemanticColumnProfile {

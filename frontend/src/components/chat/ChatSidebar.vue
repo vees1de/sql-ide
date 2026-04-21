@@ -24,156 +24,294 @@
     </div>
 
     <section class="chat-sidebar__section chat-sidebar__section--tree">
-      <div class="chat-sidebar__section-head">
-        <div>
-          <p class="chat-sidebar__eyebrow">Навигатор</p>
-          <h2 class="chat-sidebar__title">Чаты</h2>
+      <div class="chat-sidebar__panel">
+        <div class="chat-sidebar__section-head">
+          <div>
+            <p class="chat-sidebar__eyebrow">Навигатор</p>
+            <h2 class="chat-sidebar__title">{{ isDatabaseMode ? 'Базы данных' : 'Чаты' }}</h2>
+          </div>
+
+          <button
+            class="chat-sidebar__new"
+            type="button"
+            :disabled="isDatabaseMode ? false : !activeDbId"
+            @click="isDatabaseMode ? $emit('add-database') : $emit('create-session', activeDbId)"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {{ isDatabaseMode ? 'Добавить БД' : 'Новый чат' }}
+          </button>
         </div>
 
-        <button
-          class="chat-sidebar__new"
-          type="button"
-          :disabled="!activeDbId"
-          @click="$emit('create-session', activeDbId)"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Новый чат
-        </button>
-      </div>
+        <div v-if="isDatabaseMode || isDashboardsMode" class="chat-sidebar__search-wrap">
+          <input
+            v-model="query"
+            class="chat-sidebar__search"
+            type="search"
+            :placeholder="isDatabaseMode ? 'Поиск баз' : isDashboardsMode ? 'Поиск дашбордов и виджетов' : 'Поиск чатов'"
+          />
+        </div>
 
-      <div class="chat-sidebar__search-wrap">
-        <input
-          v-model="query"
-          class="chat-sidebar__search"
-          type="search"
-          placeholder="Поиск чатов"
-        />
-      </div>
+        <div v-if="loading" class="chat-sidebar__state">
+          {{ isDatabaseMode ? 'Загружаю список баз…' : isDashboardsMode ? 'Загружаю навигацию…' : 'Загружаю дерево чатов…' }}
+        </div>
 
-      <div v-if="loading" class="chat-sidebar__state">
-        Загружаю дерево чатов…
-      </div>
+        <div v-else-if="isDashboardsMode && !dashboardItems.length" class="chat-sidebar__state">
+          {{ dashboardView === 'widgets' ? 'Виджетов пока нет' : 'Дашбордов пока нет' }}
+        </div>
 
-      <div v-else-if="!databases.length" class="chat-sidebar__state">
-        Нет подключённых баз
-      </div>
+        <div v-else-if="!isDashboardsMode && !databases.length" class="chat-sidebar__state">
+          Нет подключённых баз
+        </div>
 
-      <div v-else-if="!treeDatabases.length" class="chat-sidebar__state">
-        Ничего не найдено
-      </div>
+        <div v-else-if="!isDashboardsMode && !treeDatabases.length" class="chat-sidebar__state">
+          Ничего не найдено
+        </div>
 
-      <div v-else class="chat-sidebar__tree">
-        <div
-          v-for="database in treeDatabases"
-          :key="database.id"
-          class="chat-sidebar__folder"
-          :class="{
-            'chat-sidebar__folder--active': database.id === activeDbId,
-            'chat-sidebar__folder--open': isOpen(database.id)
-          }"
-        >
-          <button
-            class="chat-sidebar__folder-head"
-            type="button"
-            :aria-expanded="isOpen(database.id)"
-            @click="toggle(database.id)"
-          >
-            <span class="chat-sidebar__folder-chevron" :class="{ 'chat-sidebar__folder-chevron--open': isOpen(database.id) }">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 6 15 12 9 18" />
-              </svg>
-            </span>
-            <span class="chat-sidebar__folder-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <ellipse cx="12" cy="5" rx="8" ry="3" />
-                <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-                <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-              </svg>
-            </span>
-            <span class="chat-sidebar__folder-name">{{ database.name }}</span>
-            <span class="chat-sidebar__folder-meta-pill">{{ database.sessions.length }}</span>
-          </button>
+        <div v-else-if="isDashboardsMode && !filteredDashboardItems.length" class="chat-sidebar__state">
+          Ничего не найдено
+        </div>
 
-          <div v-show="isOpen(database.id)" class="chat-sidebar__folder-body">
-            <p class="chat-sidebar__folder-meta">
-              {{ database.dialect }}
-              <span v-if="database.table_count != null">· {{ database.table_count }} tables</span>
-            </p>
-
-            <div v-if="!database.sessions.length" class="chat-sidebar__empty-branch">
-              Нет чатов в этой базе
-            </div>
-
-            <div v-else class="chat-sidebar__session-list">
-              <article
-                v-for="session in database.sessions"
-                :key="session.id"
-                class="chat-sidebar__session"
-                :class="{ 'chat-sidebar__session--active': session.id === activeSessionId }"
-                role="button"
-                tabindex="0"
-                @click="$emit('select-session', session.id)"
-                @keydown.enter.prevent="$emit('select-session', session.id)"
-                @keydown.space.prevent="$emit('select-session', session.id)"
+        <div v-else class="chat-sidebar__tree">
+          <template v-if="isDashboardsMode">
+            <div class="chat-sidebar__section-head chat-sidebar__section-head--stacked">
+              <div>
+                <p class="chat-sidebar__eyebrow">Навигатор</p>
+                <h2 class="chat-sidebar__title">
+                  {{ dashboardView === 'widgets' ? 'Виджеты' : 'Дашборды' }}
+                </h2>
+              </div>
+              <button
+                class="chat-sidebar__new"
+                type="button"
+                @click="toggleDashboardView()"
               >
-                <span class="chat-sidebar__session-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                  </svg>
-                </span>
-
-                <span class="chat-sidebar__session-text">
-                  <span class="chat-sidebar__session-title">{{ session.title }}</span>
-                  <span class="chat-sidebar__session-sub">{{ formatTime(session.updated_at) }}</span>
-                </span>
-
-                <span class="chat-sidebar__session-actions">
-                  <button
-                    class="chat-sidebar__icon-btn"
-                    type="button"
-                    title="Переименовать"
-                    aria-label="Переименовать"
-                    @click.stop="rename(session)"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    class="chat-sidebar__icon-btn"
-                    type="button"
-                    title="Удалить"
-                    aria-label="Удалить"
-                    @click.stop="remove(session)"
-                  >
-                    ×
-                  </button>
-                </span>
-              </article>
+                {{ dashboardView === 'widgets' ? 'Показать дашборды' : 'Показать виджеты' }}
+              </button>
             </div>
 
-            <button
-              class="chat-sidebar__session chat-sidebar__session--create"
-              type="button"
-              @click="$emit('create-session', database.id)"
+            <RouterLink
+              v-for="item in filteredDashboardItems"
+              :key="item.id"
+              :to="dashboardView === 'widgets' ? `/widget/${item.id}` : `/dashboards/${item.id}`"
+              class="chat-sidebar__db-row"
+              :class="{ 'chat-sidebar__db-row--active': isDashboardItemActive(item.id) }"
             >
-              <span class="chat-sidebar__session-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 5v14M5 12h14" />
+              <span class="chat-sidebar__db-icon" aria-hidden="true">
+                <svg v-if="dashboardView === 'widgets'" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19V5" />
+                  <path d="M4 19h16" />
+                  <path d="M8 15V9" />
+                  <path d="M12 15V7" />
+                  <path d="M16 15v-4" />
+                </svg>
+                <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="4" y="4" width="7" height="7" rx="1.5" />
+                  <rect x="13" y="4" width="7" height="7" rx="1.5" />
+                  <rect x="4" y="13" width="7" height="7" rx="1.5" />
+                  <rect x="13" y="13" width="7" height="7" rx="1.5" />
                 </svg>
               </span>
-              <span class="chat-sidebar__session-text">
-                <span class="chat-sidebar__session-title">Новый чат</span>
-                <span class="chat-sidebar__session-sub">Создать в этой базе</span>
+
+              <span class="chat-sidebar__db-text">
+                <span class="chat-sidebar__db-name">{{ itemTitle(item) }}</span>
+                <span class="chat-sidebar__db-sub">{{ itemSubtitle(item) }}</span>
               </span>
-            </button>
-          </div>
+
+              <span class="chat-sidebar__db-meta">
+                <span v-if="dashboardView === 'dashboards' && item.is_public" class="chat-sidebar__db-pill chat-sidebar__db-pill--accent">
+                  Public
+                </span>
+                <span v-else-if="dashboardView === 'widgets'" class="chat-sidebar__db-pill">
+                  {{ item.visualization_type }}
+                </span>
+              </span>
+            </RouterLink>
+          </template>
+
+          <template v-else-if="isDatabaseMode">
+            <div
+              v-for="database in treeDatabases"
+              :key="database.id"
+              class="chat-sidebar__db-row"
+              :class="{ 'chat-sidebar__db-row--active': database.id === activeDbId }"
+              role="button"
+              tabindex="0"
+              @click="selectDatabase(database.id)"
+              @keydown.enter.prevent="selectDatabase(database.id)"
+              @keydown.space.prevent="selectDatabase(database.id)"
+            >
+              <span class="chat-sidebar__db-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <ellipse cx="12" cy="5" rx="8" ry="3" />
+                  <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+                  <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                </svg>
+              </span>
+
+              <span class="chat-sidebar__db-text">
+                <span class="chat-sidebar__db-name">{{ database.name }}</span>
+                <span class="chat-sidebar__db-sub">
+                  {{ database.dialect }}
+                  <span v-if="database.table_count != null">· {{ database.table_count }} tables</span>
+                  <span v-if="database.description">· {{ database.description }}</span>
+                </span>
+              </span>
+
+              <span class="chat-sidebar__db-meta">
+                <span class="chat-sidebar__db-pill" :class="`chat-sidebar__db-pill--${database.status}`">
+                  {{ database.knowledge_status || database.status }}
+                </span>
+                <span v-if="database.last_scan_at" class="chat-sidebar__db-time">
+                  {{ formatTime(database.last_scan_at) }}
+                </span>
+              </span>
+
+              <span class="chat-sidebar__db-actions">
+                <button
+                  class="chat-sidebar__icon-btn"
+                  type="button"
+                  title="Переименовать"
+                  aria-label="Переименовать"
+                  :disabled="database.is_demo"
+                  @click.stop="renameDatabase(database)"
+                >
+                  ✎
+                </button>
+                <button
+                  class="chat-sidebar__icon-btn"
+                  type="button"
+                  title="Удалить"
+                  aria-label="Удалить"
+                  :disabled="database.is_demo"
+                  @click.stop="remove(database)"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+          </template>
+
+          <template v-else>
+            <div
+              v-for="database in treeDatabases"
+              :key="database.id"
+              class="chat-sidebar__folder"
+              :class="{
+                'chat-sidebar__folder--active': database.id === activeDbId,
+                'chat-sidebar__folder--open': isOpen(database.id)
+              }"
+            >
+              <button
+                class="chat-sidebar__folder-head"
+                type="button"
+                :aria-expanded="isOpen(database.id)"
+                @click="toggle(database.id)"
+              >
+                <span class="chat-sidebar__folder-chevron" :class="{ 'chat-sidebar__folder-chevron--open': isOpen(database.id) }">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 6 15 12 9 18" />
+                  </svg>
+                </span>
+                <span class="chat-sidebar__folder-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="8" ry="3" />
+                    <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+                    <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                  </svg>
+                </span>
+                <span class="chat-sidebar__folder-name">{{ database.name }}</span>
+                <span class="chat-sidebar__folder-meta-pill">{{ database.sessions.length }}</span>
+              </button>
+
+              <div v-show="isOpen(database.id)" class="chat-sidebar__folder-body">
+                <p class="chat-sidebar__folder-meta">
+                  {{ database.dialect }}
+                  <span v-if="database.table_count != null">· {{ database.table_count }} tables</span>
+                </p>
+
+                <div v-if="!database.sessions.length" class="chat-sidebar__empty-branch">
+                  Нет чатов в этой базе
+                </div>
+
+                <div v-else class="chat-sidebar__session-list">
+                  <article
+                    v-for="session in database.sessions"
+                    :key="session.id"
+                    class="chat-sidebar__session"
+                    :class="{ 'chat-sidebar__session--active': session.id === activeSessionId }"
+                    role="button"
+                    tabindex="0"
+                    @click="$emit('select-session', session.id)"
+                    @keydown.enter.prevent="$emit('select-session', session.id)"
+                    @keydown.space.prevent="$emit('select-session', session.id)"
+                  >
+                    <span class="chat-sidebar__session-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                      </svg>
+                    </span>
+
+                    <span class="chat-sidebar__session-text">
+                      <span class="chat-sidebar__session-title">{{ session.title }}</span>
+                      <span class="chat-sidebar__session-sub">{{ formatTime(session.updated_at) }}</span>
+                    </span>
+
+                    <span class="chat-sidebar__session-actions">
+                      <button
+                        class="chat-sidebar__icon-btn"
+                        type="button"
+                        title="Переименовать"
+                        aria-label="Переименовать"
+                        @click.stop="rename(session)"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        class="chat-sidebar__icon-btn"
+                        type="button"
+                        title="Удалить"
+                        aria-label="Удалить"
+                        @click.stop="removeSession(session)"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </article>
+                </div>
+
+                <button
+                  class="chat-sidebar__session chat-sidebar__session--create"
+                  type="button"
+                  @click="$emit('create-session', database.id)"
+                >
+                  <span class="chat-sidebar__session-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                  <span class="chat-sidebar__session-text">
+                    <span class="chat-sidebar__session-title">Новый чат</span>
+                    <span class="chat-sidebar__session-sub">Создать в этой базе</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </section>
 
     <footer class="chat-sidebar__footer">
-      <button class="chat-sidebar__footer-btn chat-sidebar__footer-btn--accent" type="button">
+      <RouterLink
+        v-if="isDashboardsMode"
+        class="chat-sidebar__footer-btn chat-sidebar__footer-btn--accent"
+        :to="dashboardView === 'widgets' ? '/widgets' : '/dashboards/new'"
+      >
+        {{ dashboardView === 'widgets' ? 'Каталог виджетов' : 'Новый дашборд' }}
+      </RouterLink>
+      <button v-else class="chat-sidebar__footer-btn chat-sidebar__footer-btn--accent" type="button">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
@@ -194,7 +332,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import type { ApiChatSessionRead, ApiDatabaseDescriptor } from '@/api/types';
+import type { ApiChatSessionRead, ApiDashboardRead, ApiDatabaseDescriptor, ApiWidgetRead } from '@/api/types';
 
 type TreeDatabase = ApiDatabaseDescriptor & { sessions: ApiChatSessionRead[] };
 
@@ -204,6 +342,10 @@ const props = defineProps<{
   activeDbId: string;
   activeSessionId: string;
   loading: boolean;
+  mode?: 'chat' | 'database' | 'dashboards';
+  dashboards?: ApiDashboardRead[];
+  widgets?: ApiWidgetRead[];
+  dashboardView?: 'dashboards' | 'widgets';
 }>();
 
 const emit = defineEmits<{
@@ -212,11 +354,18 @@ const emit = defineEmits<{
   (event: 'create-session', databaseId?: string): void;
   (event: 'rename-session', sessionId: string, title: string): void;
   (event: 'delete-session', sessionId: string): void;
+  (event: 'add-database'): void;
+  (event: 'rename-database', databaseId: string, title: string): void;
+  (event: 'delete-database', databaseId: string): void;
+  (event: 'update:dashboardView', value: 'dashboards' | 'widgets'): void;
 }>();
 
 const route = useRoute();
 const query = ref('');
 const openIds = ref<Set<string>>(new Set());
+const isDatabaseMode = computed(() => props.mode === 'database');
+const isDashboardsMode = computed(() => props.mode === 'dashboards');
+const dashboardView = computed(() => props.dashboardView ?? 'dashboards');
 
 const navItems = [
   { to: '/chat', label: 'Чат', key: 'chat' as const },
@@ -251,7 +400,13 @@ const treeDatabases = computed<TreeDatabase[]>(() => {
       const matchesDatabase =
         database.name.toLowerCase().includes(q) ||
         database.dialect.toLowerCase().includes(q) ||
-        (database.description ?? '').toLowerCase().includes(q);
+        (database.description ?? '').toLowerCase().includes(q) ||
+        (database.status ?? '').toLowerCase().includes(q) ||
+        (database.knowledge_status ?? '').toLowerCase().includes(q);
+
+      if (isDatabaseMode.value) {
+        return matchesDatabase ? { ...database, sessions: [] } : null;
+      }
 
       const filteredSessions = matchesDatabase
         ? sessions
@@ -266,6 +421,31 @@ const treeDatabases = computed<TreeDatabase[]>(() => {
     .filter((item): item is TreeDatabase => Boolean(item));
 
   return items;
+});
+
+const dashboardItems = computed(() => (dashboardView.value === 'widgets' ? props.widgets ?? [] : props.dashboards ?? []));
+
+const filteredDashboardItems = computed(() => {
+  const q = normalizedQuery.value;
+  if (!q) {
+    return dashboardItems.value;
+  }
+  return dashboardItems.value.filter((item) => {
+    if ('visualization_type' in item) {
+      return [
+        item.title,
+        item.description ?? '',
+        item.visualization_type,
+        item.refresh_policy
+      ].some((value) => String(value).toLowerCase().includes(q));
+    }
+    return [
+      item.title,
+      item.description ?? '',
+      item.slug ?? '',
+      item.layout_type
+    ].some((value) => String(value).toLowerCase().includes(q));
+  });
 });
 
 watch(
@@ -287,6 +467,15 @@ watch(
     }
   },
   { immediate: true }
+);
+
+watch(
+  () => props.dashboardView,
+  (value) => {
+    if (value === 'dashboards' || value === 'widgets') {
+      query.value = '';
+    }
+  }
 );
 
 watch(
@@ -320,6 +509,10 @@ function isOpen(id: string) {
 }
 
 function toggle(id: string) {
+  if (isDatabaseMode.value) {
+    selectDatabase(id);
+    return;
+  }
   const next = new Set(openIds.value);
   if (next.has(id)) {
     next.delete(id);
@@ -332,6 +525,35 @@ function toggle(id: string) {
   }
 }
 
+function selectDatabase(id: string) {
+  emit('select-database', id);
+}
+
+function toggleDashboardView() {
+  emit('update:dashboardView', dashboardView.value === 'dashboards' ? 'widgets' : 'dashboards');
+}
+
+function isDashboardItemActive(id: string) {
+  if (!isDashboardsMode.value) {
+    return false;
+  }
+  if (dashboardView.value === 'widgets') {
+    return route.path === `/widget/${id}`;
+  }
+  return route.path === '/dashboards' || route.path === `/dashboards/${id}`;
+}
+
+function itemTitle(item: ApiDashboardRead | ApiWidgetRead) {
+  return item.title;
+}
+
+function itemSubtitle(item: ApiDashboardRead | ApiWidgetRead) {
+  if ('visualization_type' in item) {
+    return `${item.visualization_type} · ${item.refresh_policy}`;
+  }
+  return item.description || 'Без описания';
+}
+
 function rename(session: ApiChatSessionRead) {
   const title = window.prompt('Новое название чата', session.title)?.trim();
   if (title) {
@@ -339,10 +561,21 @@ function rename(session: ApiChatSessionRead) {
   }
 }
 
-function remove(session: ApiChatSessionRead) {
+function removeSession(session: ApiChatSessionRead) {
   if (window.confirm(`Удалить чат «${session.title}»?`)) {
     emit('delete-session', session.id);
   }
+}
+
+function renameDatabase(database: ApiDatabaseDescriptor) {
+  const title = window.prompt('Новое название базы', database.name)?.trim();
+  if (title) {
+    emit('rename-database', database.id, title);
+  }
+}
+
+function remove(database: ApiDatabaseDescriptor) {
+  emit('delete-database', database.id);
 }
 
 function formatTime(value: string) {
@@ -422,15 +655,23 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__section {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.chat-sidebar__panel {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: rgba(0, 0, 0, 0.12);
+  background:
+    radial-gradient(circle at top right, rgba(138, 180, 248, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(26, 29, 36, 0.96), rgba(18, 20, 27, 0.98));
   padding: 12px;
+  box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-  flex: 1 1 auto;
+  height: 100%;
 }
 
 .chat-sidebar__section-head {
@@ -503,6 +744,112 @@ function formatTime(value: string) {
   min-height: 0;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+.chat-sidebar__db-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ink);
+  text-align: left;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.chat-sidebar__db-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.chat-sidebar__db-row--active {
+  border-color: rgba(112, 59, 247, 0.28);
+  background: rgba(112, 59, 247, 0.1);
+}
+
+.chat-sidebar__db-row:focus-visible {
+  outline: 2px solid rgba(112, 59, 247, 0.55);
+  outline-offset: 2px;
+}
+
+.chat-sidebar__db-icon {
+  color: var(--accent);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.chat-sidebar__db-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-sidebar__db-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-sidebar__db-sub {
+  margin-top: 0.12rem;
+  color: var(--muted-2);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-sidebar__db-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chat-sidebar__db-pill {
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.68rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chat-sidebar__db-pill--connected,
+.chat-sidebar__db-pill--active {
+  border-color: rgba(129, 201, 149, 0.35);
+  color: #aef0c2;
+}
+
+.chat-sidebar__db-pill--syncing,
+.chat-sidebar__db-pill--not_scanned {
+  border-color: rgba(248, 182, 94, 0.35);
+  color: #f4c26b;
+}
+
+.chat-sidebar__db-time {
+  color: var(--muted-2);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.chat-sidebar__db-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .chat-sidebar__folder {

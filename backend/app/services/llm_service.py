@@ -231,6 +231,7 @@ class LLMService:
         relationships: list[dict[str, Any]] | None = None,
         join_paths: list[dict[str, Any]] | None = None,
         relationship_graph: list[dict[str, Any]] | None = None,
+        database_description: str | None = None,
         model: str | None = None,
     ) -> SemanticTableEnrichment | None:
         target_model = model or settings.llm_model
@@ -247,13 +248,16 @@ class LLMService:
                             "Return exactly one JSON object and no markdown. "
                             "Your task is to improve business labels and descriptions without inventing new columns. "
                             "Never reference tables or columns that are not present in the input. "
-                            "Prefer conservative updates over speculative ones."
+                            "Prefer conservative updates over speculative ones. "
+                            "If a database-level description is provided, use it as the highest-level context for naming "
+                            "tables, columns, roles, and business descriptions."
                         ),
                     },
                     {
                         "role": "user",
                         "content": json.dumps(
                             {
+                                "database_description": database_description,
                                 "table": table.model_dump(mode="json"),
                                 "relationships": relationships or [],
                                 "join_paths": join_paths or [],
