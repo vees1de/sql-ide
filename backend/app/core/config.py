@@ -120,6 +120,11 @@ class Settings:
     llm_api_base_url: str | None
     llm_api_key: str | None
     llm_model: str | None
+    mail_smtp_key: str | None
+    mail_smtp_host: str | None
+    mail_smtp_port: int
+    mail_smtp_user: str | None
+    mail_from_address: str | None
     cors_allow_origins: tuple[str, ...]
 
 
@@ -145,7 +150,7 @@ def get_settings() -> Settings:
 
     allowed_tables = tuple(
         table.strip()
-        for table in os.getenv("ALLOWED_TABLES", "orders,customers,campaigns").split(",")
+        for table in os.getenv("ALLOWED_TABLES", "").split(",")
         if table.strip()
     )
 
@@ -168,6 +173,11 @@ def get_settings() -> Settings:
         llm_api_base_url=_resolve_llm_api_base_url(),
         llm_api_key=_resolve_llm_api_key(),
         llm_model=_resolve_llm_model(),
+        mail_smtp_key=_read_optional("MAIL_SMTP_KEY"),
+        mail_smtp_host=_read_optional("MAIL_SMTP_HOST") or _read_optional("SMTP_HOST"),
+        mail_smtp_port=int(os.getenv("MAIL_SMTP_PORT", os.getenv("SMTP_PORT", "587"))),
+        mail_smtp_user=_read_optional("MAIL_SMTP_USER") or _read_optional("SMTP_USER"),
+        mail_from_address=_read_optional("MAIL_FROM_ADDRESS") or _read_optional("SMTP_FROM_ADDRESS"),
         cors_allow_origins=_read_csv(
             "CORS_ALLOW_ORIGINS",
             "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173",

@@ -10,6 +10,15 @@ from app.schemas.chat import ChartRecommendation
 
 
 class ChartRecommendationService:
+    CATEGORICAL_NAME_HINTS = (
+        "_id",
+        "_hour",
+        "_bucket",
+        "_bin",
+        "_group",
+        "_rank",
+        "_index",
+    )
     TEMPORAL_NAME_HINTS = (
         "_date",
         "date",
@@ -117,7 +126,8 @@ class ChartRecommendationService:
         type_name = str(column.get("type") or "").strip().lower()
         values = [row.get(name) for row in rows_preview if row.get(name) is not None]
         distinct_count = len({self._normalize_value(value) for value in values if self._normalize_value(value) is not None})
-        is_numeric = self._looks_numeric_type(type_name) or self._looks_numeric_values(values)
+        is_categorical_name = self._looks_categorical_name(name)
+        is_numeric = (self._looks_numeric_type(type_name) or self._looks_numeric_values(values)) and not is_categorical_name
         is_temporal = self._looks_temporal_type(type_name) or self._looks_temporal_name(name) or self._looks_temporal_values(values)
         return {
             "name": name,
@@ -127,6 +137,10 @@ class ChartRecommendationService:
             "is_numeric": is_numeric,
             "is_temporal": is_temporal and not is_numeric,
         }
+
+    def _looks_categorical_name(self, name: str) -> bool:
+        lowered = name.lower()
+        return any(hint in lowered for hint in self.CATEGORICAL_NAME_HINTS)
 
     def _looks_numeric_type(self, type_name: str) -> bool:
         return any(hint in type_name for hint in self.NUMERIC_TYPE_HINTS)

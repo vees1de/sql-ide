@@ -34,16 +34,26 @@
                 {{ sidebarMode === "dashboards" ? "Дашборды" : "Виджеты" }}
               </h1>
             </div>
-            <router-link
-              v-if="sidebarMode === 'dashboards'"
-              to="/dashboards/new"
-              class="wbtn wbtn--primary"
-            >
-              + Новый дашборд
-            </router-link>
-            <router-link v-else to="/widgets" class="wbtn wbtn--primary">
-              Открыть каталог
-            </router-link>
+            <div class="dashboards-list-view__header-actions">
+              <label v-if="sidebarMode === 'dashboards'" class="dashboards-list-view__toggle">
+                <input
+                  :checked="dashboardsStore.includeHidden"
+                  type="checkbox"
+                  @change="toggleHidden"
+                />
+                <span>Показывать скрытые</span>
+              </label>
+              <router-link
+                v-if="sidebarMode === 'dashboards'"
+                to="/dashboards/new"
+                class="wbtn wbtn--primary"
+              >
+                + Новый дашборд
+              </router-link>
+              <router-link v-else to="/widgets" class="wbtn wbtn--primary">
+                Открыть каталог
+              </router-link>
+            </div>
           </div>
         </div>
 
@@ -76,6 +86,11 @@
                     v-if="dashboard.is_public"
                     class="dashboards-list-view__card-badge"
                     >публичный</span
+                  >
+                  <span
+                    v-if="dashboard.is_hidden"
+                    class="dashboards-list-view__card-badge dashboards-list-view__card-badge--muted"
+                    >hidden</span
                   >
                 </div>
                 <p
@@ -159,6 +174,11 @@ function formatDate(iso: string) {
   });
 }
 
+async function toggleHidden(event: Event) {
+  const target = event.target as HTMLInputElement;
+  await dashboardsStore.setIncludeHidden(target.checked);
+}
+
 onMounted(() => {
   void Promise.all([
     dashboardsStore.loadDashboards(),
@@ -231,6 +251,21 @@ onMounted(() => {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.dashboards-list-view__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboards-list-view__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .dashboards-list-view__heading {
@@ -314,6 +349,11 @@ onMounted(() => {
   padding: 1px 6px;
   border-radius: 4px;
   flex-shrink: 0;
+}
+
+.dashboards-list-view__card-badge--muted {
+  color: var(--muted);
+  background: var(--line);
 }
 
 .dashboards-list-view__card-desc {

@@ -123,6 +123,9 @@
                 <span v-if="dashboardView === 'dashboards' && item.is_public" class="chat-sidebar__db-pill chat-sidebar__db-pill--accent">
                   Public
                 </span>
+                <span v-if="dashboardView === 'dashboards' && item.is_hidden" class="chat-sidebar__db-pill">
+                  Hidden
+                </span>
                 <span v-else-if="dashboardView === 'widgets'" class="chat-sidebar__db-pill">
                   {{ item.visualization_type }}
                 </span>

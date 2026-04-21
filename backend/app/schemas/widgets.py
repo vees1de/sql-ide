@@ -6,9 +6,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-VisualizationType = Literal["table", "line", "bar", "area", "pie", "metric", "stacked_bar"]
+VisualizationType = Literal["table", "line", "bar", "area", "pie", "metric", "stacked_bar", "text"]
 RefreshPolicy = Literal["manual", "on_view", "scheduled"]
-SourceType = Literal["sql", "text_to_sql"]
+SourceType = Literal["sql", "text_to_sql", "text"]
 
 
 class WidgetRunRead(BaseModel):

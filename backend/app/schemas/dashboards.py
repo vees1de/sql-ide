@@ -56,6 +56,7 @@ class DashboardUpdate(BaseModel):
     title: str | None = Field(default=None, max_length=255)
     description: str | None = None
     is_public: bool | None = None
+    is_hidden: bool | None = None
     slug: str | None = None
 
 
@@ -68,6 +69,7 @@ class DashboardRead(BaseModel):
     slug: str | None = None
     layout_type: str
     is_public: bool
+    is_hidden: bool
     owner_id: str
     created_at: datetime
     updated_at: datetime
@@ -75,3 +77,29 @@ class DashboardRead(BaseModel):
 
 class DashboardDetail(DashboardRead):
     widgets: list[DashboardWidgetDetail] = Field(default_factory=list)
+    schedule: "DashboardScheduleRead | None" = None
+
+
+class DashboardScheduleUpsert(BaseModel):
+    recipient_emails: list[str] = Field(default_factory=list)
+    weekdays: list[str] = Field(default_factory=list)
+    send_time: str = Field(pattern=r"^\d{2}:\d{2}$", default="09:00")
+    timezone: str = Field(default="Asia/Yakutsk")
+    enabled: bool = False
+    subject: str = Field(default="Dashboard digest", max_length=255)
+
+
+class DashboardScheduleRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    dashboard_id: str
+    recipient_emails: list[str]
+    weekdays: list[str]
+    send_time: str
+    timezone: str
+    enabled: bool
+    subject: str
+    last_sent_at: datetime | None
+    created_at: datetime
+    updated_at: datetime

@@ -2,6 +2,12 @@
   <div class="tile-content">
     <div v-if="running" class="tile-content__loading">Загрузка…</div>
 
+    <template v-else-if="widget.source_type === 'text'">
+      <div class="tile-content__text">
+        <p>{{ widget.description || 'Text widget' }}</p>
+      </div>
+    </template>
+
     <template v-else-if="run">
       <div v-if="run.status === 'error'" class="tile-content__error">{{ run.error_text }}</div>
       <template v-else-if="run.status === 'completed'">
@@ -72,6 +78,14 @@ onMounted(() => {
   font-size: 0.82rem;
   padding: 16px 0;
   text-align: center;
+}
+
+.tile-content__text {
+  padding: 8px 2px 2px;
+  color: var(--ink);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .tile-content__error {

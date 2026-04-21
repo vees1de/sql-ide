@@ -23,6 +23,8 @@ if env_path.exists():
 
 import openai
 
+__test__ = False
+
 FOLDER = "b1gste4lfr39is20f5r8"
 API_KEY = os.environ["YANDEX_AI_API_KEY"]
 
@@ -66,15 +68,20 @@ def test_model(alias: str) -> bool:
         return False
 
 
-arg = sys.argv[1].lower() if len(sys.argv) > 1 else DEFAULT_MODEL
+def main() -> None:
+    arg = sys.argv[1].lower() if len(sys.argv) > 1 else DEFAULT_MODEL
 
-if arg == "all":
-    results = {alias: test_model(alias) for alias in MODELS}
-    print("\n--- Summary ---")
-    for alias, ok in results.items():
-        print(f"  {alias:10} {'PASSED' if ok else 'FAILED'}")
-elif arg in MODELS:
-    test_model(arg)
-else:
-    print(f"Unknown model '{arg}'. Available: {', '.join(MODELS)} | all")
-    sys.exit(1)
+    if arg == "all":
+        results = {alias: test_model(alias) for alias in MODELS}
+        print("\n--- Summary ---")
+        for alias, ok in results.items():
+            print(f"  {alias:10} {'PASSED' if ok else 'FAILED'}")
+    elif arg in MODELS:
+        test_model(arg)
+    else:
+        print(f"Unknown model '{arg}'. Available: {', '.join(MODELS)} | all")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

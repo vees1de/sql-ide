@@ -31,6 +31,8 @@ import type {
   ApiWidgetUpdate,
   ApiDashboardRead,
   ApiDashboardDetail,
+  ApiDashboardScheduleRead,
+  ApiDashboardScheduleUpsert,
   ApiDashboardCreate,
   ApiDashboardUpdate,
   ApiDashboardWidgetDetail,
@@ -330,8 +332,13 @@ export const api = {
   },
 
   // --- Dashboards ---
-  listDashboards() {
-    return request<ApiDashboardRead[]>('/api/dashboards');
+  listDashboards(includeHidden = false) {
+    const params = new URLSearchParams();
+    if (includeHidden) {
+      params.set('include_hidden', 'true');
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return request<ApiDashboardRead[]>(`/api/dashboards${suffix}`);
   },
   createDashboard(payload: ApiDashboardCreate) {
     return request<ApiDashboardDetail>('/api/dashboards', {
@@ -365,5 +372,20 @@ export const api = {
   },
   removeWidgetFromDashboard(dashboardId: string, dwId: string) {
     return request<void>(`/api/dashboards/${dashboardId}/widgets/${dwId}`, { method: 'DELETE' });
+  },
+  getDashboardSchedule(dashboardId: string) {
+    return request<ApiDashboardScheduleRead>(`/api/dashboards/${dashboardId}/schedule`);
+  },
+  upsertDashboardSchedule(dashboardId: string, payload: ApiDashboardScheduleUpsert) {
+    return request<ApiDashboardScheduleRead>(`/api/dashboards/${dashboardId}/schedule`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteDashboardSchedule(dashboardId: string) {
+    return request<void>(`/api/dashboards/${dashboardId}/schedule`, { method: 'DELETE' });
+  },
+  exportDashboardPdf(dashboardId: string) {
+    return fetch(toUrl(`/api/dashboards/${dashboardId}/export/pdf`));
   }
 };

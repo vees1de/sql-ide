@@ -4,6 +4,8 @@ import { api } from '@/api/client';
 import type {
   ApiDashboardCreate,
   ApiDashboardDetail,
+  ApiDashboardScheduleRead,
+  ApiDashboardScheduleUpsert,
   ApiDashboardRead,
   ApiDashboardUpdate,
   ApiDashboardWidgetAdd,
@@ -13,6 +15,7 @@ import type {
 
 export const useDashboardsStore = defineStore('dashboards', () => {
   const dashboards = ref<ApiDashboardRead[]>([]);
+  const includeHidden = ref(false);
   const loading = ref(false);
   const saving = ref(false);
   const error = ref<string | null>(null);
@@ -24,12 +27,17 @@ export const useDashboardsStore = defineStore('dashboards', () => {
   async function loadDashboards() {
     loading.value = true;
     try {
-      dashboards.value = await api.listDashboards();
+      dashboards.value = await api.listDashboards(includeHidden.value);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось загрузить дашборды.');
     } finally {
       loading.value = false;
     }
+  }
+
+  async function setIncludeHidden(value: boolean) {
+    includeHidden.value = value;
+    await loadDashboards();
   }
 
   async function createDashboard(payload: ApiDashboardCreate): Promise<ApiDashboardDetail> {
@@ -104,18 +112,63 @@ export const useDashboardsStore = defineStore('dashboards', () => {
     }
   }
 
+  async function getSchedule(dashboardId: string): Promise<ApiDashboardScheduleRead> {
+    try {
+      return await api.getDashboardSchedule(dashboardId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось загрузить schedule.');
+      throw e;
+    }
+  }
+
+  async function saveSchedule(
+    dashboardId: string,
+    payload: ApiDashboardScheduleUpsert,
+  ): Promise<ApiDashboardScheduleRead> {
+    try {
+      return await api.upsertDashboardSchedule(dashboardId, payload);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось сохранить schedule.');
+      throw e;
+    }
+  }
+
+  async function deleteSchedule(dashboardId: string) {
+    try {
+      return await api.deleteDashboardSchedule(dashboardId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось удалить schedule.');
+      throw e;
+    }
+  }
+
+  async function exportPdf(dashboardId: string) {
+    try {
+      return await api.exportDashboardPdf(dashboardId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось выгрузить PDF.');
+      throw e;
+    }
+  }
+
   return {
     dashboards,
+    includeHidden,
     loading,
     saving,
     error,
     setError,
     loadDashboards,
+    setIncludeHidden,
     createDashboard,
     updateDashboard,
     deleteDashboard,
     addWidget,
     updateWidget,
-    removeWidget
+    removeWidget,
+    getSchedule,
+    saveSchedule,
+    deleteSchedule,
+    exportPdf
   };
 });

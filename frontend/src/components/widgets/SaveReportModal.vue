@@ -66,6 +66,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useWidgetsStore } from '@/stores/widgets';
 import type { ApiChatExecutionRead, ApiVisualizationType } from '@/api/types';
 
@@ -81,6 +82,7 @@ const emit = defineEmits<{
 }>();
 
 const widgetsStore = useWidgetsStore();
+const router = useRouter();
 
 const title = ref('');
 const description = ref('');
@@ -120,6 +122,7 @@ async function submit() {
       visualization_config: vizConfig ?? undefined,
       database_connection_id: props.databaseConnectionId ?? null,
     });
+    await router.push(`/widget/${widget.id}`);
     emit('saved', widget.id);
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'Ошибка при сохранении.';

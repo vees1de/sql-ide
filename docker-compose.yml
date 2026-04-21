@@ -32,8 +32,7 @@ services:
       API_PREFIX: /api
       SERVICE_DATABASE_URL: postgresql+psycopg://sqlide:sqlide@postgres:5432/sqlide_service
       ANALYTICS_DATABASE_URL: postgresql+psycopg://sqlide:sqlide@postgres:5432/sqlide_analytics
-      BOOTSTRAP_DEMO_ANALYTICS: "true"
-      ALLOWED_TABLES: orders,customers,campaigns
+      BOOTSTRAP_DEMO_ANALYTICS: "false"
       DEFAULT_ROW_LIMIT: 200
       QUERY_TIMEOUT_SECONDS: 15
       DEMO_WORKSPACE_NAME: Demo Workspace

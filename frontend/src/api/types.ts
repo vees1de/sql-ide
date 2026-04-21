@@ -572,9 +572,9 @@ export interface ApiPromptRunResponse {
 // Widgets
 // ---------------------------------------------------------------------------
 
-export type ApiVisualizationType = 'table' | 'line' | 'bar' | 'area' | 'pie' | 'metric' | 'stacked_bar';
+export type ApiVisualizationType = 'table' | 'line' | 'bar' | 'area' | 'pie' | 'metric' | 'stacked_bar' | 'text';
 export type ApiRefreshPolicy = 'manual' | 'on_view' | 'scheduled';
-export type ApiWidgetSourceType = 'sql' | 'text_to_sql';
+export type ApiWidgetSourceType = 'sql' | 'text_to_sql' | 'text';
 
 export interface ApiWidgetRunRead {
   id: string;
@@ -668,13 +668,29 @@ export interface ApiDashboardRead {
   slug: string | null;
   layout_type: string;
   is_public: boolean;
+  is_hidden: boolean;
   owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiDashboardScheduleRead {
+  id: string;
+  dashboard_id: string;
+  recipient_emails: string[];
+  weekdays: string[];
+  send_time: string;
+  timezone: string;
+  enabled: boolean;
+  subject: string;
+  last_sent_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface ApiDashboardDetail extends ApiDashboardRead {
   widgets: ApiDashboardWidgetDetail[];
+  schedule: ApiDashboardScheduleRead | null;
 }
 
 export interface ApiDashboardWidgetCreateItem {
@@ -694,6 +710,7 @@ export interface ApiDashboardUpdate {
   title?: string | null;
   description?: string | null;
   is_public?: boolean | null;
+  is_hidden?: boolean | null;
   slug?: string | null;
 }
 
@@ -706,4 +723,13 @@ export interface ApiDashboardWidgetAdd {
 export interface ApiDashboardWidgetPatch {
   layout?: ApiDashboardWidgetLayout | null;
   title_override?: string | null;
+}
+
+export interface ApiDashboardScheduleUpsert {
+  recipient_emails: string[];
+  weekdays: string[];
+  send_time: string;
+  timezone: string;
+  enabled: boolean;
+  subject: string;
 }

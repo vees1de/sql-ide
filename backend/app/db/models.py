@@ -542,10 +542,10 @@ class WidgetModel(Base):
     id = Column(String(32), primary_key=True, default=generate_id)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    source_type = Column(String(32), nullable=False, default="sql")  # "sql" | "text_to_sql"
+    source_type = Column(String(32), nullable=False, default="sql")  # "sql" | "text_to_sql" | "text"
     source_query_run_id = Column(String(32), nullable=True)
     sql_text = Column(Text, nullable=False, default="")
-    visualization_type = Column(String(32), nullable=False, default="table")  # table|line|bar|area|pie|metric
+    visualization_type = Column(String(32), nullable=False, default="table")  # table|line|bar|area|pie|metric|text
     visualization_config = Column(JSON, nullable=True)
     result_schema = Column(JSON, nullable=True)
     refresh_policy = Column(String(32), nullable=False, default="on_view")  # manual|on_view|scheduled
@@ -587,6 +587,7 @@ class DashboardModel(Base):
     slug = Column(String(255), nullable=True, unique=True)
     layout_type = Column(String(32), nullable=False, default="grid")
     is_public = Column(Boolean, nullable=False, default=False)
+    is_hidden = Column(Boolean, nullable=False, default=False)
     owner_id = Column(String(255), nullable=False, default="default")
     deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
@@ -598,6 +599,7 @@ class DashboardModel(Base):
         cascade="all, delete-orphan",
         order_by="DashboardWidgetModel.created_at",
     )
+    schedule = relationship("DashboardScheduleModel", back_populates="dashboard", uselist=False, cascade="all, delete-orphan")
 
 
 class DashboardWidgetModel(Base):
@@ -614,3 +616,21 @@ class DashboardWidgetModel(Base):
 
     dashboard = relationship("DashboardModel", back_populates="dashboard_widgets")
     widget = relationship("WidgetModel", back_populates="dashboard_widgets")
+
+
+class DashboardScheduleModel(Base):
+    __tablename__ = "dashboard_schedules"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    dashboard_id = Column(String(32), ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    recipient_emails = Column(JSON, nullable=False, default=list)
+    weekdays = Column(JSON, nullable=False, default=list)
+    send_time = Column(String(5), nullable=False, default="09:00")
+    timezone = Column(String(64), nullable=False, default="Asia/Yakutsk")
+    enabled = Column(Boolean, nullable=False, default=False)
+    subject = Column(String(255), nullable=False, default="Dashboard digest")
+    last_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+    dashboard = relationship("DashboardModel", back_populates="schedule")

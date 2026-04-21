@@ -122,6 +122,26 @@ def run_widget(widget_id: str, db: Session = Depends(get_db)) -> WidgetDetail:
     from app.services.database_resolution import resolve_engine
 
     widget = _get_widget_or_404(db, widget_id)
+    if widget.source_type == "text":
+        run = WidgetRunModel(
+            widget_id=widget.id,
+            status="completed",
+            columns_json=[{"name": "text", "type": "text"}],
+            rows_preview_json=[{"text": widget.description or widget.sql_text or ""}],
+            rows_preview_truncated=False,
+            row_count=1,
+            execution_time_ms=0,
+            error_text=None,
+            finished_at=datetime.utcnow(),
+        )
+        db.add(run)
+        db.commit()
+        db.refresh(run)
+        widget.result_schema = {"columns": run.columns_json}
+        db.commit()
+        db.refresh(widget)
+        return _widget_to_detail(widget)
+
     if not widget.sql_text.strip():
         raise HTTPException(status_code=400, detail="Widget has no SQL to execute.")
 

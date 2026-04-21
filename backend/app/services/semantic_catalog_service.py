@@ -1060,6 +1060,9 @@ class SemanticCatalogService:
                     break
         return list(selected.values())
 
+    def _tokenize(self, text: str) -> list[str]:
+        return [token for token in text.lower().split() if token]
+
     def _score_table(self, table: SemanticTable, tokens: list[str]) -> float:
         haystack = " ".join(
             [

@@ -68,7 +68,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import ChatResultChart from '@/components/chat/ChatResultChart.vue';
 import ChatResultTable from '@/components/chat/ChatResultTable.vue';
 import SaveReportModal from '@/components/widgets/SaveReportModal.vue';
@@ -85,7 +84,6 @@ defineEmits<{
   (event: 'change-view', value: 'table' | 'chart'): void;
 }>();
 
-const router = useRouter();
 const showSaveModal = ref(false);
 
 const summary = computed(() => {
@@ -98,7 +96,6 @@ const summary = computed(() => {
 
 function onSaved(widgetId: string) {
   showSaveModal.value = false;
-  void router.push(`/widget/${widgetId}`);
 }
 </script>
 

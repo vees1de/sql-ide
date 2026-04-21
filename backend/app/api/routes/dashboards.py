@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
@@ -11,6 +11,8 @@ from app.schemas.dashboards import (
     DashboardCreate,
     DashboardDetail,
     DashboardRead,
+    DashboardScheduleRead,
+    DashboardScheduleUpsert,
     DashboardUpdate,
     DashboardWidgetCreate,
     DashboardWidgetDetail,
@@ -18,8 +20,10 @@ from app.schemas.dashboards import (
     DashboardWidgetUpdate,
 )
 from app.schemas.widgets import WidgetRead
+from app.services.dashboard_service import DashboardService
 
 router = APIRouter()
+dashboard_service = DashboardService()
 
 
 def _get_dashboard_or_404(db: Session, dashboard_id: str) -> DashboardModel:
@@ -50,17 +54,23 @@ def _dw_to_detail(dw: DashboardWidgetModel) -> DashboardWidgetDetail:
 
 def _dashboard_to_detail(dashboard: DashboardModel) -> DashboardDetail:
     widgets = [_dw_to_detail(dw) for dw in dashboard.dashboard_widgets if dw.widget.deleted_at is None]
-    return DashboardDetail(**DashboardRead.model_validate(dashboard).model_dump(mode="json"), widgets=widgets)
+    schedule = DashboardScheduleRead.model_validate(dashboard.schedule) if dashboard.schedule is not None else None
+    return DashboardDetail(
+        **DashboardRead.model_validate(dashboard).model_dump(mode="json"),
+        widgets=widgets,
+        schedule=schedule,
+    )
 
 
 @router.get("/dashboards", response_model=list[DashboardRead])
-def list_dashboards(db: Session = Depends(get_db)) -> list[DashboardRead]:
-    dashboards = (
-        db.query(DashboardModel)
-        .filter(DashboardModel.deleted_at.is_(None))
-        .order_by(DashboardModel.updated_at.desc())
-        .all()
-    )
+def list_dashboards(
+    include_hidden: bool = Query(False, description="Include hidden dashboards"),
+    db: Session = Depends(get_db),
+) -> list[DashboardRead]:
+    query = db.query(DashboardModel).filter(DashboardModel.deleted_at.is_(None))
+    if not include_hidden:
+        query = query.filter(DashboardModel.is_hidden.is_(False))
+    dashboards = query.order_by(DashboardModel.updated_at.desc()).all()
     return [DashboardRead.model_validate(d) for d in dashboards]
 
 
@@ -70,6 +80,7 @@ def create_dashboard(payload: DashboardCreate, db: Session = Depends(get_db)) ->
         title=payload.title,
         description=payload.description,
         is_public=payload.is_public,
+        is_hidden=False,
     )
     db.add(dashboard)
     db.flush()
@@ -90,6 +101,7 @@ def create_dashboard(payload: DashboardCreate, db: Session = Depends(get_db)) ->
         )
         db.add(dw)
 
+    dashboard_service.ensure_default_text_widget(db, dashboard)
     db.commit()
     db.refresh(dashboard)
     return _dashboard_to_detail(dashboard)
@@ -98,6 +110,11 @@ def create_dashboard(payload: DashboardCreate, db: Session = Depends(get_db)) ->
 @router.get("/dashboards/{dashboard_id}", response_model=DashboardDetail)
 def get_dashboard(dashboard_id: str, db: Session = Depends(get_db)) -> DashboardDetail:
     dashboard = _get_dashboard_or_404(db, dashboard_id)
+    if not any(dw.widget.source_type == "text" and dw.widget.deleted_at is None for dw in dashboard.dashboard_widgets):
+        dashboard_service.ensure_default_text_widget(db, dashboard)
+    dashboard_service.normalize_dashboard_layouts(db, dashboard)
+    db.commit()
+    db.refresh(dashboard)
     return _dashboard_to_detail(dashboard)
 
 
@@ -114,6 +131,8 @@ def update_dashboard(
         dashboard.description = payload.description
     if payload.is_public is not None:
         dashboard.is_public = payload.is_public
+    if payload.is_hidden is not None:
+        dashboard.is_hidden = payload.is_hidden
     if payload.slug is not None:
         dashboard.slug = payload.slug or None
     db.commit()
@@ -143,7 +162,7 @@ def add_widget_to_dashboard(
     payload: DashboardWidgetCreate,
     db: Session = Depends(get_db),
 ) -> DashboardWidgetDetail:
-    _get_dashboard_or_404(db, dashboard_id)
+    dashboard = _get_dashboard_or_404(db, dashboard_id)
     widget = db.query(WidgetModel).filter(
         WidgetModel.id == payload.widget_id,
         WidgetModel.deleted_at.is_(None),
@@ -159,9 +178,51 @@ def add_widget_to_dashboard(
         display_options=payload.display_options,
     )
     db.add(dw)
+    db.flush()
+    dw.layout = dashboard_service.place_widget_layout(dashboard, dw.layout, exclude_dashboard_widget_id=dw.id)
     db.commit()
     db.refresh(dw)
     return _dw_to_detail(dw)
+
+
+@router.get("/dashboards/{dashboard_id}/schedule", response_model=DashboardScheduleRead)
+def get_dashboard_schedule(dashboard_id: str, db: Session = Depends(get_db)) -> DashboardScheduleRead:
+    dashboard = _get_dashboard_or_404(db, dashboard_id)
+    if dashboard.schedule is None:
+        raise HTTPException(status_code=404, detail="Dashboard schedule not found.")
+    return DashboardScheduleRead.model_validate(dashboard.schedule)
+
+
+@router.patch("/dashboards/{dashboard_id}/schedule", response_model=DashboardScheduleRead)
+def upsert_dashboard_schedule(
+    dashboard_id: str,
+    payload: DashboardScheduleUpsert,
+    db: Session = Depends(get_db),
+) -> DashboardScheduleRead:
+    dashboard = _get_dashboard_or_404(db, dashboard_id)
+    schedule = dashboard_service.upsert_schedule(db, dashboard, payload.model_dump(mode="json"))
+    return DashboardScheduleRead.model_validate(schedule)
+
+
+@router.delete("/dashboards/{dashboard_id}/schedule", status_code=204)
+def delete_dashboard_schedule(dashboard_id: str, db: Session = Depends(get_db)) -> Response:
+    dashboard = _get_dashboard_or_404(db, dashboard_id)
+    if not dashboard_service.delete_schedule(db, dashboard):
+        raise HTTPException(status_code=404, detail="Dashboard schedule not found.")
+    return Response(status_code=204)
+
+
+@router.get("/dashboards/{dashboard_id}/export/pdf")
+def export_dashboard_pdf(dashboard_id: str, db: Session = Depends(get_db)) -> Response:
+    dashboard = _get_dashboard_or_404(db, dashboard_id)
+    dashboard_url = f"/dashboards/{dashboard.slug or dashboard.id}"
+    pdf_bytes = dashboard_service.generate_dashboard_pdf(db, dashboard, dashboard_url)
+    filename = dashboard_service._slugify(dashboard.slug or dashboard.title)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}.pdf"'},
+    )
 
 
 @router.patch("/dashboards/{dashboard_id}/widgets/{dw_id}", response_model=DashboardWidgetDetail)
@@ -171,10 +232,14 @@ def update_dashboard_widget(
     payload: DashboardWidgetUpdate,
     db: Session = Depends(get_db),
 ) -> DashboardWidgetDetail:
-    _get_dashboard_or_404(db, dashboard_id)
+    dashboard = _get_dashboard_or_404(db, dashboard_id)
     dw = _get_dw_or_404(db, dashboard_id, dw_id)
     if payload.layout is not None:
-        dw.layout = payload.layout.model_dump()
+        dw.layout = dashboard_service.place_widget_layout(
+            dashboard,
+            payload.layout.model_dump(),
+            exclude_dashboard_widget_id=dw.id,
+        )
     if payload.title_override is not None:
         dw.title_override = payload.title_override
     if payload.display_options is not None:

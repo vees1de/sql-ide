@@ -29,8 +29,36 @@
       </div>
 
       <div class="widget-view__body">
+        <section v-if="widget.source_type === 'text'" class="widget-view__section">
+          <div class="widget-view__section-header">
+            <span class="widget-view__section-title">Text widget</span>
+            <button
+              v-if="!editingText"
+              class="wbtn wbtn--ghost wbtn--sm"
+              type="button"
+              @click="startEditText"
+            >
+              Редактировать
+            </button>
+            <div v-else class="widget-view__sql-actions">
+              <button class="wbtn wbtn--ghost wbtn--sm" type="button" @click="cancelEditText">
+                Отмена
+              </button>
+              <button class="wbtn wbtn--primary wbtn--sm" type="button" :disabled="savingText" @click="saveText">
+                {{ savingText ? '…' : 'Сохранить' }}
+              </button>
+            </div>
+          </div>
+          <textarea
+            v-model="textDraft"
+            class="widget-view__text-editor"
+            :readonly="!editingText"
+            rows="10"
+          />
+        </section>
+
         <!-- SQL section -->
-        <section class="widget-view__section">
+        <section v-else class="widget-view__section">
           <div class="widget-view__section-header">
             <span class="widget-view__section-title">SQL</span>
             <button v-if="!editingSql" class="wbtn wbtn--ghost wbtn--sm" type="button" @click="startEditSql">Редактировать</button>
@@ -138,6 +166,9 @@ const titleInput = ref<HTMLInputElement | null>(null);
 const editingSql = ref(false);
 const sqlDraft = ref('');
 const savingSql = ref(false);
+const editingText = ref(false);
+const textDraft = ref('');
+const savingText = ref(false);
 
 const resultView = ref<'table' | 'bar' | 'line' | 'area' | 'pie' | 'metric'>('table');
 const showAddToDashboard = ref(false);
@@ -160,6 +191,7 @@ async function loadWidget() {
   try {
     widget.value = await api.getWidget(route.params.id as string);
     sqlDraft.value = widget.value.sql_text;
+    textDraft.value = widget.value.description ?? '';
     resultView.value = (widget.value.visualization_type as typeof resultView.value) ?? 'table';
     if (widget.value.refresh_policy === 'on_view' && !widget.value.last_run) {
       await rerun();
@@ -207,6 +239,27 @@ async function saveSql() {
     editingSql.value = false;
   } finally {
     savingSql.value = false;
+  }
+}
+
+function startEditText() {
+  textDraft.value = widget.value?.description ?? '';
+  editingText.value = true;
+}
+
+function cancelEditText() {
+  textDraft.value = widget.value?.description ?? '';
+  editingText.value = false;
+}
+
+async function saveText() {
+  if (!widget.value) return;
+  savingText.value = true;
+  try {
+    widget.value = await widgetsStore.updateWidget(widget.value.id, { description: textDraft.value });
+    editingText.value = false;
+  } finally {
+    savingText.value = false;
   }
 }
 
@@ -338,6 +391,24 @@ onMounted(() => { void loadWidget(); });
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
+  outline: none;
+
+  &:not([readonly]):focus { border-color: rgba(112, 59, 247, 0.7); }
+  &[readonly] { opacity: 0.8; cursor: default; }
+}
+
+.widget-view__text-editor {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 260px;
   outline: none;
 
   &:not([readonly]):focus { border-color: rgba(112, 59, 247, 0.7); }
