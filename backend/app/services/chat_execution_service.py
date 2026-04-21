@@ -14,6 +14,7 @@ from app.db.models import ChatSessionModel, QueryExecutionModel
 from app.schemas.chat import ChartRecommendation
 from app.services.chart_recommendation_service import ChartRecommendationService
 from app.services.database_resolution import resolve_dialect, resolve_engine
+from app.services.schema_context_provider import SchemaContextProvider
 
 
 class ChatExecutionService:
@@ -23,12 +24,17 @@ class ChatExecutionService:
     def __init__(self) -> None:
         self.validation_agent = SQLValidationAgent()
         self.chart_service = ChartRecommendationService()
+        self.schema_provider = SchemaContextProvider()
 
     def execute(self, db: Session, session_id: str, sql: str) -> QueryExecutionModel:
         session = self._get_session(db, session_id)
         dialect = resolve_dialect(db, session.database_connection_id)
         engine = resolve_engine(db, session.database_connection_id)
-        validation = self.validation_agent.run(sql, dialect)
+        try:
+            schema = self.schema_provider.get_schema_for_llm(db, session.database_connection_id)
+        except Exception:  # noqa: BLE001
+            schema = None
+        validation = self.validation_agent.run(sql, dialect, schema=schema)
         if not validation.valid:
             raise ValueError("; ".join(validation.errors) or "SQL validation failed.")
 

@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 class ColumnMetadata(BaseModel):
     name: str
     type: str
+    # Optional observed value range — populated for date/numeric columns
+    # so the LLM knows what data actually exists (prevents "last 30 days"
+    # filters on snapshot tables from 2016).
+    min_value: str | None = None
+    max_value: str | None = None
 
 
 class RelationshipMetadata(BaseModel):

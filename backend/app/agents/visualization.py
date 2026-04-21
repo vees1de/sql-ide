@@ -20,6 +20,10 @@ class VisualizationAgent:
 
         if intent.visualization_preference:
             chart_type = intent.visualization_preference
+        elif self._is_distribution_query(intent):
+            chart_type = "pie"
+        elif self._is_temporal_query(intent):
+            chart_type = "line"
         elif semantic.dimension_mappings and semantic.dimension_mappings[0].key in {"day", "week", "month"}:
             chart_type = "line"
         elif len(semantic.dimension_mappings) == 1:
@@ -45,6 +49,16 @@ class VisualizationAgent:
                 "supportsStack": chart_type in {"bar", "line"} and series_field is not None,
             },
         )
+
+    def _is_distribution_query(self, intent: IntentPayload) -> bool:
+        keywords = ("распределен", "distribution", "долю", "доля", "breakdown", "proportion")
+        raw = (intent.raw_prompt or "").lower()
+        return any(kw in raw for kw in keywords)
+
+    def _is_temporal_query(self, intent: IntentPayload) -> bool:
+        keywords = ("по годам", "по месяцам", "по неделям", "по дням", "динамик", "менялся", "менялос", "со временем", "trend", "over time")
+        raw = (intent.raw_prompt or "").lower()
+        return any(kw in raw for kw in keywords)
 
     def _build_title(self, intent: IntentPayload, semantic: SemanticMappingPayload) -> str:
         metric_label = {

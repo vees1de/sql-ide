@@ -170,10 +170,15 @@ class QueryOrchestrationService:
             )
 
         dialect = self._resolve_dialect(db, notebook)
+        try:
+            sql_cell_schema = self.metadata_service.get_schema()
+        except Exception:  # noqa: BLE001
+            sql_cell_schema = None
         validation = self.validation_agent.run(
             sql,
             dialect,
             allowed_tables=self._resolve_allowed_tables(db, notebook),
+            schema=sql_cell_schema,
         )
         if not validation.valid:
             return self._persist_manual_sql_error_run(
@@ -295,7 +300,7 @@ class QueryOrchestrationService:
         if not plan.sql:
             return None
 
-        validation = self.validation_agent.run(plan.sql, schema.dialect, allowed_tables=allowed_tables)
+        validation = self.validation_agent.run(plan.sql, schema.dialect, allowed_tables=allowed_tables, schema=schema)
         if not validation.valid:
             if settings.analytics_uses_demo_data:
                 return None
@@ -424,6 +429,7 @@ class QueryOrchestrationService:
             sql,
             semantic.dialect,
             allowed_tables=self.metadata_service.list_table_names(),
+            schema=schema,
         )
 
         if not validation.valid:
@@ -891,8 +897,8 @@ class QueryOrchestrationService:
             y_field = numeric_columns[0]
 
         chart_type = plan.chart_type or plan.intent.visualization_preference
-        if chart_type not in {"line", "bar", "pie", "table"}:
-            chart_type = self._infer_chart_type(x_field, y_field)
+        if chart_type not in {"line", "bar", "pie", "table", "metric_card"}:
+            chart_type = self._infer_chart_type_from_prompt(prompt, x_field, y_field)
 
         if chart_type in {"line", "bar", "pie"} and (x_field is None or y_field is None):
             chart_type = "table"
@@ -957,6 +963,16 @@ class QueryOrchestrationService:
         if self._looks_temporal(x_field):
             return "line"
         return "bar"
+
+    def _infer_chart_type_from_prompt(self, prompt: str, x_field: str | None, y_field: str | None) -> str:
+        lowered = prompt.lower()
+        distribution_keywords = ("распределен", "distribution", "долю", "доля", "breakdown", "proportion")
+        temporal_keywords = ("по годам", "по месяцам", "по неделям", "по дням", "динамик", "менялся", "менялос", "со временем", "trend", "over time")
+        if any(kw in lowered for kw in distribution_keywords):
+            return "pie"
+        if any(kw in lowered for kw in temporal_keywords):
+            return "line"
+        return self._infer_chart_type(x_field, y_field)
 
     def _build_generic_insight(self, execution: QueryExecutionResult, chart_spec: ChartSpec) -> str:
         if not execution.rows:

@@ -181,7 +181,7 @@ class AnalyticsAgentService:
                 error=str(exc),
             )
 
-        validation = self.validation_agent.run(sql, dialect, allowed_tables=allowed_tables)
+        validation = self.validation_agent.run(sql, dialect, allowed_tables=allowed_tables, schema=schema)
         if not validation.valid:
             return AnalyticsPlan(
                 intent=intent,

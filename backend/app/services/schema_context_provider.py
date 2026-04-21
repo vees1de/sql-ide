@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -95,6 +95,41 @@ class SchemaContextProvider:
             relationship_graph=relationship_graph,
         )
 
+    # ------------------------------------------------------------------
+    # Value-range sampling: only for columns that look like dates/years.
+    # Helps the LLM anchor "last 30 days" / "recent" filters to data reality.
+    # ------------------------------------------------------------------
+    _DATE_NAME_HINTS = ("date", "year", "period", "season", "time", "created", "updated", "timestamp")
+    _DATE_TYPE_HINTS = ("date", "timestamp", "time")
+
+    @staticmethod
+    def _looks_like_date_column(col_name: str, col_type: str) -> bool:
+        name_lower = col_name.lower()
+        type_lower = col_type.lower()
+        if any(kw in type_lower for kw in SchemaContextProvider._DATE_TYPE_HINTS):
+            return True
+        return any(kw in name_lower for kw in SchemaContextProvider._DATE_NAME_HINTS)
+
+    @classmethod
+    def _sample_value_range(
+        cls, engine, table_name: str, col_name: str, col_type: str
+    ) -> tuple[str | None, str | None]:
+        if not cls._looks_like_date_column(col_name, col_type):
+            return None, None
+        try:
+            # Quote identifiers to preserve case sensitivity across dialects.
+            query = text(f'SELECT MIN("{col_name}") AS mn, MAX("{col_name}") AS mx FROM "{table_name}"')
+            with engine.connect() as conn:
+                row = conn.execute(query).first()
+            if row is None:
+                return None, None
+            mn = row[0]
+            mx = row[1]
+            to_str = lambda v: None if v is None else str(v)
+            return to_str(mn), to_str(mx)
+        except Exception:  # noqa: BLE001
+            return None, None
+
     def _schema_from_live_introspection(self, db: Session, database_connection_id: str) -> SchemaContext:
         dialect = resolve_dialect(db, database_connection_id)
         engine = resolve_engine(db, database_connection_id)
@@ -115,10 +150,18 @@ class SchemaContextProvider:
             if allowed_tables and table_name not in allowed_tables:
                 continue
             try:
-                columns = [
-                    ColumnMetadata(name=str(column["name"]), type=str(column["type"]))
-                    for column in inspector.get_columns(table_name)
-                ]
+                raw_columns = list(inspector.get_columns(table_name))
+                columns: list[ColumnMetadata] = []
+                for column in raw_columns:
+                    col_name = str(column["name"])
+                    col_type = str(column["type"])
+                    min_val, max_val = self._sample_value_range(engine, table_name, col_name, col_type)
+                    columns.append(ColumnMetadata(
+                        name=col_name,
+                        type=col_type,
+                        min_value=min_val,
+                        max_value=max_val,
+                    ))
             except Exception:  # noqa: BLE001
                 columns = []
             if columns:

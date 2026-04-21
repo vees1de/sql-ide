@@ -87,7 +87,52 @@ class LLMService:
             "{id:'join_via_match_table', label:'Через таблицу match', detail:'match.league_id → league.id связывает команды с лигой'}; "
             "{id:'year_2013_2015', label:'2013–2015', detail:'Три сезона'}. "
             "Write labels and details in the user's language.\n"
-            "Return this JSON shape:\n"
+            "11. SCHEMA GROUNDING — both in SQL and in clarification_options, reference ONLY tables and "
+            "columns that appear in the provided schema. Never invent a table name (e.g. do not propose "
+            "a 'player_league' bridge table if it is not listed). If no relationship exists to express "
+            "what the user asked, offer honest alternatives ('нет прямой связи — показать всё без фильтра', "
+            "'использовать косвенную связь через таблицу X') instead of fabricating structure.\n"
+            "12. SNAPSHOT / TIME-SERIES AWARENESS — if a table contains a date/timestamp column together "
+            "with a foreign-key id (e.g. `player_attributes(player_api_id, date, overall_rating)`), it is "
+            "almost always a time-series with multiple rows per entity. When joining such a table to its "
+            "parent, you MUST either: (a) pick the latest snapshot per entity via `DISTINCT ON` or a "
+            "`WHERE date = (SELECT MAX(date) ... WHERE player_api_id = ...)`, or (b) aggregate with "
+            "`GROUP BY entity` and `MAX/AVG`. Never do a plain JOIN without one of these — it silently "
+            "multiplies rows and ranks the same entity many times.\n"
+            "13. DATE REALISM — when schema columns carry `observed_range: {min,max}`, any date filter "
+            "you propose in SQL or clarification_options MUST fall within that observed range. Do NOT "
+            "use `today()` or `CURRENT_DATE - INTERVAL '2 years'` if the data ends in 2016. Prefer "
+            "absolute ranges like '2013–2015' grounded in the observed min/max.\n"
+            "14. LIMIT DEFAULTS — if the user's request uses words like 'покажи', 'найди', 'топ', 'show', "
+            "'list', 'find', 'best', 'worst' and no explicit count is given, either add `LIMIT 50` to the "
+            "SQL by default OR include a limit option (`limit_10`, `limit_50`, `limit_all`) in "
+            "clarification_options. Do NOT return thousands of rows by accident.\n"
+            "15. NULL HANDLING — when `ORDER BY ... DESC` on a nullable metric column, add `NULLS LAST` "
+            "AND a `WHERE <col> IS NOT NULL` filter, otherwise NULL rows float to the top and the output "
+            "looks broken. Same for division: always guard denominator with `NULLIF(denom, 0)` AND filter "
+            "`WHERE denom IS NOT NULL AND numerator IS NOT NULL`.\n"
+            "16. AVOID BOGUS CROSS JOIN — never `CROSS JOIN` a dimension table to a scalar subquery that "
+            "is not correlated to it. If you find yourself writing `FROM league CROSS JOIN (SELECT "
+            "COUNT(*) FROM player_attributes ...)`, you are computing the same number for every row. "
+            "Use a correlated subquery or a proper join path through a real relationship.\n"
+            "17. CHART TYPE SELECTION — always set chart_type to the most useful visualization, even "
+            "when the user did not explicitly request one. Rules for proactive chart selection:\n"
+            "  (a) EXPLICIT REQUEST — if the user explicitly names a chart type in any language, honor it: "
+            "'столбчатую диаграмму'/'bar chart'/'bar' → 'bar'; "
+            "'круговую'/'pie'/'распределение' → 'pie'; "
+            "'линейный'/'line'/'график'/'trend' → 'line'.\n"
+            "  (b) DISTRIBUTION / CATEGORICAL BREAKDOWN — when the query groups by a low-cardinality "
+            "categorical column (foot, position, country, status) and the user asks for 'распределение', "
+            "'доля', 'breakdown', 'proportion', or similar → use 'pie'.\n"
+            "  (c) TIME SERIES / TREND — when the result is grouped by a date/time column or the user "
+            "asks 'по годам', 'по месяцам', 'динамика', 'менялся', 'со временем', 'trend', 'over time' "
+            "→ use 'line'.\n"
+            "  (d) RANKING / TOP-N / COMPARISON — when the query ranks entities, finds top/best/worst, "
+            "or compares named items across a numeric metric → use 'bar'.\n"
+            "  (e) SCALAR — when the result is a single number (no GROUP BY) → use 'metric_card'.\n"
+            "  (f) FALLBACK — use 'table' only when none of the above apply or the result is inherently "
+            "multi-dimensional. Never leave chart_type null unless you truly cannot determine a useful type.\n"
+            "  Set chart_x_field and chart_y_field accordingly: x = the dimension column, y = the numeric metric column.\n"
             "{"
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
             '"filters":[{"field":"string","operator":"string","value":"any"}],'
@@ -97,7 +142,7 @@ class LLMService:
             '"clarification_question":"string|null",'
             '"clarification_options":[{"id":"string","label":"string","detail":"string|null","reason":"string|null"}],'
             '"confidence":"number","follow_up":"boolean"},'
-            '"sql":"string|null","chart_type":"line|bar|pie|table|null","chart_x_field":"string|null",'
+            '"sql":"string|null","chart_type":"line|bar|pie|table|metric_card|null","chart_x_field":"string|null",'
             '"chart_y_field":"string|null","chart_title":"string|null","warnings":["string"]}'
         )
         user_prompt = json.dumps(
@@ -293,11 +338,19 @@ class LLMService:
         return self._client
 
     def _format_schema(self, schema: SchemaMetadataResponse) -> dict[str, Any]:
+        def _column_entry(column: Any) -> dict[str, Any]:
+            entry: dict[str, Any] = {"name": column.name, "type": column.type}
+            mn = getattr(column, "min_value", None)
+            mx = getattr(column, "max_value", None)
+            if mn is not None or mx is not None:
+                entry["observed_range"] = {"min": mn, "max": mx}
+            return entry
+
         return {
             "tables": [
                 {
                     "table": table.name,
-                    "columns": [{"name": column.name, "type": column.type} for column in table.columns],
+                    "columns": [_column_entry(column) for column in table.columns],
                 }
                 for table in schema.tables
             ],

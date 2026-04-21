@@ -169,13 +169,25 @@ class IntentAgent:
         return None
 
     def _extract_visualization(self, prompt: str) -> str | None:
-        if "pie" in prompt or "круг" in prompt:
+        if "pie" in prompt or "круг" in prompt or "распределен" in prompt or "долю" in prompt or "доля" in prompt:
             return "pie"
         if "bar" in prompt or "столб" in prompt:
             return "bar"
         if "table" in prompt or "таблиц" in prompt:
             return "table"
-        if "line" in prompt or "линей" in prompt or "график" in prompt:
+        if (
+            "line" in prompt
+            or "линей" in prompt
+            or "график" in prompt
+            or "динамик" in prompt
+            or "менялся" in prompt
+            or "менялос" in prompt
+            or "со временем" in prompt
+            or "по годам" in prompt
+            or "по месяцам" in prompt
+            or "по неделям" in prompt
+            or "по дням" in prompt
+        ):
             return "line"
         return None
 
