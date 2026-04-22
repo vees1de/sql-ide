@@ -5,7 +5,7 @@
         :active-db-id="selectedDatabaseId"
         :active-session-id="chat.activeSessionId"
         :databases="chat.databases"
-        :loading="chat.loadingSessions || chat.loadingMessages"
+        :loading="chat.loadingSessions"
         mode="database"
         :sessions="chat.sessions"
         @add-database="showAddDatabase = true"
@@ -19,16 +19,12 @@
       />
     </aside>
 
-    <div class="data-shell__content">
+    <section class="data-shell__content app-route-section">
       <div class="data-view">
         <section class="data-view__panel data-view__panel--hero">
-          <div
-            class="data-view__active-db"
-            style="margin-bottom: 16px"
-            v-if="selectedDatabase"
-          >
+          <div class="data-view__active-db" style="margin-bottom: 16px">
             <span>Выбранная БД</span>
-            <strong>{{ selectedDatabase.name }}</strong>
+            <strong>{{ selectedDatabase ? selectedDatabase.name : "" }}</strong>
           </div>
           <header class="data-view__head">
             <div>
@@ -715,7 +711,7 @@
           </table>
         </section>
       </div>
-    </div>
+    </section>
 
     <AddDatabaseModal
       v-if="showAddDatabase"

@@ -1,23 +1,27 @@
 <template>
   <main class="builder-view">
     <div class="builder-view__header">
-      <input
-        v-model="title"
-        class="builder-view__title-input"
-        type="text"
-        placeholder="Dashboard title..."
-      />
+      <button
+        class="wbtn wbtn--ghost"
+        type="button"
+        @click="$router.push('/dashboards')"
+      >
+        Cancel
+      </button>
       <div class="builder-view__header-actions">
-        <button class="wbtn wbtn--ghost" type="button" @click="$router.push('/dashboards')">
-          Cancel
-        </button>
+        <input
+          v-model="title"
+          class="builder-view__title-input"
+          type="text"
+          placeholder="Dashboard title..."
+        />
         <button
           class="wbtn wbtn--primary"
           type="button"
           :disabled="!title.trim() || !selectedWidgets.length || saving"
           @click="saveDashboard"
         >
-          {{ saving ? 'Saving...' : 'Save dashboard' }}
+          {{ saving ? "Saving..." : "Save dashboard" }}
         </button>
       </div>
     </div>
@@ -59,20 +63,28 @@
             v-for="widget in filteredWidgets"
             :key="widget.id"
             class="builder-view__widget-card"
-            :class="{ 'builder-view__widget-card--selected': isSelected(widget.id) }"
+            :class="{
+              'builder-view__widget-card--selected': isSelected(widget.id),
+            }"
             @click="toggleWidget(widget)"
           >
             <span class="builder-view__widget-name">{{ widget.title }}</span>
             <span class="builder-view__widget-type">
               {{ translateVisualizationType(widget.visualization_type) }}
             </span>
-            <span v-if="isSelected(widget.id)" class="builder-view__widget-check">вњ“</span>
+            <span
+              v-if="isSelected(widget.id)"
+              class="builder-view__widget-check"
+              >вњ“</span
+            >
           </div>
         </div>
       </aside>
 
       <section class="builder-view__grid-area">
-        <div class="builder-view__section-title builder-view__section-title--pad">
+        <div
+          class="builder-view__section-title builder-view__section-title--pad"
+        >
           Preview ({{ selectedWidgets.length }} widgets)
         </div>
         <div v-if="!selectedWidgets.length" class="builder-view__grid-empty">
@@ -86,7 +98,11 @@
           >
             <div class="builder-view__grid-tile-header">
               <span>{{ item.title }}</span>
-              <button class="builder-view__remove-btn" type="button" @click="removeWidget(idx)">
+              <button
+                class="builder-view__remove-btn"
+                type="button"
+                @click="removeWidget(idx)"
+              >
                 вњ•
               </button>
             </div>
@@ -106,19 +122,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import AppSkeleton from '@/components/ui/AppSkeleton.vue';
-import { useDashboardsStore } from '@/stores/dashboards';
-import { useWidgetsStore } from '@/stores/widgets';
-import type { ApiWidgetRead } from '@/api/types';
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import AppSkeleton from "@/components/ui/AppSkeleton.vue";
+import { useDashboardsStore } from "@/stores/dashboards";
+import { useWidgetsStore } from "@/stores/widgets";
+import type { ApiWidgetRead } from "@/api/types";
 
 const router = useRouter();
 const widgetsStore = useWidgetsStore();
 const dashboardsStore = useDashboardsStore();
 
-const title = ref('');
-const search = ref('');
+const title = ref("");
+const search = ref("");
 const selectedWidgets = ref<ApiWidgetRead[]>([]);
 const saving = ref(false);
 const errorMsg = ref<string | null>(null);
@@ -135,7 +151,9 @@ function isSelected(widgetId: string) {
 
 function toggleWidget(widget: ApiWidgetRead) {
   if (isSelected(widget.id)) {
-    selectedWidgets.value = selectedWidgets.value.filter((w) => w.id !== widget.id);
+    selectedWidgets.value = selectedWidgets.value.filter(
+      (w) => w.id !== widget.id,
+    );
   } else {
     selectedWidgets.value = [...selectedWidgets.value, widget];
   }
@@ -147,18 +165,18 @@ function removeWidget(idx: number) {
 
 function translateVisualizationType(value: string) {
   switch (value) {
-    case 'table':
-      return 'Table';
-    case 'bar':
-      return 'Bar';
-    case 'line':
-      return 'Line';
-    case 'area':
-      return 'Area';
-    case 'pie':
-      return 'Pie';
-    case 'metric':
-      return 'Metric';
+    case "table":
+      return "Table";
+    case "bar":
+      return "Bar";
+    case "line":
+      return "Line";
+    case "area":
+      return "Area";
+    case "pie":
+      return "Pie";
+    case "metric":
+      return "Metric";
     default:
       return value;
   }
@@ -184,7 +202,7 @@ async function saveDashboard() {
     void router.push(`/dashboards/${dashboard.id}`);
   } catch (e) {
     errorMsg.value =
-      e instanceof Error ? e.message : 'Failed to create dashboard.';
+      e instanceof Error ? e.message : "Failed to create dashboard.";
   } finally {
     saving.value = false;
   }
@@ -439,7 +457,7 @@ onMounted(() => {
 .builder-view__sql-preview {
   font-size: 0.72rem;
   color: var(--muted);
-  font-family: 'JetBrains Mono', monospace;
+  font-family: "JetBrains Mono", monospace;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

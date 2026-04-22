@@ -20,7 +20,7 @@
           aria-label="Вдумчивый режим"
         >
           <span class="chat-input__mode-label">
-            Вдумчиво
+            Deep thinking
             <small>вкл.</small>
           </span>
           <span class="chat-input__mode-track" aria-hidden="true">
@@ -33,16 +33,16 @@
           :disabled="busy"
           @change="onModelChange"
         >
-          <option
-            v-for="alias in modelAliases"
-            :key="alias"
-            :value="alias"
-          >
+          <option v-for="alias in modelAliases" :key="alias" :value="alias">
             {{ alias }}
           </option>
         </select>
       </div>
-      <button class="chat-input__send" type="submit" :disabled="busy || !modelValue.trim()">
+      <button
+        class="chat-input__send"
+        type="submit"
+        :disabled="busy || !modelValue.trim()"
+      >
         <span v-if="busy" class="chat-input__spinner" />
         <span v-else>→</span>
       </button>
@@ -55,35 +55,35 @@ const props = withDefaults(
   defineProps<{
     modelValue: string;
     busy: boolean;
-    queryMode?: 'fast' | 'thinking';
+    queryMode?: "fast" | "thinking";
     modelAlias?: string;
     modelAliases?: string[];
     placeholder?: string;
   }>(),
   {
-    queryMode: 'fast',
-    modelAlias: 'gpt120',
-    modelAliases: () => ['gpt120'],
-    placeholder: ''
-  }
+    queryMode: "fast",
+    modelAlias: "gpt120",
+    modelAliases: () => ["gpt120"],
+    placeholder: "",
+  },
 );
 
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: string): void;
-  (event: 'update:queryMode', value: 'fast' | 'thinking'): void;
-  (event: 'update:modelAlias', value: string): void;
-  (event: 'send'): void;
+  (event: "update:modelValue", value: string): void;
+  (event: "update:queryMode", value: "fast" | "thinking"): void;
+  (event: "update:modelAlias", value: string): void;
+  (event: "send"): void;
 }>();
 
-emit('update:queryMode', 'thinking');
+emit("update:queryMode", "thinking");
 
 function onInput(event: Event) {
   const target = event.target as HTMLTextAreaElement;
-  emit('update:modelValue', target.value);
+  emit("update:modelValue", target.value);
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     event.preventDefault();
     submit();
   }
@@ -93,7 +93,7 @@ function submit() {
   if (props.busy || !props.modelValue.trim()) {
     return;
   }
-  emit('send');
+  emit("send");
 }
 
 function onModelChange(event: Event) {
@@ -102,7 +102,7 @@ function onModelChange(event: Event) {
   if (!next || next === props.modelAlias) {
     return;
   }
-  emit('update:modelAlias', next);
+  emit("update:modelAlias", next);
 }
 </script>
 
@@ -193,7 +193,9 @@ function onModelChange(event: Event) {
   padding: 1px;
   display: inline-flex;
   align-items: center;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
 }
 
 .chat-input__mode-thumb {
@@ -202,7 +204,9 @@ function onModelChange(event: Event) {
   border-radius: 50%;
   background: var(--muted);
   transform: translateX(0);
-  transition: transform 140ms ease, background 140ms ease;
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
 }
 
 .chat-input__mode--active {
@@ -263,7 +267,9 @@ function onModelChange(event: Event) {
 }
 
 @keyframes chat-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 940px) {

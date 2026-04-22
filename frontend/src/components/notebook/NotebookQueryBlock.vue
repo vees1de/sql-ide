@@ -4,7 +4,7 @@
     :class="{
       'query-block--selected': isInputSelected,
       'query-block--running': running,
-      'query-block--sql': isSqlBlock
+      'query-block--sql': isSqlBlock,
     }"
     draggable="true"
     @dragstart="onDragStart"
@@ -22,7 +22,7 @@
           <span></span>
         </button>
         <span class="pill" :class="isSqlBlock ? 'pill--link' : 'pill--accent'">
-          {{ isSqlBlock ? 'SQL' : 'Запрос' }}
+          {{ isSqlBlock ? "SQL" : "Запрос" }}
         </span>
         <div>
           <strong>{{ blockTitle }}</strong>
@@ -32,7 +32,11 @@
       </div>
 
       <div class="query-block__actions">
-        <div class="query-block__mode-switch" role="group" aria-label="Режим запроса">
+        <div
+          class="query-block__mode-switch"
+          role="group"
+          aria-label="Режим запроса"
+        >
           <button
             class="query-block__mode-btn"
             :class="{ 'query-block__mode-btn--active': currentMode === 'fast' }"
@@ -44,12 +48,14 @@
           </button>
           <button
             class="query-block__mode-btn"
-            :class="{ 'query-block__mode-btn--active': currentMode === 'thinking' }"
+            :class="{
+              'query-block__mode-btn--active': currentMode === 'thinking',
+            }"
             type="button"
             :disabled="running"
             @click="setMode('thinking')"
           >
-            🧠 Вдумчиво
+            🧠 Deep thinking
           </button>
         </div>
         <div class="query-block__model">
@@ -69,8 +75,12 @@
             </option>
           </select>
         </div>
-        <span v-if="rowCountLabel" class="pill pill--ghost">{{ rowCountLabel }}</span>
-        <span v-if="executionTimeLabel" class="pill pill--ghost">{{ executionTimeLabel }}</span>
+        <span v-if="rowCountLabel" class="pill pill--ghost">{{
+          rowCountLabel
+        }}</span>
+        <span v-if="executionTimeLabel" class="pill pill--ghost">{{
+          executionTimeLabel
+        }}</span>
         <button
           class="app-button app-button--ghost app-button--tiny"
           type="button"
@@ -101,7 +111,11 @@
           :disabled="running"
           @click="runCellIn('fast')"
         >
-          {{ running && currentMode === 'fast' ? 'Выполняю…' : 'Запустить в режиме ⚡ Быстро' }}
+          {{
+            running && currentMode === "fast"
+              ? "Выполняю…"
+              : "Запустить в режиме ⚡ Быстро"
+          }}
         </button>
         <button
           class="app-button app-button--tiny"
@@ -109,12 +123,19 @@
           :disabled="running"
           @click="runCellIn('thinking')"
         >
-          {{ running && currentMode === 'thinking' ? 'Выполняю…' : 'Запустить в режиме 🧠 Вдумчиво' }}
+          {{
+            running && currentMode === "thinking"
+              ? "Выполняю…"
+              : "Запустить в режиме 🧠 Deep thinking"
+          }}
         </button>
       </div>
     </header>
 
-    <div class="query-block__editor" @click="$emit('select-cell', block.inputCell.id)">
+    <div
+      class="query-block__editor"
+      @click="$emit('select-cell', block.inputCell.id)"
+    >
       <textarea
         :value="draftValue"
         class="query-block__textarea"
@@ -135,7 +156,10 @@
     <section
       v-if="generatedSqlCell"
       class="query-block__section"
-      :class="{ 'query-block__section--selected': selectedCellId === generatedSqlCell.id }"
+      :class="{
+        'query-block__section--selected':
+          selectedCellId === generatedSqlCell.id,
+      }"
       @click="$emit('select-cell', generatedSqlCell.id)"
     >
       <div class="query-block__section-label">Сгенерированный SQL</div>
@@ -149,7 +173,11 @@
     >
       <div class="query-block__result-head">
         <div class="query-block__section-label">Результат</div>
-        <div class="query-block__tabs" role="tablist" aria-label="Вид результата">
+        <div
+          class="query-block__tabs"
+          role="tablist"
+          aria-label="Вид результата"
+        >
           <button
             v-if="block.tableCell"
             class="query-block__tab"
@@ -186,21 +214,29 @@
     <section
       v-if="block.clarificationCell"
       class="query-block__section"
-      :class="{ 'query-block__section--selected': selectedCellId === block.clarificationCell.id }"
+      :class="{
+        'query-block__section--selected':
+          selectedCellId === block.clarificationCell.id,
+      }"
       @click.self="$emit('select-cell', block.clarificationCell.id)"
     >
       <div class="query-block__section-label">Уточнение / Ошибка</div>
       <ClarificationCell
         :content="clarificationContent(block.clarificationCell)"
         :selected-answer="clarificationAnswers[block.clarificationCell.id]"
-        @answer="$emit('answer-clarification', block.clarificationCell.id, $event)"
+        @answer="
+          $emit('answer-clarification', block.clarificationCell.id, $event)
+        "
       />
     </section>
 
     <section
       v-if="block.insightCell"
       class="query-block__section"
-      :class="{ 'query-block__section--selected': selectedCellId === block.insightCell.id }"
+      :class="{
+        'query-block__section--selected':
+          selectedCellId === block.insightCell.id,
+      }"
       @click="$emit('select-cell', block.insightCell.id)"
     >
       <div class="query-block__section-label">Вывод</div>
@@ -210,12 +246,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import ChartCell from '@/components/cells/ChartCell.vue';
-import ClarificationCell from '@/components/cells/ClarificationCell.vue';
-import InsightCell from '@/components/cells/InsightCell.vue';
-import SQLCell from '@/components/cells/SQLCell.vue';
-import TableCell from '@/components/cells/TableCell.vue';
+import { computed, ref, watch } from "vue";
+import ChartCell from "@/components/cells/ChartCell.vue";
+import ClarificationCell from "@/components/cells/ClarificationCell.vue";
+import InsightCell from "@/components/cells/InsightCell.vue";
+import SQLCell from "@/components/cells/SQLCell.vue";
+import TableCell from "@/components/cells/TableCell.vue";
 import type {
   ChartCellContent,
   ClarificationCellContent,
@@ -224,8 +260,8 @@ import type {
   NotebookQueryBlock,
   QueryMode,
   SqlCellContent,
-  TableCellContent
-} from '@/types/app';
+  TableCellContent,
+} from "@/types/app";
 
 const props = defineProps<{
   block: NotebookQueryBlock;
@@ -239,55 +275,77 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: 'answer-clarification', cellId: string, optionId: string): void;
-  (event: 'drag-end'): void;
-  (event: 'drag-start', cellId: string): void;
-  (event: 'format-sql-cell', cellId: string, value: string): void;
-  (event: 'move-down', cellId: string): void;
-  (event: 'move-up', cellId: string): void;
-  (event: 'run-input-cell', cellId: string, value: string, mode: QueryMode, llmModelAlias?: string): void;
-  (event: 'save-input-cell', cellId: string, value: string, mode?: QueryMode, llmModelAlias?: string): void;
-  (event: 'set-input-model', cellId: string, llmModelAlias: string): void;
-  (event: 'set-input-mode', cellId: string, mode: QueryMode): void;
-  (event: 'select-cell', cellId: string): void;
+  (event: "answer-clarification", cellId: string, optionId: string): void;
+  (event: "drag-end"): void;
+  (event: "drag-start", cellId: string): void;
+  (event: "format-sql-cell", cellId: string, value: string): void;
+  (event: "move-down", cellId: string): void;
+  (event: "move-up", cellId: string): void;
+  (
+    event: "run-input-cell",
+    cellId: string,
+    value: string,
+    mode: QueryMode,
+    llmModelAlias?: string,
+  ): void;
+  (
+    event: "save-input-cell",
+    cellId: string,
+    value: string,
+    mode?: QueryMode,
+    llmModelAlias?: string,
+  ): void;
+  (event: "set-input-model", cellId: string, llmModelAlias: string): void;
+  (event: "set-input-mode", cellId: string, mode: QueryMode): void;
+  (event: "select-cell", cellId: string): void;
 }>();
 
-const activeResultTab = ref<'table' | 'chart'>('table');
-const draftValue = ref('');
-const currentMode = ref<QueryMode>('fast');
-const currentModelAlias = ref('');
+const activeResultTab = ref<"table" | "chart">("table");
+const draftValue = ref("");
+const currentMode = ref<QueryMode>("fast");
+const currentModelAlias = ref("");
 const dirty = ref(false);
 
-const isSqlBlock = computed(() => props.block.inputCell.type === 'sql');
-const generatedSqlCell = computed(() => (isSqlBlock.value ? undefined : props.block.sqlCell));
-const isInputSelected = computed(() => props.selectedCellId === props.block.inputCell.id);
+const isSqlBlock = computed(() => props.block.inputCell.type === "sql");
+const generatedSqlCell = computed(() =>
+  isSqlBlock.value ? undefined : props.block.sqlCell,
+);
+const isInputSelected = computed(
+  () => props.selectedCellId === props.block.inputCell.id,
+);
 const isResultSelected = computed(
   () =>
     props.selectedCellId === props.block.tableCell?.id ||
-    props.selectedCellId === props.block.chartCell?.id
+    props.selectedCellId === props.block.chartCell?.id,
 );
-const hasResultTabs = computed(() => Boolean(props.block.tableCell || props.block.chartCell));
+const hasResultTabs = computed(() =>
+  Boolean(props.block.tableCell || props.block.chartCell),
+);
 
 const blockTitle = computed(() =>
-  isSqlBlock.value ? 'Редактируемый SQL-блок' : 'Блок запроса → SQL'
+  isSqlBlock.value ? "Редактируемый SQL-блок" : "Блок запроса → SQL",
 );
 
 const blockSubtitle = computed(() =>
   isSqlBlock.value
-    ? 'Как в Colab: редактирование, форматирование и запуск из одной ячейки.'
-    : 'Редактируйте запрос на естественном языке и перезапускайте блок.'
+    ? "Как в Colab: редактирование, форматирование и запуск из одной ячейки."
+    : "Редактируйте запрос на естественном языке и перезапускайте блок.",
 );
 
-const modeLabel = computed(() => (currentMode.value === 'thinking' ? '🧠 Вдумчиво' : '⚡ Быстро'));
+const modeLabel = computed(() =>
+  currentMode.value === "thinking" ? "🧠 Deep thinking" : "⚡ Быстро",
+);
 
 const placeholder = computed(() =>
   isSqlBlock.value
-    ? 'SELECT region, SUM(revenue) AS revenue\nFROM orders\nGROUP BY region\nORDER BY revenue DESC'
-    : 'Например: Покажи выручку по регионам за текущий квартал'
+    ? "SELECT region, SUM(revenue) AS revenue\nFROM orders\nGROUP BY region\nORDER BY revenue DESC"
+    : "Например: Покажи выручку по регионам за текущий квартал",
 );
 
 const helperText = computed(() =>
-  isSqlBlock.value ? 'Cmd/Ctrl + Enter запускает SQL' : 'Cmd/Ctrl + Enter запускает запрос'
+  isSqlBlock.value
+    ? "Cmd/Ctrl + Enter запускает SQL"
+    : "Cmd/Ctrl + Enter запускает запрос",
 );
 
 const rowCountLabel = computed(() => {
@@ -296,7 +354,7 @@ const rowCountLabel = computed(() => {
     props.block.chartCell?.meta.rowCount ??
     props.block.inputCell.meta.rowCount;
 
-  return typeof rowCount === 'number' ? `${rowCount} строк` : null;
+  return typeof rowCount === "number" ? `${rowCount} строк` : null;
 });
 
 const executionTimeLabel = computed(() => {
@@ -305,33 +363,44 @@ const executionTimeLabel = computed(() => {
     props.block.chartCell?.meta.executionTimeMs ??
     props.block.inputCell.meta.executionTimeMs;
 
-  return typeof executionMs === 'number' && executionMs > 0 ? `${executionMs} мс` : null;
+  return typeof executionMs === "number" && executionMs > 0
+    ? `${executionMs} мс`
+    : null;
 });
 
 const editorRows = computed(() => {
-  const lineCount = Math.max(draftValue.value.split('\n').length, isSqlBlock.value ? 6 : 3);
+  const lineCount = Math.max(
+    draftValue.value.split("\n").length,
+    isSqlBlock.value ? 6 : 3,
+  );
   return Math.min(lineCount + 1, 18);
 });
 
 function extractInputValue(cell: NotebookCell) {
-  if (cell.type === 'sql') {
-    return (cell.content as SqlCellContent).sql ?? '';
+  if (cell.type === "sql") {
+    return (cell.content as SqlCellContent).sql ?? "";
   }
-  return String((cell.content as { prompt?: string }).prompt ?? '');
+  return String((cell.content as { prompt?: string }).prompt ?? "");
 }
 
 function extractInputMode(cell: NotebookCell): QueryMode {
-  if (cell.type === 'sql') {
-    return (cell.content as SqlCellContent).queryMode ?? 'fast';
+  if (cell.type === "sql") {
+    return (cell.content as SqlCellContent).queryMode ?? "fast";
   }
-  return (cell.content as { queryMode?: QueryMode }).queryMode ?? 'fast';
+  return (cell.content as { queryMode?: QueryMode }).queryMode ?? "fast";
 }
 
 function extractInputModelAlias(cell: NotebookCell): string {
-  if (cell.type === 'sql') {
-    return (cell.content as SqlCellContent).llmModelAlias ?? props.defaultLlmModelAlias;
+  if (cell.type === "sql") {
+    return (
+      (cell.content as SqlCellContent).llmModelAlias ??
+      props.defaultLlmModelAlias
+    );
   }
-  return (cell.content as { llmModelAlias?: string }).llmModelAlias ?? props.defaultLlmModelAlias;
+  return (
+    (cell.content as { llmModelAlias?: string }).llmModelAlias ??
+    props.defaultLlmModelAlias
+  );
 }
 
 function syncDraftFromCell() {
@@ -354,22 +423,22 @@ function saveCell() {
   }
   dirty.value = false;
   emit(
-    'save-input-cell',
+    "save-input-cell",
     props.block.inputCell.id,
     draftValue.value,
     currentMode.value,
-    currentModelAlias.value
+    currentModelAlias.value,
   );
 }
 
 function runCell() {
   dirty.value = false;
   emit(
-    'run-input-cell',
+    "run-input-cell",
     props.block.inputCell.id,
     draftValue.value,
     currentMode.value,
-    currentModelAlias.value
+    currentModelAlias.value,
   );
 }
 
@@ -380,7 +449,7 @@ function runFromHotkey(event: KeyboardEvent) {
 
 function formatSql() {
   dirty.value = false;
-  emit('format-sql-cell', props.block.inputCell.id, draftValue.value);
+  emit("format-sql-cell", props.block.inputCell.id, draftValue.value);
 }
 
 function setMode(mode: QueryMode, persist = true) {
@@ -389,7 +458,7 @@ function setMode(mode: QueryMode, persist = true) {
   }
   currentMode.value = mode;
   if (persist) {
-    emit('set-input-mode', props.block.inputCell.id, mode);
+    emit("set-input-mode", props.block.inputCell.id, mode);
   }
 }
 
@@ -398,7 +467,13 @@ function runCellIn(mode: QueryMode) {
     setMode(mode, false);
   }
   dirty.value = false;
-  emit('run-input-cell', props.block.inputCell.id, draftValue.value, mode, currentModelAlias.value);
+  emit(
+    "run-input-cell",
+    props.block.inputCell.id,
+    draftValue.value,
+    mode,
+    currentModelAlias.value,
+  );
 }
 
 function onModelChange(event: Event) {
@@ -408,43 +483,43 @@ function onModelChange(event: Event) {
     return;
   }
   currentModelAlias.value = nextAlias;
-  emit('set-input-model', props.block.inputCell.id, nextAlias);
+  emit("set-input-model", props.block.inputCell.id, nextAlias);
 }
 
 function onDragStart(event: DragEvent) {
-  event.dataTransfer?.setData('text/plain', props.block.inputCell.id);
+  event.dataTransfer?.setData("text/plain", props.block.inputCell.id);
   event.dataTransfer?.setDragImage(event.currentTarget as HTMLElement, 24, 24);
-  emit('drag-start', props.block.inputCell.id);
+  emit("drag-start", props.block.inputCell.id);
 }
 
 function setDefaultResultTab() {
   if (props.block.tableCell) {
-    activeResultTab.value = 'table';
+    activeResultTab.value = "table";
     return;
   }
   if (props.block.chartCell) {
-    activeResultTab.value = 'chart';
+    activeResultTab.value = "chart";
   }
 }
 
-function setResultTab(tab: 'table' | 'chart') {
+function setResultTab(tab: "table" | "chart") {
   activeResultTab.value = tab;
-  if (tab === 'table' && props.block.tableCell) {
-    emit('select-cell', props.block.tableCell.id);
+  if (tab === "table" && props.block.tableCell) {
+    emit("select-cell", props.block.tableCell.id);
     return;
   }
-  if (tab === 'chart' && props.block.chartCell) {
-    emit('select-cell', props.block.chartCell.id);
+  if (tab === "chart" && props.block.chartCell) {
+    emit("select-cell", props.block.chartCell.id);
   }
 }
 
 function selectActiveResultCell() {
-  if (activeResultTab.value === 'table' && props.block.tableCell) {
-    emit('select-cell', props.block.tableCell.id);
+  if (activeResultTab.value === "table" && props.block.tableCell) {
+    emit("select-cell", props.block.tableCell.id);
     return;
   }
-  if (activeResultTab.value === 'chart' && props.block.chartCell) {
-    emit('select-cell', props.block.chartCell.id);
+  if (activeResultTab.value === "chart" && props.block.chartCell) {
+    emit("select-cell", props.block.chartCell.id);
   }
 }
 
@@ -473,20 +548,21 @@ watch(
     props.block.inputCell.id,
     extractInputValue(props.block.inputCell),
     extractInputMode(props.block.inputCell),
-    extractInputModelAlias(props.block.inputCell)
+    extractInputModelAlias(props.block.inputCell),
   ],
   () => {
     syncDraftFromCell();
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 watch(
-  () => `${props.block.id}:${Boolean(props.block.tableCell)}:${Boolean(props.block.chartCell)}`,
+  () =>
+    `${props.block.id}:${Boolean(props.block.tableCell)}:${Boolean(props.block.chartCell)}`,
   () => {
     setDefaultResultTab();
   },
-  { immediate: true }
+  { immediate: true },
 );
 </script>
 
@@ -494,10 +570,17 @@ watch(
 .query-block {
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.015)
+  );
   box-shadow: var(--shadow-soft);
   padding: 1rem 1.05rem;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .query-block:hover {
@@ -506,12 +589,16 @@ watch(
 
 .query-block--selected {
   border-color: rgba(138, 180, 248, 0.45);
-  box-shadow: 0 0 0 1px rgba(138, 180, 248, 0.18), var(--shadow-soft);
+  box-shadow:
+    0 0 0 1px rgba(138, 180, 248, 0.18),
+    var(--shadow-soft);
 }
 
 .query-block--running {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft), var(--shadow-soft);
+  box-shadow:
+    0 0 0 1px var(--accent-soft),
+    var(--shadow-soft);
 }
 
 .query-block__header,

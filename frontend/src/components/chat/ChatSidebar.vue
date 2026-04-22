@@ -31,7 +31,7 @@
           <div>
             <p class="chat-sidebar__eyebrow">Навигатор</p>
             <h2 class="chat-sidebar__title">
-              {{ isDatabaseMode ? "Базы данных" : "Чаты" }}
+              {{ sectionTitle }}
             </h2>
           </div>
 
@@ -79,62 +79,7 @@
           />
         </div>
 
-        <template v-if="loading">
-          <div class="chat-sidebar__tree chat-sidebar__tree--skeleton">
-            <template v-if="isChatMode">
-              <div
-                v-for="group in 3"
-                :key="`chat-skeleton-${group}`"
-                class="chat-sidebar__folder chat-sidebar__folder--skeleton"
-              >
-                <div class="chat-sidebar__folder-head chat-sidebar__folder-head--skeleton">
-                  <AppSkeleton width="14px" height="14px" radius="6px" />
-                  <AppSkeleton width="14px" height="14px" radius="6px" />
-                  <AppSkeleton class="chat-sidebar__folder-name-skeleton" height="0.84rem" radius="6px" />
-                  <AppSkeleton width="78px" height="0.72rem" radius="5px" />
-                </div>
-                <div class="chat-sidebar__folder-body">
-                  <div class="chat-sidebar__session-list">
-                    <div
-                      v-for="session in 2"
-                      :key="`chat-skeleton-session-${group}-${session}`"
-                      class="chat-sidebar__session chat-sidebar__session--skeleton"
-                    >
-                      <AppSkeleton width="14px" height="14px" radius="6px" />
-                      <div class="chat-sidebar__session-text">
-                        <AppSkeleton height="0.82rem" width="58%" radius="6px" />
-                        <AppSkeleton height="0.68rem" width="74%" radius="5px" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <template v-else>
-              <div
-                v-for="row in 5"
-                :key="`sidebar-skeleton-row-${row}`"
-                class="chat-sidebar__db-row chat-sidebar__db-row--skeleton"
-              >
-                <AppSkeleton width="14px" height="14px" radius="6px" />
-                <div class="chat-sidebar__db-text">
-                  <AppSkeleton height="0.88rem" width="54%" radius="6px" />
-                  <AppSkeleton height="0.72rem" width="72%" radius="5px" />
-                </div>
-                <div class="chat-sidebar__db-meta">
-                  <AppSkeleton width="60px" height="20px" radius="999px" />
-                  <AppSkeleton width="42px" height="0.66rem" radius="5px" />
-                </div>
-                <div class="chat-sidebar__db-actions">
-                  <AppSkeleton width="22px" height="22px" radius="6px" />
-                </div>
-              </div>
-            </template>
-          </div>
-        </template>
-
-        <div v-else-if="false" class="chat-sidebar__state">
+        <div v-if="showLoadingState" class="chat-sidebar__state">
           {{
             isDatabaseMode
               ? "Загружаю список баз…"
@@ -310,7 +255,7 @@
                 </svg>
               </span>
 
-                <span class="chat-sidebar__db-text">
+              <span class="chat-sidebar__db-text">
                 <span class="chat-sidebar__db-name">{{ database.name }}</span>
                 <span class="chat-sidebar__db-sub">
                   {{ database.dialect }}
@@ -328,7 +273,11 @@
                   class="chat-sidebar__db-pill"
                   :class="`chat-sidebar__db-pill--${database.status}`"
                 >
-                  {{ translateDatabaseStatus(database.knowledge_status || database.status) }}
+                  {{
+                    translateDatabaseStatus(
+                      database.knowledge_status || database.status,
+                    )
+                  }}
                 </span>
                 <span
                   v-if="database.last_scan_at"
@@ -474,9 +423,9 @@
                     }"
                     role="button"
                     tabindex="0"
-                    @click="$emit('select-session', session.id)"
-                    @keydown.enter.prevent="$emit('select-session', session.id)"
-                    @keydown.space.prevent="$emit('select-session', session.id)"
+                    @click="selectSession(session.id)"
+                    @keydown.enter.prevent="selectSession(session.id)"
+                    @keydown.space.prevent="selectSession(session.id)"
                   >
                     <span class="chat-sidebar__session-icon" aria-hidden="true">
                       <svg
@@ -564,8 +513,8 @@
       <button
         class="chat-sidebar__footer-btn"
         type="button"
-        title="Настройки"
-        aria-label="Настройки"
+        title="Источники"
+        aria-label="Источники"
       >
         <svg
           viewBox="0 0 24 24"
@@ -591,7 +540,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import AppSkeleton from "@/components/ui/AppSkeleton.vue";
 import type {
   ApiChatSessionRead,
   ApiDashboardRead,
@@ -631,15 +579,18 @@ const query = ref("");
 const openIds = ref<Set<string>>(new Set());
 const isDatabaseMode = computed(() => props.mode === "database");
 const isDashboardsMode = computed(() => props.mode === "dashboards");
-const isChatMode = computed(
-  () => !isDatabaseMode.value && !isDashboardsMode.value,
-);
 const dashboardView = computed(() => props.dashboardView ?? "dashboards");
+const sectionTitleByMode = {
+  chat: "Чаты",
+  database: "Базы данных",
+  dashboards: "Дашборды",
+} as const;
+const sectionTitle = computed(() => sectionTitleByMode[props.mode ?? "chat"]);
 
 const navItems = [
   { to: "/chat", label: "Чат", key: "chat" as const },
   { to: "/dashboards", label: "Дашборды", key: "dashboards" as const },
-  { to: "/data", label: "Настройки", key: "data" as const },
+  { to: "/data", label: "Источники", key: "data" as const },
 ];
 
 const normalizedQuery = computed(() => query.value.trim().toLowerCase());
@@ -697,6 +648,32 @@ const dashboardItems = computed(() =>
     ? (props.widgets ?? [])
     : (props.dashboards ?? []),
 );
+
+const hasSessionsForActiveDatabase = computed(() => {
+  if (!props.activeDbId) {
+    return props.sessions.length > 0;
+  }
+
+  return props.sessions.some(
+    (session) => session.database_connection_id === props.activeDbId,
+  );
+});
+
+const showLoadingState = computed(() => {
+  if (!props.loading) {
+    return false;
+  }
+
+  if (isDashboardsMode.value) {
+    return dashboardItems.value.length === 0;
+  }
+
+  if (isDatabaseMode.value) {
+    return props.databases.length === 0;
+  }
+
+  return props.databases.length === 0 || !hasSessionsForActiveDatabase.value;
+});
 
 const filteredDashboardItems = computed(() => {
   const q = normalizedQuery.value;
@@ -814,6 +791,14 @@ function selectDatabase(id: string) {
   emit("select-database", id);
 }
 
+function selectSession(sessionId: string) {
+  if (!sessionId || sessionId === props.activeSessionId) {
+    return;
+  }
+
+  emit("select-session", sessionId);
+}
+
 function toggleDashboardView() {
   emit(
     "update:dashboardView",
@@ -848,7 +833,9 @@ function isDashboardItemHidden(item: DashboardItem) {
 }
 
 function widgetVisualizationLabel(item: DashboardItem) {
-  return isWidgetItem(item) ? translateVisualizationType(item.visualization_type) : "";
+  return isWidgetItem(item)
+    ? translateVisualizationType(item.visualization_type)
+    : "";
 }
 
 function itemTitle(item: DashboardItem) {
@@ -1143,15 +1130,15 @@ function formatTime(value: string) {
   padding-right: 2px;
 }
 
-.chat-sidebar__tree--skeleton {
-  padding-right: 0;
-}
-
 .chat-sidebar__db-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon text actions"
+    "icon meta actions";
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: start;
   width: 100%;
   padding: 0.7rem 0.75rem;
   border: 1px solid transparent;
@@ -1163,10 +1150,6 @@ function formatTime(value: string) {
     background 140ms ease,
     border-color 140ms ease,
     transform 140ms ease;
-}
-
-.chat-sidebar__db-row--skeleton {
-  pointer-events: none;
 }
 
 .chat-sidebar__db-row:hover:not(.chat-sidebar__db-row--active) {
@@ -1184,16 +1167,20 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__db-icon {
+  grid-area: icon;
   color: var(--accent);
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .chat-sidebar__db-text {
+  grid-area: text;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  align-self: center;
 }
 
 .chat-sidebar__db-name {
@@ -1209,16 +1196,20 @@ function formatTime(value: string) {
   color: var(--muted-2);
   font-size: 0.72rem;
   line-height: 1.35;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .chat-sidebar__db-meta {
+  grid-area: meta;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px 8px;
   min-width: 0;
 }
 
@@ -1252,9 +1243,11 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__db-actions {
+  grid-area: actions;
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .chat-sidebar__folder {
@@ -1265,10 +1258,6 @@ function formatTime(value: string) {
   overflow: hidden;
   background: rgba(255, 255, 255, 0.02);
   min-height: 0;
-}
-
-.chat-sidebar__folder--skeleton {
-  pointer-events: none;
 }
 
 .chat-sidebar__folder--active {
@@ -1291,11 +1280,8 @@ function formatTime(value: string) {
   transition: background 140ms ease;
 }
 
-.chat-sidebar__folder-head--skeleton {
-  pointer-events: none;
-}
-
-.chat-sidebar__folder:not(.chat-sidebar__folder--active) .chat-sidebar__folder-head:hover {
+.chat-sidebar__folder:not(.chat-sidebar__folder--active)
+  .chat-sidebar__folder-head:hover {
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -1325,10 +1311,6 @@ function formatTime(value: string) {
   text-overflow: ellipsis;
 }
 
-.chat-sidebar__folder-name-skeleton {
-  flex: 1;
-}
-
 .chat-sidebar__folder-meta {
   flex: 0 1 42%;
   min-width: 0;
@@ -1349,7 +1331,8 @@ function formatTime(value: string) {
   padding: 0 0.6rem 0.65rem 1.2rem;
 }
 
-.chat-sidebar__folder--active.chat-sidebar__folder--open .chat-sidebar__folder-body {
+.chat-sidebar__folder--active.chat-sidebar__folder--open
+  .chat-sidebar__folder-body {
   max-height: min(42vh, 24rem);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1386,10 +1369,6 @@ function formatTime(value: string) {
     color 140ms ease,
     transform 140ms ease;
   cursor: pointer;
-}
-
-.chat-sidebar__session--skeleton {
-  pointer-events: none;
 }
 
 .chat-sidebar__session:hover:not(.chat-sidebar__session--active) {

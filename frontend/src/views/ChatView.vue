@@ -5,7 +5,7 @@
         :active-db-id="chat.activeDbId"
         :active-session-id="chat.activeSessionId"
         :databases="chat.databases"
-        :loading="chat.loadingSessions || chat.loadingMessages"
+        :loading="chat.loadingSessions"
         mode="chat"
         :sessions="chat.sessions"
         @create-session="createSession"
@@ -15,7 +15,7 @@
         @select-session="selectSession"
       />
 
-      <div class="chat-view__panels" ref="panelsEl">
+      <section class="chat-view__panels app-route-section" ref="panelsEl">
         <template v-if="!panelSwapped">
           <div class="chat-view__center-area" ref="centerPanelEl">
             <template v-if="!centerPanelSwapped">
@@ -227,7 +227,7 @@
             </template>
           </div>
         </template>
-      </div>
+      </section>
     </div>
   </main>
 </template>

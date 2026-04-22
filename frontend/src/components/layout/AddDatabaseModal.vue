@@ -341,7 +341,7 @@ function submit() {
 }
 
 .modal {
-  width: min(560px, 100%);
+  width: fit-content;
   max-height: calc(100vh - 3rem);
   overflow-y: auto;
   background: var(--surface);
@@ -406,7 +406,6 @@ function submit() {
 
 .preset:hover {
   border-color: var(--accent);
-  background: rgba(249, 171, 0, 0.06);
 }
 
 .preset strong {
@@ -449,7 +448,6 @@ function submit() {
 .form select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(249, 171, 0, 0.18);
 }
 
 .form__row {

@@ -9,15 +9,21 @@
       >
         <span class="chat-assistant-message__reasoning-label">
           Логика ответа
-          <small>{{ reasoningCollapsed ? 'показать' : 'скрыть' }}</small>
+          <small>{{ reasoningCollapsed ? "показать" : "скрыть" }}</small>
         </span>
         <span class="chat-assistant-message__reasoning-icon" aria-hidden="true">
-          {{ reasoningCollapsed ? '▾' : '▴' }}
+          {{ reasoningCollapsed ? "▾" : "▴" }}
         </span>
       </button>
 
-      <div v-show="!reasoningCollapsed" class="chat-assistant-message__reasoning-body">
-        <div v-if="reasoningLines.length" class="chat-assistant-message__reasoning-lines">
+      <div
+        v-show="!reasoningCollapsed"
+        class="chat-assistant-message__reasoning-body"
+      >
+        <div
+          v-if="reasoningLines.length"
+          class="chat-assistant-message__reasoning-lines"
+        >
           <p v-for="line in reasoningLines" :key="line">{{ line }}</p>
         </div>
       </div>
@@ -25,9 +31,15 @@
 
     <p class="chat-assistant-message__text">{{ message.text }}</p>
 
-    <div v-if="payload?.clarification_question" class="chat-assistant-message__clarification">
+    <div
+      v-if="payload?.clarification_question"
+      class="chat-assistant-message__clarification"
+    >
       <p>{{ payload.clarification_question }}</p>
-      <div v-if="payload.clarification_options?.length" class="chat-assistant-message__chips">
+      <div
+        v-if="payload.clarification_options?.length"
+        class="chat-assistant-message__chips"
+      >
         <button
           v-for="option in payload.clarification_options"
           :key="option.id"
@@ -42,7 +54,9 @@
 
     <section v-if="payload?.sql" class="chat-assistant-message__sql">
       <SQLCell :content="sqlCellContent" :collapsed="sqlCollapsed" />
-      <div class="chat-assistant-message__actions chat-assistant-message__actions--below">
+      <div
+        class="chat-assistant-message__actions chat-assistant-message__actions--below"
+      >
         <button
           class="chat-assistant-message__btn"
           type="button"
@@ -55,7 +69,7 @@
           type="button"
           @click="sqlCollapsed = !sqlCollapsed"
         >
-          {{ sqlCollapsed ? 'Показать SQL' : 'Скрыть SQL' }}
+          {{ sqlCollapsed ? "Показать SQL" : "Скрыть SQL" }}
         </button>
         <button
           v-if="payload?.mode_suggestion && payload.mode_suggestion_reason"
@@ -63,7 +77,9 @@
           type="button"
           @click="$emit('switch-mode', payload.mode_suggestion)"
         >
-          {{ payload.mode_suggestion === 'thinking' ? 'Вдумчиво' : 'Быстро' }}
+          {{
+            payload.mode_suggestion === "thinking" ? "Deep thinking" : "Быстро"
+          }}
         </button>
       </div>
     </section>
@@ -71,25 +87,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import SQLCell from '@/components/cells/SQLCell.vue';
+import { computed, ref, watch } from "vue";
+import SQLCell from "@/components/cells/SQLCell.vue";
 import type {
   ApiChatMessageRead,
   ApiChatStructuredPayload,
-  ApiQueryMode
-} from '@/api/types';
+  ApiQueryMode,
+} from "@/api/types";
 
 const props = defineProps<{
   message: ApiChatMessageRead;
 }>();
 
 defineEmits<{
-  (event: 'apply-sql', sql: string): void;
-  (event: 'clarification', answer: string): void;
-  (event: 'switch-mode', mode: ApiQueryMode): void;
+  (event: "apply-sql", sql: string): void;
+  (event: "clarification", answer: string): void;
+  (event: "switch-mode", mode: ApiQueryMode): void;
 }>();
 
-const payload = computed<ApiChatStructuredPayload | null>(() => props.message.structured_payload);
+const payload = computed<ApiChatStructuredPayload | null>(
+  () => props.message.structured_payload,
+);
 const sqlCollapsed = ref(false);
 const reasoningCollapsed = ref(true);
 
@@ -97,19 +115,21 @@ watch(
   () => payload.value?.sql,
   () => {
     sqlCollapsed.value = false;
-  }
+  },
 );
 
 watch(
   () => props.message.id,
   () => {
     reasoningCollapsed.value = true;
-  }
+  },
 );
 
 const warnings = computed(() => [
   ...(payload.value?.warnings ?? []),
-  ...(payload.value?.interpretation.ambiguities ?? []).map((item) => `Неоднозначность: ${item.replaceAll('_', ' ')}`)
+  ...(payload.value?.interpretation.ambiguities ?? []).map(
+    (item) => `Неоднозначность: ${item.replaceAll("_", " ")}`,
+  ),
 ]);
 
 const reasoningLines = computed(() => {
@@ -121,7 +141,7 @@ const reasoningLines = computed(() => {
   }
 
   if (interpretation?.dimensions?.length) {
-    lines.push(`Измерения: ${interpretation.dimensions.join(', ')}`);
+    lines.push(`Измерения: ${interpretation.dimensions.join(", ")}`);
   }
 
   if (interpretation?.date_range) {
@@ -133,25 +153,28 @@ const reasoningLines = computed(() => {
       parts.push(`по ${interpretation.date_range.end}`);
     }
     if (parts.length) {
-      lines.push(`Период: ${parts.join(' ')}`);
+      lines.push(`Период: ${parts.join(" ")}`);
     }
   }
 
   if (interpretation?.filters?.length) {
     lines.push(
       `Фильтры: ${interpretation.filters
-        .map((filter) => `${filter.field} ${filter.operator} ${String(filter.value)}`)
-        .join('; ')}`
+        .map(
+          (filter) =>
+            `${filter.field} ${filter.operator} ${String(filter.value)}`,
+        )
+        .join("; ")}`,
     );
   }
 
-  if (typeof interpretation?.confidence === 'number') {
+  if (typeof interpretation?.confidence === "number") {
     lines.push(`Уверенность: ${Math.round(interpretation.confidence * 100)}%`);
   }
 
   if (payload.value?.tables_used?.length) {
     lines.push(
-      `Таблицы: ${payload.value.tables_used.map((item) => `${item.table} (${item.reason})`).join('; ')}`
+      `Таблицы: ${payload.value.tables_used.map((item) => `${item.table} (${item.reason})`).join("; ")}`,
     );
   }
 
@@ -160,7 +183,7 @@ const reasoningLines = computed(() => {
   }
 
   if (warnings.value.length) {
-    lines.push(`Предупреждения: ${warnings.value.join('; ')}`);
+    lines.push(`Предупреждения: ${warnings.value.join("; ")}`);
   }
 
   return lines;
@@ -169,9 +192,9 @@ const reasoningLines = computed(() => {
 const hasReasoning = computed(() => reasoningLines.value.length > 0);
 
 const sqlCellContent = computed(() => ({
-  sql: payload.value?.sql ?? '',
-  explanation: '',
-  warnings: warnings.value
+  sql: payload.value?.sql ?? "",
+  explanation: "",
+  warnings: warnings.value,
 }));
 </script>
 

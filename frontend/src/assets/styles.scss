@@ -144,6 +144,19 @@ select {
   line-height: 1.2;
 }
 
+select:not([multiple]):not([size]),
+select:not([multiple])[size='1'] {
+  // Chromium keeps the native chevron flush to the border, so we draw our own with a fixed inset.
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-inline-end: 24px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23c6c6c6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 4px center !important;
+  background-size: 10px 6px !important;
+}
+
 textarea {
   color: inherit;
   line-height: inherit;
@@ -275,21 +288,19 @@ textarea {
   font-size: 0.78rem;
 }
 
+.app-route-section {
+  view-transition-name: none;
+}
+
+html[data-view-transition-scope='section'] .app-route-section {
+  view-transition-name: app-route-section;
+}
+
+html[data-view-transition-scope='page'] .app-route-section {
+  view-transition-name: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-
-  .dashboard-shell__content,
-  .dashboards-shell__content,
-  .data-shell__content,
-  .chat-view__panels {
-    view-transition-name: app-route-content;
-  }
-
-  .data-shell__sidebar,
-  .dashboards-shell__sidebar,
-  .dashboard-shell__sidebar,
-  .chat-sidebar {
-    view-transition-name: none;
-  }
 
   ::view-transition-old(root),
   ::view-transition-new(root) {
@@ -300,32 +311,41 @@ textarea {
     animation: none;
   }
 
+  ::view-transition-group(app-route-content) {
+    animation: none;
+  }
+
+  ::view-transition-group(app-route-section) {
+    animation: none;
+  }
+
   ::view-transition-old(app-route-content) {
-    animation: app-route-content-out 250ms ease;
+    animation: none;
+    opacity: 0;
   }
 
   ::view-transition-new(app-route-content) {
-    animation: app-route-content-in 320ms ease;
+    animation: app-route-content-in 180ms ease-in-out;
+  }
+
+  ::view-transition-old(app-route-section) {
+    animation: none;
+    opacity: 0;
+  }
+
+  ::view-transition-new(app-route-section) {
+    animation: app-route-content-in 180ms ease-in-out;
   }
 }
 
 @keyframes app-route-content-in {
   from {
     opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes app-route-content-out {
-  from {
-    opacity: 1;
 
   }
 
   to {
-    opacity: 0;
+    opacity: 1;
+
   }
 }

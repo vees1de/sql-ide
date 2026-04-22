@@ -22,7 +22,7 @@
       />
     </aside>
 
-    <section class="dashboard-shell__content">
+    <section class="dashboard-shell__content app-route-section">
       <div class="dashboard-view">
         <template v-if="loading">
           <div class="dashboard-view__skeleton">

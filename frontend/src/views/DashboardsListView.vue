@@ -22,7 +22,7 @@
       />
     </aside>
 
-    <section class="dashboards-shell__content">
+    <section class="dashboards-shell__content app-route-section">
       <div class="dashboards-list-view">
         <div
           class="dashboards-list-view__panel dashboards-list-view__panel--hero"
@@ -64,37 +64,8 @@
           <div v-if="sidebarMode === 'dashboards'">
             <div
               v-if="dashboardsStore.loading"
-              class="dashboards-list-view__grid"
-            >
-              <div
-                v-for="card in 6"
-                :key="`dashboard-skeleton-${card}`"
-                class="dashboards-list-view__card dashboards-list-view__card--skeleton"
-              >
-                <div class="dashboards-list-view__card-header">
-                  <AppSkeleton
-                    class="dashboards-list-view__skeleton-title"
-                    height="0.95rem"
-                    radius="6px"
-                  />
-                  <AppSkeleton width="72px" height="1.15rem" radius="999px" />
-                </div>
-                <AppSkeleton height="0.78rem" width="100%" radius="5px" />
-                <AppSkeleton height="0.78rem" width="74%" radius="5px" />
-                <AppSkeleton
-                  class="dashboards-list-view__skeleton-updated"
-                  height="0.72rem"
-                  width="84px"
-                  radius="5px"
-                />
-              </div>
-            </div>
-            <div
-              v-else-if="false"
               class="dashboards-list-view__hint"
-            >
-              Загрузка…
-            </div>
+            ></div>
             <div
               v-else-if="!dashboardsStore.dashboards.length"
               class="dashboards-list-view__empty"
@@ -137,34 +108,7 @@
           </div>
 
           <div v-else>
-            <div
-              v-if="widgetsStore.loading"
-              class="dashboards-list-view__grid dashboards-list-view__grid--widgets"
-            >
-              <div
-                v-for="card in 6"
-                :key="`widget-skeleton-${card}`"
-                class="dashboards-list-view__card dashboards-list-view__card--skeleton"
-              >
-                <div class="dashboards-list-view__card-header">
-                  <AppSkeleton
-                    class="dashboards-list-view__skeleton-title"
-                    height="0.95rem"
-                    radius="6px"
-                  />
-                  <AppSkeleton width="64px" height="1.15rem" radius="999px" />
-                </div>
-                <AppSkeleton height="0.78rem" width="92%" radius="5px" />
-                <AppSkeleton height="0.78rem" width="68%" radius="5px" />
-                <AppSkeleton
-                  class="dashboards-list-view__skeleton-updated"
-                  height="0.72rem"
-                  width="84px"
-                  radius="5px"
-                />
-              </div>
-            </div>
-            <div v-else-if="false" class="dashboards-list-view__hint">
+            <div v-if="widgetsStore.loading" class="dashboards-list-view__hint">
               Загрузка виджетов…
             </div>
             <div
@@ -215,7 +159,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
-import AppSkeleton from "@/components/ui/AppSkeleton.vue";
 import { useDashboardsStore } from "@/stores/dashboards";
 import { useWidgetsStore } from "@/stores/widgets";
 
@@ -403,14 +346,6 @@ function translateVisualizationType(value: string) {
   }
 }
 
-.dashboards-list-view__card--skeleton {
-  pointer-events: none;
-}
-
-.dashboards-list-view__skeleton-title {
-  flex: 1;
-}
-
 .dashboards-list-view__card-header {
   display: flex;
   align-items: center;
@@ -454,10 +389,6 @@ function translateVisualizationType(value: string) {
 .dashboards-list-view__card-updated {
   font-size: 0.7rem;
   color: var(--muted);
-  margin-top: auto;
-}
-
-.dashboards-list-view__skeleton-updated {
   margin-top: auto;
 }
 
