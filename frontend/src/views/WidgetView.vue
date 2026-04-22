@@ -1,5 +1,51 @@
 <template>
   <main class="widget-view">
+    <template v-if="loading">
+      <div class="widget-view__skeleton">
+        <div class="widget-view__header">
+          <div class="widget-view__meta widget-view__meta--skeleton">
+            <AppSkeleton width="220px" height="1.6rem" radius="8px" />
+            <AppSkeleton width="130px" height="0.78rem" radius="5px" />
+          </div>
+          <div class="widget-view__header-actions widget-view__header-actions--skeleton">
+            <AppSkeleton
+              v-for="action in 3"
+              :key="`widget-header-skeleton-${action}`"
+              width="126px"
+              height="30px"
+              radius="8px"
+            />
+          </div>
+        </div>
+
+        <div class="widget-view__body">
+          <section class="widget-view__section">
+            <div class="widget-view__section-header">
+              <AppSkeleton width="108px" height="0.8rem" radius="6px" />
+              <AppSkeleton width="96px" height="26px" radius="8px" />
+            </div>
+            <AppSkeleton height="220px" radius="12px" />
+          </section>
+
+          <section class="widget-view__section widget-view__section--result">
+            <div class="widget-view__section-header">
+              <AppSkeleton width="92px" height="0.8rem" radius="6px" />
+              <AppSkeleton width="96px" height="26px" radius="8px" />
+            </div>
+            <div class="widget-view__result-skeleton">
+              <AppSkeleton height="1rem" width="38%" radius="6px" />
+              <AppSkeleton height="1rem" width="54%" radius="6px" />
+              <AppSkeleton
+                class="widget-view__result-skeleton-block"
+                height="100%"
+                radius="12px"
+              />
+            </div>
+          </section>
+        </div>
+      </div>
+    </template>
+    <template v-else>
     <div v-if="loading" class="widget-view__loading">Загрузка…</div>
     <div v-else-if="error" class="widget-view__error">{{ error }}</div>
 
@@ -31,7 +77,7 @@
       <div class="widget-view__body">
         <section v-if="widget.source_type === 'text'" class="widget-view__section">
           <div class="widget-view__section-header">
-            <span class="widget-view__section-title">Text widget</span>
+            <span class="widget-view__section-title">Текстовый виджет</span>
             <button
               v-if="!editingText"
               class="wbtn wbtn--ghost wbtn--sm"
@@ -137,6 +183,7 @@
     </template>
 
     <div v-if="linkCopied" class="widget-view__toast">Ссылка скопирована!</div>
+    </template>
   </main>
 </template>
 
@@ -144,6 +191,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '@/api/client';
+import AppSkeleton from '@/components/ui/AppSkeleton.vue';
 import { useWidgetsStore } from '@/stores/widgets';
 import WidgetResultTable from '@/components/widgets/WidgetResultTable.vue';
 import WidgetResultChart from '@/components/widgets/WidgetResultChart.vue';
@@ -300,6 +348,12 @@ onMounted(() => { void loadWidget(); });
   font-size: 0.9rem;
 }
 
+.widget-view__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .widget-view__header {
   display: flex;
   align-items: flex-start;
@@ -312,6 +366,10 @@ onMounted(() => { void loadWidget(); });
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.widget-view__meta--skeleton {
+  min-width: min(240px, 100%);
 }
 
 .widget-view__title {
@@ -342,6 +400,10 @@ onMounted(() => { void loadWidget(); });
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.widget-view__header-actions--skeleton {
+  align-items: center;
 }
 
 .widget-view__body {
@@ -448,6 +510,19 @@ onMounted(() => { void loadWidget(); });
   font-size: 0.85rem;
   padding: 24px 0;
   text-align: center;
+}
+
+.widget-view__result-skeleton {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.widget-view__result-skeleton-block {
+  flex: 1;
+  min-height: 180px;
 }
 
 .widget-view__result-error {

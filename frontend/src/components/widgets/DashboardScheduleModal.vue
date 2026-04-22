@@ -3,13 +3,13 @@
     <div class="modal-backdrop" @click.self="$emit('close')">
       <div class="modal">
         <div class="modal__header">
-          <span class="modal__title">Schedule dashboard</span>
+          <span class="modal__title">Расписание дашборда</span>
           <button class="modal__close" type="button" @click="$emit('close')">✕</button>
         </div>
 
         <div class="modal__body">
           <div class="form-field">
-            <label class="form-field__label">E-mail recipients</label>
+            <label class="form-field__label">Получатели e-mail</label>
             <textarea
               v-model="recipientsText"
               class="form-field__input form-field__input--textarea"
@@ -19,7 +19,7 @@
           </div>
 
           <div class="form-field">
-            <label class="form-field__label">Days</label>
+            <label class="form-field__label">Дни</label>
             <div class="days-grid">
               <label v-for="day in dayOptions" :key="day.value" class="days-grid__item">
                 <input v-model="selectedDays" type="checkbox" :value="day.value" />
@@ -30,11 +30,11 @@
 
           <div class="form-row">
             <div class="form-field">
-              <label class="form-field__label">Time</label>
+              <label class="form-field__label">Время</label>
               <input v-model="sendTime" class="form-field__input" type="time" />
             </div>
             <div class="form-field">
-              <label class="form-field__label">Timezone</label>
+              <label class="form-field__label">Часовой пояс</label>
               <input v-model="timezone" class="form-field__input" type="text" readonly />
             </div>
           </div>
@@ -45,21 +45,21 @@
           </div>
 
           <div class="form-field">
-            <label class="form-field__label">Subject</label>
+            <label class="form-field__label">Тема письма</label>
             <input v-model="subject" class="form-field__input" type="text" />
           </div>
 
           <label class="toggle">
             <input v-model="enabled" type="checkbox" />
-            <span>Enable scheduled delivery</span>
+            <span>Включить отправку по расписанию</span>
           </label>
         </div>
 
         <div class="modal__footer">
-          <button class="btn btn--ghost" type="button" @click="$emit('delete')">Delete</button>
-          <button class="btn btn--ghost" type="button" @click="$emit('close')">Cancel</button>
+          <button class="btn btn--ghost" type="button" @click="$emit('delete')">Удалить</button>
+          <button class="btn btn--ghost" type="button" @click="$emit('close')">Отмена</button>
           <button class="btn btn--primary" type="button" :disabled="saving" @click="save">
-            {{ saving ? 'Saving…' : 'Save' }}
+            {{ saving ? 'Сохраняю…' : 'Сохранить' }}
           </button>
         </div>
 
@@ -84,20 +84,20 @@ const emit = defineEmits<{
 }>();
 
 const dayOptions = [
-  { value: 'mon', label: 'Mon' },
-  { value: 'tue', label: 'Tue' },
-  { value: 'wed', label: 'Wed' },
-  { value: 'thu', label: 'Thu' },
-  { value: 'fri', label: 'Fri' },
-  { value: 'sat', label: 'Sat' },
-  { value: 'sun', label: 'Sun' },
+  { value: 'mon', label: 'Пн' },
+  { value: 'tue', label: 'Вт' },
+  { value: 'wed', label: 'Ср' },
+  { value: 'thu', label: 'Чт' },
+  { value: 'fri', label: 'Пт' },
+  { value: 'sat', label: 'Сб' },
+  { value: 'sun', label: 'Вс' },
 ];
 
 const recipientsText = ref('');
 const selectedDays = ref<string[]>([]);
 const sendTime = ref('09:00');
 const timezone = ref('Europe/Moscow');
-const subject = ref('Dashboard digest');
+const subject = ref('Сводка по дашборду');
 const enabled = ref(false);
 const saving = ref(false);
 const errorMsg = ref<string | null>(null);
@@ -109,7 +109,7 @@ watch(
     selectedDays.value = props.schedule?.weekdays?.length ? [...props.schedule.weekdays] : ['mon'];
     sendTime.value = props.schedule?.send_time ?? '09:00';
     timezone.value = 'Europe/Moscow';
-    subject.value = props.schedule?.subject ?? 'Dashboard digest';
+    subject.value = props.schedule?.subject ?? 'Сводка по дашборду';
     enabled.value = props.schedule?.enabled ?? false;
   },
   { immediate: true }
@@ -129,10 +129,10 @@ async function save() {
       send_time: sendTime.value || '09:00',
       timezone: 'Europe/Moscow',
       enabled: enabled.value,
-      subject: subject.value || 'Dashboard digest'
+      subject: subject.value || 'Сводка по дашборду'
     });
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Failed to save schedule.';
+    errorMsg.value = e instanceof Error ? e.message : 'Не удалось сохранить расписание.';
   } finally {
     saving.value = false;
   }

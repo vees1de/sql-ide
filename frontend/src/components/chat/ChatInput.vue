@@ -17,11 +17,11 @@
           :disabled="busy"
           role="switch"
           aria-checked="true"
-          aria-label="Thinking режим"
+          aria-label="Вдумчивый режим"
         >
           <span class="chat-input__mode-label">
-            Thinking
-            <small>on</small>
+            Вдумчиво
+            <small>вкл.</small>
           </span>
           <span class="chat-input__mode-track" aria-hidden="true">
             <span class="chat-input__mode-thumb" />
@@ -139,7 +139,7 @@ function onModelChange(event: Event) {
 
 .chat-input__controls {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
   min-width: 0;
 }
@@ -151,12 +151,13 @@ function onModelChange(event: Event) {
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.2);
   color: var(--muted);
+  line-height: 1.1;
 }
 
 .chat-input__mode {
-  min-height: 30px;
+  height: 36px;
   min-width: 112px;
-  padding: 0 8px 0 10px;
+  padding: 0 12px 0 14px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -225,13 +226,19 @@ function onModelChange(event: Event) {
 }
 
 .chat-input__model {
+  height: 36px;
   max-width: 150px;
+  padding: 0 12px;
   color: var(--ink);
 }
 
 .chat-input__send {
   width: 34px;
+  height: 36px;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1rem;
   color: var(--ink-strong);
   border-color: rgba(112, 59, 247, 0.8);

@@ -91,7 +91,7 @@ const summary = computed(() => {
     return '';
   }
   const columnCount = props.execution.columns?.length ?? 0;
-  return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} ms`;
+  return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} мс`;
 });
 
 function onSaved(widgetId: string) {

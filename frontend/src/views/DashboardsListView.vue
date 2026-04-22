@@ -29,13 +29,16 @@
         >
           <div class="dashboards-list-view__header">
             <div>
-              <p class="dashboards-list-view__eyebrow">Dashboards</p>
+              <p class="dashboards-list-view__eyebrow">Дашборды</p>
               <h1 class="dashboards-list-view__heading">
                 {{ sidebarMode === "dashboards" ? "Дашборды" : "Виджеты" }}
               </h1>
             </div>
             <div class="dashboards-list-view__header-actions">
-              <label v-if="sidebarMode === 'dashboards'" class="dashboards-list-view__toggle">
+              <label
+                v-if="sidebarMode === 'dashboards'"
+                class="dashboards-list-view__toggle"
+              >
                 <input
                   :checked="dashboardsStore.includeHidden"
                   type="checkbox"
@@ -61,6 +64,33 @@
           <div v-if="sidebarMode === 'dashboards'">
             <div
               v-if="dashboardsStore.loading"
+              class="dashboards-list-view__grid"
+            >
+              <div
+                v-for="card in 6"
+                :key="`dashboard-skeleton-${card}`"
+                class="dashboards-list-view__card dashboards-list-view__card--skeleton"
+              >
+                <div class="dashboards-list-view__card-header">
+                  <AppSkeleton
+                    class="dashboards-list-view__skeleton-title"
+                    height="0.95rem"
+                    radius="6px"
+                  />
+                  <AppSkeleton width="72px" height="1.15rem" radius="999px" />
+                </div>
+                <AppSkeleton height="0.78rem" width="100%" radius="5px" />
+                <AppSkeleton height="0.78rem" width="74%" radius="5px" />
+                <AppSkeleton
+                  class="dashboards-list-view__skeleton-updated"
+                  height="0.72rem"
+                  width="84px"
+                  radius="5px"
+                />
+              </div>
+            </div>
+            <div
+              v-else-if="false"
               class="dashboards-list-view__hint"
             >
               Загрузка…
@@ -90,7 +120,7 @@
                   <span
                     v-if="dashboard.is_hidden"
                     class="dashboards-list-view__card-badge dashboards-list-view__card-badge--muted"
-                    >hidden</span
+                    >скрытый</span
                   >
                 </div>
                 <p
@@ -107,7 +137,34 @@
           </div>
 
           <div v-else>
-            <div v-if="widgetsStore.loading" class="dashboards-list-view__hint">
+            <div
+              v-if="widgetsStore.loading"
+              class="dashboards-list-view__grid dashboards-list-view__grid--widgets"
+            >
+              <div
+                v-for="card in 6"
+                :key="`widget-skeleton-${card}`"
+                class="dashboards-list-view__card dashboards-list-view__card--skeleton"
+              >
+                <div class="dashboards-list-view__card-header">
+                  <AppSkeleton
+                    class="dashboards-list-view__skeleton-title"
+                    height="0.95rem"
+                    radius="6px"
+                  />
+                  <AppSkeleton width="64px" height="1.15rem" radius="999px" />
+                </div>
+                <AppSkeleton height="0.78rem" width="92%" radius="5px" />
+                <AppSkeleton height="0.78rem" width="68%" radius="5px" />
+                <AppSkeleton
+                  class="dashboards-list-view__skeleton-updated"
+                  height="0.72rem"
+                  width="84px"
+                  radius="5px"
+                />
+              </div>
+            </div>
+            <div v-else-if="false" class="dashboards-list-view__hint">
               Загрузка виджетов…
             </div>
             <div
@@ -134,7 +191,7 @@
                     widget.title
                   }}</span>
                   <span class="dashboards-list-view__card-badge">{{
-                    widget.visualization_type
+                    translateVisualizationType(widget.visualization_type)
                   }}</span>
                 </div>
                 <p
@@ -158,6 +215,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
+import AppSkeleton from "@/components/ui/AppSkeleton.vue";
 import { useDashboardsStore } from "@/stores/dashboards";
 import { useWidgetsStore } from "@/stores/widgets";
 
@@ -185,6 +243,25 @@ onMounted(() => {
     widgetsStore.loadWidgets(),
   ]);
 });
+
+function translateVisualizationType(value: string) {
+  switch (value) {
+    case "table":
+      return "Таблица";
+    case "bar":
+      return "Столбчатая";
+    case "line":
+      return "Линейная";
+    case "area":
+      return "Областная";
+    case "pie":
+      return "Круговая";
+    case "metric":
+      return "Метрика";
+    default:
+      return value;
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -192,13 +269,16 @@ onMounted(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  grid-template-columns: var(--app-shell-sidebar-width) minmax(0, 1fr);
+  gap: var(--app-shell-gap);
   background: var(--bg);
-  padding: 1rem;
+  padding: var(--app-shell-gap);
 }
 
 .dashboards-shell__sidebar {
   min-height: 0;
+  width: var(--app-shell-sidebar-width);
+  max-width: 100%;
 }
 
 .dashboards-shell__content {
@@ -207,9 +287,6 @@ onMounted(() => {
 }
 
 .dashboards-list-view {
-  padding: 20px 24px;
-  max-width: 1100px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -222,7 +299,7 @@ onMounted(() => {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 12px;
+  padding: 16px;
   box-shadow: var(--shadow-soft);
 }
 
@@ -256,7 +333,7 @@ onMounted(() => {
 .dashboards-list-view__header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
@@ -326,6 +403,14 @@ onMounted(() => {
   }
 }
 
+.dashboards-list-view__card--skeleton {
+  pointer-events: none;
+}
+
+.dashboards-list-view__skeleton-title {
+  flex: 1;
+}
+
 .dashboards-list-view__card-header {
   display: flex;
   align-items: center;
@@ -369,6 +454,10 @@ onMounted(() => {
 .dashboards-list-view__card-updated {
   font-size: 0.7rem;
   color: var(--muted);
+  margin-top: auto;
+}
+
+.dashboards-list-view__skeleton-updated {
   margin-top: auto;
 }
 

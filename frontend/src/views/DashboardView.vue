@@ -24,6 +24,60 @@
 
     <section class="dashboard-shell__content">
       <div class="dashboard-view">
+        <template v-if="loading">
+          <div class="dashboard-view__skeleton">
+            <div class="dashboard-view__panel dashboard-view__panel--hero">
+              <div class="dashboard-view__header">
+                <div class="dashboard-view__meta dashboard-view__meta--skeleton">
+                  <AppSkeleton width="240px" height="1.7rem" radius="8px" />
+                  <AppSkeleton width="90px" height="0.78rem" radius="5px" />
+                </div>
+                <div class="dashboard-view__header-actions dashboard-view__header-actions--skeleton">
+                  <AppSkeleton
+                    v-for="action in 6"
+                    :key="`dashboard-header-skeleton-${action}`"
+                    width="110px"
+                    height="30px"
+                    radius="8px"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-view__panel">
+              <div class="dashboard-view__grid dashboard-view__grid--skeleton">
+                <div
+                  v-for="tile in 4"
+                  :key="`dashboard-grid-skeleton-${tile}`"
+                  class="dashboard-view__tile dashboard-view__tile--skeleton"
+                >
+                  <div class="dashboard-view__tile-header">
+                    <AppSkeleton width="26px" height="26px" radius="8px" />
+                    <AppSkeleton
+                      class="dashboard-view__tile-title-skeleton"
+                      height="0.95rem"
+                      radius="6px"
+                    />
+                    <div class="dashboard-view__tile-actions">
+                      <AppSkeleton width="22px" height="22px" radius="6px" />
+                      <AppSkeleton width="22px" height="22px" radius="6px" />
+                    </div>
+                  </div>
+                  <div class="dashboard-view__tile-body-skeleton">
+                    <AppSkeleton height="0.9rem" width="36%" radius="6px" />
+                    <AppSkeleton height="0.9rem" width="54%" radius="6px" />
+                    <AppSkeleton
+                      class="dashboard-view__tile-chart-skeleton"
+                      height="100%"
+                      radius="14px"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template v-else>
         <div v-if="loading" class="dashboard-view__loading">Загрузка…</div>
         <div v-else-if="error" class="dashboard-view__error">{{ error }}</div>
 
@@ -65,21 +119,21 @@
                   type="button"
                   @click="togglePublic"
                 >
-                  {{ dashboard.is_public ? "🔓 Публичный" : "🔒 Приватный" }}
+                  {{ dashboard.is_public ? "🔓 Публичный" : "🔒 Закрытый" }}
                 </button>
                 <button
                   class="wbtn wbtn--ghost"
                   type="button"
                   @click="toggleHidden"
                 >
-                  {{ dashboard.is_hidden ? "👁‍🗨 Hidden" : "👁 Visible" }}
+                  {{ dashboard.is_hidden ? "👁‍🗨 Скрыт" : "👁 Виден" }}
                 </button>
                 <button
                   class="wbtn wbtn--ghost"
                   type="button"
                   @click="showScheduleModal = true"
                 >
-                  Schedule
+                  Расписание
                 </button>
                 <button
                   class="wbtn wbtn--ghost"
@@ -172,25 +226,25 @@
                 <button
                   class="dashboard-view__resize-handle dashboard-view__resize-handle--left"
                   type="button"
-                  title="Resize left edge"
+                  title="Изменить размер слева"
                   @mousedown.prevent="startResize(dw, 'left', $event)"
                 />
                 <button
                   class="dashboard-view__resize-handle dashboard-view__resize-handle--right"
                   type="button"
-                  title="Resize right edge"
+                  title="Изменить размер справа"
                   @mousedown.prevent="startResize(dw, 'right', $event)"
                 />
                 <button
                   class="dashboard-view__resize-handle dashboard-view__resize-handle--top"
                   type="button"
-                  title="Resize top edge"
+                  title="Изменить размер сверху"
                   @mousedown.prevent="startResize(dw, 'top', $event)"
                 />
                 <button
                   class="dashboard-view__resize-handle dashboard-view__resize-handle--bottom"
                   type="button"
-                  title="Resize bottom edge"
+                  title="Изменить размер снизу"
                   @mousedown.prevent="startResize(dw, 'bottom', $event)"
                 />
               </div>
@@ -216,6 +270,7 @@
         <div v-if="linkCopied" class="dashboard-view__toast">
           Ссылка скопирована!
         </div>
+        </template>
       </div>
     </section>
   </main>
@@ -226,6 +281,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "@/api/client";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
+import AppSkeleton from "@/components/ui/AppSkeleton.vue";
 import { useDashboardsStore } from "@/stores/dashboards";
 import { useWidgetsStore } from "@/stores/widgets";
 import DashboardTileContent from "@/components/widgets/DashboardTileContent.vue";
@@ -303,7 +359,7 @@ const previewLabel = computed(() => {
   const { w, h } = previewLayout.value;
   const overlapCount = previewOverlapIds.value.length;
   return overlapCount
-    ? `${w}x${h} • overlaps ${overlapCount}`
+    ? `${w}x${h} • перекрытий: ${overlapCount}`
     : `${w}x${h}`;
 });
 
@@ -665,7 +721,7 @@ async function downloadPdf() {
   try {
     const response = await dashboardsStore.exportPdf(dashboard.value.id);
     if (!response.ok) {
-      throw new Error("Failed to export PDF");
+      throw new Error("Не удалось выгрузить PDF.");
     }
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -740,13 +796,16 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+  grid-template-columns: var(--app-shell-sidebar-width) minmax(0, 1fr);
+  gap: var(--app-shell-gap);
   background: var(--bg);
-  padding: 1rem;
+  padding: var(--app-shell-gap);
 }
 
 .dashboard-shell__sidebar {
   min-height: 0;
+  width: var(--app-shell-sidebar-width);
+  max-width: 100%;
 }
 
 .dashboard-shell__content {
@@ -793,6 +852,12 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
 }
 
+.dashboard-view__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .dashboard-view__header {
   display: flex;
   align-items: flex-start;
@@ -805,6 +870,10 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.dashboard-view__meta--skeleton {
+  min-width: min(280px, 100%);
 }
 
 .dashboard-view__title {
@@ -837,6 +906,10 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.dashboard-view__header-actions--skeleton {
+  align-items: center;
+}
+
 .dashboard-view__empty {
   border: 1px dashed var(--line);
   border-radius: var(--radius-lg);
@@ -852,6 +925,10 @@ onBeforeUnmount(() => {
   grid-auto-rows: 56px;
   gap: 16px;
   position: relative;
+}
+
+.dashboard-view__grid--skeleton {
+  margin-top: 0;
 }
 
 .dashboard-view__drop-preview {
@@ -890,6 +967,29 @@ onBeforeUnmount(() => {
   gap: 10px;
   min-height: 0;
   height: 100%;
+}
+
+.dashboard-view__tile--skeleton {
+  grid-column: span 6;
+  grid-row: span 5;
+  pointer-events: none;
+}
+
+.dashboard-view__tile-title-skeleton {
+  flex: 1;
+}
+
+.dashboard-view__tile-body-skeleton {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-view__tile-chart-skeleton {
+  flex: 1;
+  min-height: 140px;
 }
 
 .dashboard-view__tile--dragging {

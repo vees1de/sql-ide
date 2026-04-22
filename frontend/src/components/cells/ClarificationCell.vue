@@ -16,7 +16,7 @@
       >
         <div class="clarification-option__head">
           <strong>{{ option.label }}</strong>
-          <span v-if="content.recommended === option.id">Recommended</span>
+          <span v-if="content.recommended === option.id">Рекомендуется</span>
         </div>
         <p>{{ option.detail }}</p>
       </button>

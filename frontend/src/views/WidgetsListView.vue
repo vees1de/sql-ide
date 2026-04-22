@@ -1,16 +1,43 @@
 <template>
   <main class="widgets-list-view">
     <div class="widgets-list-view__header">
-      <h1 class="widgets-list-view__heading">Отчёты</h1>
+      <h1 class="widgets-list-view__heading">Reports</h1>
       <div class="widgets-list-view__header-actions">
-        <router-link to="/dashboards/new" class="wbtn wbtn--ghost">+ Новый дашборд</router-link>
+        <router-link to="/dashboards/new" class="wbtn wbtn--ghost">
+          + New dashboard
+        </router-link>
       </div>
     </div>
 
-    <div v-if="widgetsStore.loading" class="widgets-list-view__hint">Загрузка…</div>
+    <div v-if="widgetsStore.loading" class="widgets-list-view__grid">
+      <div
+        v-for="card in 8"
+        :key="`widgets-list-skeleton-${card}`"
+        class="widgets-list-view__card widgets-list-view__card--skeleton"
+      >
+        <div class="widgets-list-view__card-header">
+          <AppSkeleton
+            class="widgets-list-view__skeleton-title"
+            height="0.9rem"
+            radius="6px"
+          />
+          <AppSkeleton width="70px" height="1.1rem" radius="999px" />
+        </div>
+        <AppSkeleton height="0.78rem" width="96%" radius="5px" />
+        <AppSkeleton height="0.78rem" width="70%" radius="5px" />
+        <AppSkeleton
+          class="widgets-list-view__skeleton-updated"
+          height="0.72rem"
+          width="88px"
+          radius="5px"
+        />
+      </div>
+    </div>
     <div v-else-if="!widgetsStore.widgets.length" class="widgets-list-view__empty">
-      <p>Здесь будут ваши сохранённые отчёты.</p>
-      <p class="widgets-list-view__hint-sub">Нажмите «Сохранить отчёт» после выполнения SQL в чате.</p>
+      <p>Your saved reports will appear here.</p>
+      <p class="widgets-list-view__hint-sub">
+        Use "Save report" after running SQL in chat.
+      </p>
     </div>
 
     <div v-else class="widgets-list-view__grid">
@@ -22,10 +49,16 @@
       >
         <div class="widgets-list-view__card-header">
           <span class="widgets-list-view__card-title">{{ widget.title }}</span>
-          <span class="widgets-list-view__card-viz">{{ widget.visualization_type }}</span>
+          <span class="widgets-list-view__card-viz">
+            {{ translateVisualizationType(widget.visualization_type) }}
+          </span>
         </div>
-        <p v-if="widget.description" class="widgets-list-view__card-desc">{{ widget.description }}</p>
-        <span class="widgets-list-view__card-updated">{{ formatDate(widget.updated_at) }}</span>
+        <p v-if="widget.description" class="widgets-list-view__card-desc">
+          {{ widget.description }}
+        </p>
+        <span class="widgets-list-view__card-updated">
+          {{ formatDate(widget.updated_at) }}
+        </span>
       </router-link>
     </div>
   </main>
@@ -33,15 +66,42 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
+import AppSkeleton from '@/components/ui/AppSkeleton.vue';
 import { useWidgetsStore } from '@/stores/widgets';
 
 const widgetsStore = useWidgetsStore();
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
-onMounted(() => { void widgetsStore.loadWidgets(); });
+function translateVisualizationType(value: string) {
+  switch (value) {
+    case 'table':
+      return 'Table';
+    case 'bar':
+      return 'Bar';
+    case 'line':
+      return 'Line';
+    case 'area':
+      return 'Area';
+    case 'pie':
+      return 'Pie';
+    case 'metric':
+      return 'Metric';
+    default:
+      return value;
+  }
+}
+
+onMounted(() => {
+  void widgetsStore.loadWidgets();
+});
 </script>
 
 <style scoped lang="scss">
@@ -108,7 +168,13 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   gap: 6px;
   transition: border-color 0.15s;
 
-  &:hover { border-color: rgba(112, 59, 247, 0.5); }
+  &:hover {
+    border-color: rgba(112, 59, 247, 0.5);
+  }
+}
+
+.widgets-list-view__card--skeleton {
+  pointer-events: none;
 }
 
 .widgets-list-view__card-header {
@@ -125,6 +191,10 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.widgets-list-view__skeleton-title {
+  flex: 1;
 }
 
 .widgets-list-view__card-viz {
@@ -152,6 +222,10 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   margin-top: auto;
 }
 
+.widgets-list-view__skeleton-updated {
+  margin-top: auto;
+}
+
 .wbtn {
   min-height: 30px;
   padding: 0 12px;
@@ -164,5 +238,8 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   display: inline-flex;
   align-items: center;
 }
-.wbtn--ghost:hover { background: var(--line); }
+
+.wbtn--ghost:hover {
+  background: var(--line);
+}
 </style>

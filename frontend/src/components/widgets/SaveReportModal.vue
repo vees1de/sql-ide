@@ -14,7 +14,7 @@
               v-model="title"
               class="form-field__input"
               type="text"
-              placeholder="Revenue by month"
+              placeholder="Выручка по месяцам"
               autofocus
             />
           </div>
@@ -96,10 +96,10 @@ const errorMsg = ref<string | null>(null);
 
 const vizOptions: { value: ApiVisualizationType; label: string }[] = [
   { value: 'table', label: 'Таблица' },
-  { value: 'bar', label: 'Бар' },
-  { value: 'line', label: 'Линия' },
-  { value: 'area', label: 'Площадь' },
-  { value: 'pie', label: 'Пирог' },
+  { value: 'bar', label: 'Столбчатая' },
+  { value: 'line', label: 'Линейная' },
+  { value: 'area', label: 'Областная' },
+  { value: 'pie', label: 'Круговая' },
   { value: 'metric', label: 'Метрика' },
 ];
 

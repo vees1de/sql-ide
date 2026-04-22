@@ -6,8 +6,25 @@
           <p class="eyebrow">New connection</p>
           <h2>Добавить базу данных</h2>
         </div>
-        <button class="icon-btn" type="button" @click="$emit('close')" aria-label="Close">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button
+          class="icon-btn"
+          type="button"
+          @click="$emit('close')"
+          aria-label="Close"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </header>
 
@@ -20,14 +37,21 @@
           @click="applyPreset(preset)"
         >
           <strong>{{ preset.name }}</strong>
-          <span>{{ preset.host }}:{{ preset.port }} · {{ preset.database }}</span>
+          <span
+            >{{ preset.host }}:{{ preset.port }} · {{ preset.database }}</span
+          >
         </button>
       </div>
 
       <form class="form" @submit.prevent="submit">
         <label>
           <span>Название</span>
-          <input v-model="form.name" type="text" placeholder="dvdrental" required />
+          <input
+            v-model="form.name"
+            type="text"
+            placeholder="dvdrental"
+            required
+          />
         </label>
 
         <div class="form__row">
@@ -58,27 +82,45 @@
         <div class="form__row">
           <label>
             <span>User</span>
-            <input v-model="form.user" type="text" placeholder="postgres" autocomplete="off" />
+            <input
+              v-model="form.user"
+              type="text"
+              placeholder="postgres"
+              autocomplete="off"
+            />
           </label>
           <label>
             <span>Password</span>
-            <input v-model="form.password" type="password" autocomplete="new-password" />
+            <input
+              v-model="form.password"
+              type="password"
+              autocomplete="new-password"
+            />
           </label>
         </div>
 
         <label>
           <span>Таблицы (примерно, опц.)</span>
-          <input v-model.number="form.tables" type="number" min="0" placeholder="15" />
+          <input
+            v-model.number="form.tables"
+            type="number"
+            min="0"
+            placeholder="15"
+          />
         </label>
 
         <div class="form__section">
           <p class="form__section-title">Knowledge scan</p>
           <label class="form__check">
             <input v-model="importSchemaToDictionary" type="checkbox" />
-            <span>Сразу выполнить full scan схемы и синхронизировать Dictionary</span>
+            <span
+              >Сразу выполнить full scan схемы и синхронизировать
+              Dictionary</span
+            >
           </label>
           <p class="form__hint">
-            После подключения база будет распарсена в knowledge layer: tables, columns, FK и persisted scan snapshot.
+            После подключения база будет распарсена в knowledge layer: tables,
+            columns, FK и persisted scan snapshot.
           </p>
         </div>
 
@@ -91,95 +133,119 @@
               :disabled="previewLoading"
               @click.prevent="loadPreview"
             >
-              {{ previewLoading ? 'Загрузка…' : 'Загрузить список таблиц' }}
+              {{ previewLoading ? "Загрузка…" : "Загрузить список таблиц" }}
             </button>
             <template v-if="previewTables.length">
-              <button class="app-button app-button--link app-button--tiny" type="button" @click.prevent="selectAllTables">
+              <button
+                class="app-button app-button--link app-button--tiny"
+                type="button"
+                @click.prevent="selectAllTables"
+              >
                 Выбрать все
               </button>
-              <button class="app-button app-button--link app-button--tiny" type="button" @click.prevent="clearTables">
+              <button
+                class="app-button app-button--link app-button--tiny"
+                type="button"
+                @click.prevent="clearTables"
+              >
                 Снять все
               </button>
             </template>
           </div>
           <p v-if="previewError" class="form__error">{{ previewError }}</p>
           <div v-if="previewTables.length" class="table-pick">
-            <label v-for="t in previewTables" :key="t.name" class="table-pick__row">
+            <label
+              v-for="t in previewTables"
+              :key="t.name"
+              class="table-pick__row"
+            >
               <input v-model="selectedTables" type="checkbox" :value="t.name" />
               <span>
                 <strong>{{ t.name }}</strong>
-                <small>{{ t.columns.slice(0, 8).join(', ') }}{{ t.columns.length > 8 ? '…' : '' }}</small>
+                <small
+                  >{{ t.columns.slice(0, 8).join(", ")
+                  }}{{ t.columns.length > 8 ? "…" : "" }}</small
+                >
               </span>
             </label>
           </div>
           <p v-else class="form__hint">
-            Нажмите «Загрузить список таблиц», чтобы ограничить whitelist. Иначе при подключении будут разрешены все
-            найденные таблицы.
+            Нажмите «Загрузить список таблиц», чтобы ограничить whitelist. Иначе
+            при подключении будут разрешены все найденные таблицы.
           </p>
         </div>
 
         <footer class="modal__footer">
-          <button type="button" class="app-button app-button--ghost" @click="$emit('close')">Отмена</button>
+          <button
+            type="button"
+            class="app-button app-button--ghost"
+            @click="$emit('close')"
+          >
+            Отмена
+          </button>
           <button type="submit" class="app-button">Подключить</button>
         </footer>
       </form>
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
-import { api } from '@/api/client';
-import type { ApiSchemaPreviewTable } from '@/api/types';
+import { reactive, ref } from "vue";
+import { api } from "@/api/client";
+import AppSkeleton from "@/components/ui/AppSkeleton.vue";
+import type { ApiSchemaPreviewTable } from "@/api/types";
 
 const emit = defineEmits<{
-  (event: 'close'): void;
-  (event: 'submit', payload: {
-    name: string;
-    engine: string;
-    host: string;
-    port: string;
-    database: string;
-    user: string;
-    password: string;
-    tables: number;
-    importSchemaToDictionary: boolean;
-    allowedTables: string[] | null;
-  }): void;
+  (event: "close"): void;
+  (
+    event: "submit",
+    payload: {
+      name: string;
+      engine: string;
+      host: string;
+      port: string;
+      database: string;
+      user: string;
+      password: string;
+      tables: number;
+      importSchemaToDictionary: boolean;
+      allowedTables: string[] | null;
+    },
+  ): void;
 }>();
 
 const form = reactive({
-  name: '',
-  engine: 'PostgreSQL',
-  host: 'localhost',
-  port: '5432',
-  database: '',
-  user: 'postgres',
-  password: '',
-  tables: 0
+  name: "",
+  engine: "PostgreSQL",
+  host: "localhost",
+  port: "5432",
+  database: "",
+  user: "postgres",
+  password: "",
+  tables: 0,
 });
 
 const importSchemaToDictionary = ref(true);
 const previewLoading = ref(false);
-const previewError = ref('');
+const previewError = ref("");
 const previewTables = ref<ApiSchemaPreviewTable[]>([]);
 const selectedTables = ref<string[]>([]);
 const previewLoaded = ref(false);
 
 const presets = [
   {
-    name: 'dvdrental',
-    engine: 'PostgreSQL',
-    host: 'localhost',
-    port: '5432',
-    database: 'dvdrental',
-    user: 'postgres',
-    password: 'postgres',
-    tables: 15
-  }
+    name: "dvdrental",
+    engine: "PostgreSQL",
+    host: "localhost",
+    port: "5432",
+    database: "dvdrental",
+    user: "postgres",
+    password: "postgres",
+    tables: 15,
+  },
 ];
 
-function applyPreset(preset: typeof presets[number]) {
+function applyPreset(preset: (typeof presets)[number]) {
   form.name = preset.name;
   form.engine = preset.engine;
   form.host = preset.host;
@@ -191,16 +257,16 @@ function applyPreset(preset: typeof presets[number]) {
   previewTables.value = [];
   selectedTables.value = [];
   previewLoaded.value = false;
-  previewError.value = '';
+  previewError.value = "";
 }
 
 function buildPreviewPayload() {
   const portNumber =
-    typeof form.port === 'string' && form.port.trim()
+    typeof form.port === "string" && form.port.trim()
       ? Number.parseInt(form.port, 10) || null
       : null;
   return {
-    name: form.name.trim() || 'preview',
+    name: form.name.trim() || "preview",
     dialect: form.engine.toLowerCase(),
     host: form.host.trim() || null,
     port: portNumber,
@@ -208,12 +274,12 @@ function buildPreviewPayload() {
     username: form.user.trim() || null,
     password: form.password || null,
     read_only: true,
-    table_count: form.tables || 0
+    table_count: form.tables || 0,
   };
 }
 
 async function loadPreview() {
-  previewError.value = '';
+  previewError.value = "";
   previewLoading.value = true;
   try {
     const res = await api.previewDatabaseSchema(buildPreviewPayload());
@@ -224,7 +290,8 @@ async function loadPreview() {
     previewTables.value = [];
     selectedTables.value = [];
     previewLoaded.value = false;
-    previewError.value = e instanceof Error ? e.message : 'Не удалось прочитать схему';
+    previewError.value =
+      e instanceof Error ? e.message : "Не удалось прочитать схему.";
   } finally {
     previewLoading.value = false;
   }
@@ -240,18 +307,23 @@ function clearTables() {
 
 function submit() {
   if (!form.name.trim()) return;
-  if (previewLoaded.value && previewTables.value.length && selectedTables.value.length === 0) {
-    previewError.value = 'Выберите хотя бы одну таблицу для доступа или очистите превью (закройте и откройте форму).';
+  if (
+    previewLoaded.value &&
+    previewTables.value.length &&
+    selectedTables.value.length === 0
+  ) {
+    previewError.value =
+      "Выберите хотя бы одну таблицу для доступа или очистите превью (закройте и откройте форму).";
     return;
   }
   let allowed: string[] | null = null;
   if (previewLoaded.value && previewTables.value.length) {
     allowed = [...selectedTables.value];
   }
-  emit('submit', {
+  emit("submit", {
     ...form,
     importSchemaToDictionary: importSchemaToDictionary.value,
-    allowedTables: allowed
+    allowedTables: allowed,
   });
 }
 </script>
@@ -327,7 +399,9 @@ function submit() {
   background: var(--bg-elev);
   color: var(--ink);
   text-align: left;
-  transition: border-color 160ms ease, background 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 .preset:hover {
@@ -366,7 +440,9 @@ function submit() {
   border-radius: var(--radius);
   font-size: 0.88rem;
   color: var(--ink);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .form input:focus,
@@ -452,6 +528,11 @@ function submit() {
   font-size: 0.82rem !important;
   color: var(--ink) !important;
   cursor: pointer;
+}
+
+.table-pick__row--skeleton {
+  cursor: default;
+  pointer-events: none;
 }
 
 .table-pick__row input {

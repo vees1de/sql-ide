@@ -3,25 +3,25 @@
     <section class="inspector__section">
       <div class="inspector__section-head">
         <div>
-          <p class="eyebrow">Notebook</p>
+          <p class="eyebrow">Ноутбук</p>
           <h2>{{ notebook.title }}</h2>
         </div>
-        <span class="pill pill--soft">{{ notebook.status }}</span>
+        <span class="pill pill--soft">{{ notebook.status === 'saved' ? 'Сохранён' : 'Черновик' }}</span>
       </div>
 
       <p class="inspector__lede">{{ notebook.summary.objective }}</p>
 
       <div class="inspector__stats">
         <div>
-          <span>Owner</span>
+          <span>Владелец</span>
           <strong>{{ notebook.summary.owner }}</strong>
         </div>
         <div>
-          <span>Last run</span>
+          <span>Последний запуск</span>
           <strong>{{ notebook.summary.lastRunLabel }}</strong>
         </div>
         <div>
-          <span>DB</span>
+          <span>БД</span>
           <strong>{{ database.name }}</strong>
         </div>
       </div>
@@ -30,8 +30,8 @@
     <section class="inspector__section">
       <div class="inspector__section-head">
         <div>
-          <p class="eyebrow">Selected Cell</p>
-          <h3>{{ selectedCell?.title ?? 'No cell selected' }}</h3>
+          <p class="eyebrow">Выбранная ячейка</p>
+          <h3>{{ selectedCell?.title ?? 'Ячейка не выбрана' }}</h3>
         </div>
         <span
           v-if="selectedCell"
@@ -45,12 +45,12 @@
       <p class="inspector__summary">
         {{
           selectedCell?.meta.summary ??
-          'Новый notebook появится здесь после первого prompt и выполнения backend pipeline.'
+          'Новый ноутбук появится здесь после первого запроса и завершения серверной обработки.'
         }}
       </p>
 
       <div class="inspector__block">
-        <span class="inspector__label">Tables used</span>
+        <span class="inspector__label">Использованные таблицы</span>
         <div class="tag-list">
           <span
             v-for="table in selectedCell?.meta.tablesUsed ?? []"
@@ -63,13 +63,13 @@
             v-if="!(selectedCell?.meta.tablesUsed.length)"
             class="tag-chip"
           >
-            Waiting for query
+            Ждём запрос.
           </span>
         </div>
       </div>
 
       <div class="inspector__block">
-        <span class="inspector__label">Business terms</span>
+        <span class="inspector__label">Бизнес-термины</span>
         <div class="tag-list">
           <span
             v-for="term in selectedCell?.meta.businessTerms ?? []"
@@ -82,7 +82,7 @@
             v-if="!(selectedCell?.meta.businessTerms.length)"
             class="tag-chip tag-chip--accent"
           >
-            No terms yet
+            Терминов пока нет.
           </span>
         </div>
       </div>
@@ -91,7 +91,7 @@
         v-if="selectedCell?.meta.warnings.length"
         class="inspector__warning"
       >
-        <span class="inspector__label">Warnings</span>
+        <span class="inspector__label">Предупреждения</span>
         <ul>
           <li
             v-for="warning in selectedCell?.meta.warnings ?? []"
@@ -106,10 +106,10 @@
     <section class="inspector__section">
       <div class="inspector__section-head">
         <div>
-          <p class="eyebrow">Agent Trace</p>
-          <h3>Pipeline</h3>
+          <p class="eyebrow">Трассировка агента</p>
+          <h3>Пайплайн</h3>
         </div>
-        <span class="pill pill--ghost">{{ traceSteps.length }} steps</span>
+        <span class="pill pill--ghost">{{ traceSteps.length }} шагов</span>
       </div>
 
       <div class="trace-list">

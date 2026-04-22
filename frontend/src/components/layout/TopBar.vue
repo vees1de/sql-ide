@@ -46,7 +46,7 @@
           {{ statusLabel }}
         </div>
         <div class="topbar__db">
-          <span class="topbar__db-label">DB</span>
+          <span class="topbar__db-label">БД</span>
           <strong>{{ database.name }}</strong>
           <span class="topbar__db-meta">{{ database.engine }}</span>
         </div>
@@ -55,7 +55,7 @@
         <button
           class="icon-btn"
           type="button"
-          title="Новый notebook"
+          title="Новый ноутбук"
           @click="$emit('new-notebook')"
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>

@@ -38,8 +38,8 @@
         />
         <div v-else class="empty-canvas">
           <div class="empty-canvas__card">
-            <p class="eyebrow">Workspace</p>
-            <h2>Выберите или создайте notebook</h2>
+            <p class="eyebrow">Рабочее пространство</p>
+            <h2>Выберите или создайте ноутбук.</h2>
             <p class="empty-canvas__hint">
               В левой панели — подключённые базы данных. Раскройте папку и
               откройте чат, либо подключите новую БД.
@@ -153,7 +153,7 @@ async function onSubmitDatabase(payload: {
 }
 
 async function onDeleteDatabase(databaseId: string) {
-  if (!window.confirm('Удалить эту базу данных? Notebooks, привязанные к ней, останутся.')) {
+  if (!window.confirm('Удалить эту базу данных? Ноутбуки, привязанные к ней, останутся.')) {
     return;
   }
   try {
@@ -164,7 +164,7 @@ async function onDeleteDatabase(databaseId: string) {
 }
 
 async function onDeleteNotebook(notebookId: string) {
-  if (!window.confirm('Удалить этот notebook? Все ячейки и история будут стёрты.')) {
+  if (!window.confirm('Удалить этот ноутбук? Все ячейки и история будут удалены.')) {
     return;
   }
   try {

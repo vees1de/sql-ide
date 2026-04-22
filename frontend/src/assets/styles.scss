@@ -1,6 +1,70 @@
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-ExtraLight.ttf') format('truetype');
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/Inter_18pt-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
 
   --bg: #262626;
   --bg-elev: #2c2c2c;
@@ -11,8 +75,8 @@
   --ink-strong: #ffffff;
   --muted: #c6c6c6;
   --muted-2: #989898;
-  --line: #666666;
-  --line-strong: #666666;
+  --line: #5656568c;
+  --line-strong: #4d4d4dad;
 
   --accent: #703bf7;
   --accent-strong: #8c67fb;
@@ -25,11 +89,16 @@
   --warning: #d8b85c;
   --danger: #ff7676;
 
-  --radius: 16px;
+  --radius: 12px;
   --radius-lg: 16px;
   --shadow-soft: none;
   --shadow-hover: none;
+  --app-shell-gap: 16px;
+  --app-shell-sidebar-width: 300px;
+  --skeleton-base: rgba(255, 255, 255, 0.06);
+  --skeleton-mid: rgba(255, 255, 255, 0.14);
 
+  --font-sans: 'Inter', 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', monospace;
 }
 
@@ -50,6 +119,7 @@ body,
 body {
   background: var(--bg);
   color: var(--ink);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -65,12 +135,18 @@ select {
 
 button {
   cursor: pointer;
+  line-height: 1.1;
 }
 
 input,
-textarea,
 select {
   color: inherit;
+  line-height: 1.2;
+}
+
+textarea {
+  color: inherit;
+  line-height: inherit;
 }
 
 // Scrollbars
@@ -110,6 +186,7 @@ select {
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.1;
 }
 
 .pill--soft {
@@ -140,6 +217,7 @@ select {
   color: var(--ink-strong);
   font-size: 0.85rem;
   font-weight: 600;
+  line-height: 1.1;
   transition:
     transform 180ms ease,
     background 180ms ease,
@@ -195,4 +273,59 @@ select {
   min-height: 1.8rem;
   padding: 0.3rem 0.6rem;
   font-size: 0.78rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+
+  .dashboard-shell__content,
+  .dashboards-shell__content,
+  .data-shell__content,
+  .chat-view__panels {
+    view-transition-name: app-route-content;
+  }
+
+  .data-shell__sidebar,
+  .dashboards-shell__sidebar,
+  .dashboard-shell__sidebar,
+  .chat-sidebar {
+    view-transition-name: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+
+  ::view-transition-group(root) {
+    animation: none;
+  }
+
+  ::view-transition-old(app-route-content) {
+    animation: app-route-content-out 250ms ease;
+  }
+
+  ::view-transition-new(app-route-content) {
+    animation: app-route-content-in 320ms ease;
+  }
+}
+
+@keyframes app-route-content-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes app-route-content-out {
+  from {
+    opacity: 1;
+
+  }
+
+  to {
+    opacity: 0;
+  }
 }

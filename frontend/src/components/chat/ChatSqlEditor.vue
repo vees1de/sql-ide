@@ -109,6 +109,7 @@ async function copy() {
   align-items: center;
   font-size: 0.76rem;
   color: var(--muted);
+  line-height: 1.1;
 }
 
 .chat-sql-editor__status--info {
@@ -137,11 +138,30 @@ async function copy() {
   background: transparent;
   color: var(--ink);
   font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.chat-sql-editor__btn:hover:not(:disabled) {
+  color: var(--ink-strong);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .chat-sql-editor__btn--accent {
   border-color: rgba(112, 59, 247, 0.8);
   background: rgba(112, 59, 247, 0.25);
+}
+
+.chat-sql-editor__btn--accent:hover:not(:disabled) {
+  border-color: rgba(112, 59, 247, 0.92);
+  background: rgba(112, 59, 247, 0.32);
 }
 
 .chat-sql-editor__btn:disabled {

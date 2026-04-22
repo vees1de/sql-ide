@@ -1,6 +1,10 @@
 <template>
   <div class="tile-content">
-    <div v-if="running" class="tile-content__loading">Загрузка…</div>
+    <div v-if="running" class="tile-content__loading tile-content__loading--skeleton">
+      <AppSkeleton height="1rem" width="42%" radius="6px" />
+      <AppSkeleton height="1rem" width="68%" radius="6px" />
+      <AppSkeleton class="tile-content__loading-block" height="100%" radius="12px" />
+    </div>
 
     <template v-else-if="widget.source_type === 'text'">
       <div class="tile-content__text">
@@ -9,7 +13,9 @@
     </template>
 
     <template v-else-if="run">
-      <div v-if="run.status === 'error'" class="tile-content__error">{{ run.error_text }}</div>
+      <div v-if="run.status === 'error'" class="tile-content__error">
+        {{ run.error_text }}
+      </div>
       <template v-else-if="run.status === 'completed'">
         <WidgetResultTable
           v-if="widget.visualization_type === 'table'"
@@ -25,13 +31,14 @@
         />
       </template>
     </template>
-    <div v-else class="tile-content__empty">Нет данных</div>
+    <div v-else class="tile-content__empty">РќРµС‚ РґР°РЅРЅС‹С…</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { api } from '@/api/client';
+import AppSkeleton from '@/components/ui/AppSkeleton.vue';
 import WidgetResultTable from '@/components/widgets/WidgetResultTable.vue';
 import WidgetResultChart from '@/components/widgets/WidgetResultChart.vue';
 import type { ApiDashboardWidgetDetail, ApiWidgetRunRead } from '@/api/types';
@@ -78,6 +85,21 @@ onMounted(() => {
   font-size: 0.82rem;
   padding: 16px 0;
   text-align: center;
+}
+
+.tile-content__loading--skeleton {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 2px 0 0;
+  text-align: left;
+}
+
+.tile-content__loading-block {
+  flex: 1;
+  min-height: 96px;
 }
 
 .tile-content__text {

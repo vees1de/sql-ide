@@ -5,17 +5,19 @@
         v-model="title"
         class="builder-view__title-input"
         type="text"
-        placeholder="Название дашборда…"
+        placeholder="Dashboard title..."
       />
       <div class="builder-view__header-actions">
-        <button class="wbtn wbtn--ghost" type="button" @click="$router.push('/dashboards')">Отмена</button>
+        <button class="wbtn wbtn--ghost" type="button" @click="$router.push('/dashboards')">
+          Cancel
+        </button>
         <button
           class="wbtn wbtn--primary"
           type="button"
           :disabled="!title.trim() || !selectedWidgets.length || saving"
           @click="saveDashboard"
         >
-          {{ saving ? 'Сохраняем…' : 'Сохранить дашборд' }}
+          {{ saving ? 'Saving...' : 'Save dashboard' }}
         </button>
       </div>
     </div>
@@ -23,20 +25,34 @@
     <p v-if="errorMsg" class="builder-view__error">{{ errorMsg }}</p>
 
     <div class="builder-view__body">
-      <!-- Widget library -->
       <aside class="builder-view__library">
         <div class="builder-view__library-header">
-          <span class="builder-view__section-title">Сохранённые отчёты</span>
+          <span class="builder-view__section-title">Saved Reports</span>
           <input
             v-model="search"
             class="builder-view__search"
             type="text"
-            placeholder="Поиск…"
+            placeholder="Search..."
           />
         </div>
 
-        <div v-if="widgetsStore.loading" class="builder-view__hint">Загрузка…</div>
-        <div v-else-if="!filteredWidgets.length" class="builder-view__hint">Нет виджетов</div>
+        <div v-if="widgetsStore.loading" class="builder-view__widget-list">
+          <div
+            v-for="item in 7"
+            :key="`builder-skeleton-${item}`"
+            class="builder-view__widget-card builder-view__widget-card--skeleton"
+          >
+            <AppSkeleton
+              class="builder-view__widget-name-skeleton"
+              height="0.82rem"
+              radius="6px"
+            />
+            <AppSkeleton width="68px" height="1rem" radius="999px" />
+          </div>
+        </div>
+        <div v-else-if="!filteredWidgets.length" class="builder-view__hint">
+          No widgets
+        </div>
 
         <div v-else class="builder-view__widget-list">
           <div
@@ -47,19 +63,20 @@
             @click="toggleWidget(widget)"
           >
             <span class="builder-view__widget-name">{{ widget.title }}</span>
-            <span class="builder-view__widget-type">{{ widget.visualization_type }}</span>
-            <span class="builder-view__widget-check" v-if="isSelected(widget.id)">✓</span>
+            <span class="builder-view__widget-type">
+              {{ translateVisualizationType(widget.visualization_type) }}
+            </span>
+            <span v-if="isSelected(widget.id)" class="builder-view__widget-check">вњ“</span>
           </div>
         </div>
       </aside>
 
-      <!-- Preview grid -->
       <section class="builder-view__grid-area">
         <div class="builder-view__section-title builder-view__section-title--pad">
-          Предпросмотр ({{ selectedWidgets.length }} виджетов)
+          Preview ({{ selectedWidgets.length }} widgets)
         </div>
         <div v-if="!selectedWidgets.length" class="builder-view__grid-empty">
-          Выберите виджеты из списка слева
+          Choose widgets from the list on the left
         </div>
         <div v-else class="builder-view__grid">
           <div
@@ -69,11 +86,17 @@
           >
             <div class="builder-view__grid-tile-header">
               <span>{{ item.title }}</span>
-              <button class="builder-view__remove-btn" type="button" @click="removeWidget(idx)">✕</button>
+              <button class="builder-view__remove-btn" type="button" @click="removeWidget(idx)">
+                вњ•
+              </button>
             </div>
             <div class="builder-view__grid-tile-body">
-              <span class="builder-view__viz-badge">{{ item.visualization_type }}</span>
-              <span class="builder-view__sql-preview">{{ item.sql_text.slice(0, 80) }}…</span>
+              <span class="builder-view__viz-badge">
+                {{ translateVisualizationType(item.visualization_type) }}
+              </span>
+              <span class="builder-view__sql-preview">
+                {{ item.sql_text.slice(0, 80) }}вЂ¦
+              </span>
             </div>
           </div>
         </div>
@@ -83,10 +106,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useWidgetsStore } from '@/stores/widgets';
+import AppSkeleton from '@/components/ui/AppSkeleton.vue';
 import { useDashboardsStore } from '@/stores/dashboards';
+import { useWidgetsStore } from '@/stores/widgets';
 import type { ApiWidgetRead } from '@/api/types';
 
 const router = useRouter();
@@ -101,8 +125,8 @@ const errorMsg = ref<string | null>(null);
 
 const filteredWidgets = computed(() =>
   widgetsStore.widgets.filter((w) =>
-    w.title.toLowerCase().includes(search.value.toLowerCase())
-  )
+    w.title.toLowerCase().includes(search.value.toLowerCase()),
+  ),
 );
 
 function isSelected(widgetId: string) {
@@ -119,6 +143,25 @@ function toggleWidget(widget: ApiWidgetRead) {
 
 function removeWidget(idx: number) {
   selectedWidgets.value = selectedWidgets.value.filter((_, i) => i !== idx);
+}
+
+function translateVisualizationType(value: string) {
+  switch (value) {
+    case 'table':
+      return 'Table';
+    case 'bar':
+      return 'Bar';
+    case 'line':
+      return 'Line';
+    case 'area':
+      return 'Area';
+    case 'pie':
+      return 'Pie';
+    case 'metric':
+      return 'Metric';
+    default:
+      return value;
+  }
 }
 
 async function saveDashboard() {
@@ -140,13 +183,16 @@ async function saveDashboard() {
     });
     void router.push(`/dashboards/${dashboard.id}`);
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Ошибка при создании дашборда.';
+    errorMsg.value =
+      e instanceof Error ? e.message : 'Failed to create dashboard.';
   } finally {
     saving.value = false;
   }
 }
 
-onMounted(() => { void widgetsStore.loadWidgets(); });
+onMounted(() => {
+  void widgetsStore.loadWidgets();
+});
 </script>
 
 <style scoped lang="scss">
@@ -179,7 +225,9 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   flex: 1;
   max-width: 420px;
 
-  &:focus { border-color: rgba(112, 59, 247, 0.7); }
+  &:focus {
+    border-color: rgba(112, 59, 247, 0.7);
+  }
 }
 
 .builder-view__header-actions {
@@ -225,7 +273,9 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   text-transform: uppercase;
   letter-spacing: 0.04em;
 
-  &--pad { padding: 0 2px; }
+  &--pad {
+    padding: 0 2px;
+  }
 }
 
 .builder-view__search {
@@ -236,7 +286,10 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   font-size: 0.82rem;
   padding: 5px 8px;
   outline: none;
-  &:focus { border-color: rgba(112, 59, 247, 0.6); }
+
+  &:focus {
+    border-color: rgba(112, 59, 247, 0.6);
+  }
 }
 
 .builder-view__hint {
@@ -266,8 +319,18 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   transition: border-color 0.15s;
   user-select: none;
 
-  &:hover { border-color: rgba(112, 59, 247, 0.4); }
-  &--selected { border-color: rgba(112, 59, 247, 0.8); background: rgba(112, 59, 247, 0.08); }
+  &:hover {
+    border-color: rgba(112, 59, 247, 0.4);
+  }
+
+  &--selected {
+    border-color: rgba(112, 59, 247, 0.8);
+    background: rgba(112, 59, 247, 0.08);
+  }
+}
+
+.builder-view__widget-card--skeleton {
+  pointer-events: none;
 }
 
 .builder-view__widget-name {
@@ -277,6 +340,10 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.builder-view__widget-name-skeleton {
+  flex: 1;
 }
 
 .builder-view__widget-type {
@@ -347,7 +414,11 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   font-size: 0.8rem;
   padding: 2px 4px;
   border-radius: 4px;
-  &:hover { background: rgba(255,80,80,0.15); color: #ff7070; }
+
+  &:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff7070;
+  }
 }
 
 .builder-view__grid-tile-body {
@@ -374,7 +445,6 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   white-space: nowrap;
 }
 
-/* --- shared button styles --- */
 .wbtn {
   min-height: 32px;
   padding: 0 14px;
@@ -384,14 +454,25 @@ onMounted(() => { void widgetsStore.loadWidgets(); });
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
-.wbtn--ghost:hover { background: var(--line); }
+
+.wbtn--ghost:hover {
+  background: var(--line);
+}
+
 .wbtn--primary {
   background: rgba(112, 59, 247, 0.85);
   border-color: transparent;
   color: #fff;
   font-weight: 600;
-  &:not(:disabled):hover { background: rgba(112, 59, 247, 1); }
+
+  &:not(:disabled):hover {
+    background: rgba(112, 59, 247, 1);
+  }
 }
 </style>

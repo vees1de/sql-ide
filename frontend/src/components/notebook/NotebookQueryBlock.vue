@@ -22,17 +22,17 @@
           <span></span>
         </button>
         <span class="pill" :class="isSqlBlock ? 'pill--link' : 'pill--accent'">
-          {{ isSqlBlock ? 'SQL' : 'Prompt' }}
+          {{ isSqlBlock ? 'SQL' : 'Запрос' }}
         </span>
         <div>
           <strong>{{ blockTitle }}</strong>
           <p>{{ blockSubtitle }}</p>
-          <p class="query-block__mode-note">Mode: {{ modeLabel }}</p>
+          <p class="query-block__mode-note">Режим: {{ modeLabel }}</p>
         </div>
       </div>
 
       <div class="query-block__actions">
-        <div class="query-block__mode-switch" role="group" aria-label="Query mode">
+        <div class="query-block__mode-switch" role="group" aria-label="Режим запроса">
           <button
             class="query-block__mode-btn"
             :class="{ 'query-block__mode-btn--active': currentMode === 'fast' }"
@@ -40,7 +40,7 @@
             :disabled="running"
             @click="setMode('fast')"
           >
-            ⚡ Fast
+            ⚡ Быстро
           </button>
           <button
             class="query-block__mode-btn"
@@ -49,11 +49,11 @@
             :disabled="running"
             @click="setMode('thinking')"
           >
-            🧠 Thinking
+            🧠 Вдумчиво
           </button>
         </div>
         <div class="query-block__model">
-          <label :for="`model-${block.id}`">Model</label>
+          <label :for="`model-${block.id}`">Модель</label>
           <select
             :id="`model-${block.id}`"
             :value="currentModelAlias"
@@ -93,7 +93,7 @@
           type="button"
           @click="formatSql"
         >
-          Format
+          Форматировать
         </button>
         <button
           class="app-button app-button--tiny"
@@ -101,7 +101,7 @@
           :disabled="running"
           @click="runCellIn('fast')"
         >
-          {{ running && currentMode === 'fast' ? 'Running…' : 'Run in ⚡ Fast' }}
+          {{ running && currentMode === 'fast' ? 'Выполняю…' : 'Запустить в режиме ⚡ Быстро' }}
         </button>
         <button
           class="app-button app-button--tiny"
@@ -109,7 +109,7 @@
           :disabled="running"
           @click="runCellIn('thinking')"
         >
-          {{ running && currentMode === 'thinking' ? 'Running…' : 'Run in 🧠 Thinking' }}
+          {{ running && currentMode === 'thinking' ? 'Выполняю…' : 'Запустить в режиме 🧠 Вдумчиво' }}
         </button>
       </div>
     </header>
@@ -138,7 +138,7 @@
       :class="{ 'query-block__section--selected': selectedCellId === generatedSqlCell.id }"
       @click="$emit('select-cell', generatedSqlCell.id)"
     >
-      <div class="query-block__section-label">Generated SQL</div>
+      <div class="query-block__section-label">Сгенерированный SQL</div>
       <SQLCell :content="sqlContent(generatedSqlCell)" />
     </section>
 
@@ -148,8 +148,8 @@
       :class="{ 'query-block__section--selected': isResultSelected }"
     >
       <div class="query-block__result-head">
-        <div class="query-block__section-label">Result</div>
-        <div class="query-block__tabs" role="tablist" aria-label="Result view">
+        <div class="query-block__section-label">Результат</div>
+        <div class="query-block__tabs" role="tablist" aria-label="Вид результата">
           <button
             v-if="block.tableCell"
             class="query-block__tab"
@@ -269,16 +269,16 @@ const isResultSelected = computed(
 const hasResultTabs = computed(() => Boolean(props.block.tableCell || props.block.chartCell));
 
 const blockTitle = computed(() =>
-  isSqlBlock.value ? 'Редактируемый SQL-блок' : 'Prompt → SQL block'
+  isSqlBlock.value ? 'Редактируемый SQL-блок' : 'Блок запроса → SQL'
 );
 
 const blockSubtitle = computed(() =>
   isSqlBlock.value
-    ? 'Как в Colab: правка, форматирование и запуск из одной ячейки'
-    : 'Редактируйте запрос на естественном языке и перезапускайте блок'
+    ? 'Как в Colab: редактирование, форматирование и запуск из одной ячейки.'
+    : 'Редактируйте запрос на естественном языке и перезапускайте блок.'
 );
 
-const modeLabel = computed(() => (currentMode.value === 'thinking' ? '🧠 Thinking' : '⚡ Fast'));
+const modeLabel = computed(() => (currentMode.value === 'thinking' ? '🧠 Вдумчиво' : '⚡ Быстро'));
 
 const placeholder = computed(() =>
   isSqlBlock.value
@@ -287,7 +287,7 @@ const placeholder = computed(() =>
 );
 
 const helperText = computed(() =>
-  isSqlBlock.value ? 'Cmd/Ctrl + Enter запускает SQL' : 'Cmd/Ctrl + Enter запускает prompt'
+  isSqlBlock.value ? 'Cmd/Ctrl + Enter запускает SQL' : 'Cmd/Ctrl + Enter запускает запрос'
 );
 
 const rowCountLabel = computed(() => {
@@ -305,7 +305,7 @@ const executionTimeLabel = computed(() => {
     props.block.chartCell?.meta.executionTimeMs ??
     props.block.inputCell.meta.executionTimeMs;
 
-  return typeof executionMs === 'number' && executionMs > 0 ? `${executionMs} ms` : null;
+  return typeof executionMs === 'number' && executionMs > 0 ? `${executionMs} мс` : null;
 });
 
 const editorRows = computed(() => {

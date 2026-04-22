@@ -70,7 +70,7 @@
         >
           <div class="turn__result-head">
             <div class="turn__section-label">Результат</div>
-            <div class="turn__tabs" role="tablist" aria-label="Result view">
+            <div class="turn__tabs" role="tablist" aria-label="Вид результата">
               <button
                 v-if="turn.tableCell"
                 class="turn__tab"

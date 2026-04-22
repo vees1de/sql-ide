@@ -22,21 +22,31 @@
     <div class="data-shell__content">
       <div class="data-view">
         <section class="data-view__panel data-view__panel--hero">
+          <div
+            class="data-view__active-db"
+            style="margin-bottom: 16px"
+            v-if="selectedDatabase"
+          >
+            <span>Выбранная БД</span>
+            <strong>{{ selectedDatabase.name }}</strong>
+          </div>
           <header class="data-view__head">
             <div>
-              <p class="eyebrow">Database Knowledge Layer</p>
-              <h1>Data Control Center</h1>
+              <p class="eyebrow">Слой знаний о БД</p>
+              <h1>Центр управления данными</h1>
               <p class="data-view__hint">
-                Здесь команда запускает parse БД, следит за scan runs, редактирует table/column semantics и
-                смотрит ERD без ручного импорта сырой схемы в словарь.
+                Здесь команда запускает парсинг БД, следит за запусками
+                сканирования, редактирует семантику таблиц и колонок и смотрит
+                ERD без ручного импорта сырой схемы в словарь.
               </p>
             </div>
             <div class="data-view__actions">
-              <div class="data-view__active-db" v-if="selectedDatabase">
-                <span>Selected DB</span>
-                <strong>{{ selectedDatabase.name }}</strong>
-              </div>
-              <button class="app-button app-button--ghost" type="button" :disabled="store.isBootstrapping" @click="reload">
+              <button
+                class="app-button app-button--ghost"
+                type="button"
+                :disabled="store.isBootstrapping"
+                @click="reload"
+              >
                 Обновить
               </button>
               <button
@@ -45,10 +55,15 @@
                 :disabled="isScanning || !selectedDatabaseId"
                 @click="runScan('incremental')"
               >
-                {{ isScanning ? 'Скан…' : 'Incremental scan' }}
+                {{ isScanning ? "Сканирование…" : "Инкрементальный скан" }}
               </button>
-              <button class="app-button" type="button" :disabled="isScanning || !selectedDatabaseId" @click="runScan('full')">
-                {{ isScanning ? 'Скан…' : 'Full scan' }}
+              <button
+                class="app-button"
+                type="button"
+                :disabled="isScanning || !selectedDatabaseId"
+                @click="runScan('full')"
+              >
+                {{ isScanning ? "Сканирование…" : "Полный скан" }}
               </button>
               <button
                 class="app-button app-button--ghost"
@@ -56,448 +71,698 @@
                 :disabled="isActivatingSemantic || !selectedDatabaseId"
                 @click="activateSemantic"
               >
-                {{ isActivatingSemantic ? 'Semantic…' : 'Activate semantic' }}
+                {{
+                  isActivatingSemantic
+                    ? "Активирую семантику…"
+                    : "Активировать семантику"
+                }}
               </button>
-          <button
-            class="app-button app-button--danger"
-            type="button"
-            :disabled="isDeletingDatabase || !selectedDatabaseId || selectedDatabase?.isDemo"
-            @click="deleteSelectedDatabase"
-          >
-                {{ isDeletingDatabase ? 'Удаление…' : 'Удалить базу' }}
+              <button
+                class="app-button app-button--danger"
+                type="button"
+                :disabled="
+                  isDeletingDatabase ||
+                  !selectedDatabaseId ||
+                  selectedDatabase?.isDemo
+                "
+                @click="deleteSelectedDatabase"
+              >
+                {{ isDeletingDatabase ? "Удаление…" : "Удалить базу" }}
               </button>
             </div>
           </header>
 
-          <p v-if="knowledgeFeedback" class="data-view__feedback">{{ knowledgeFeedback }}</p>
-          <p v-if="semanticFeedback" class="data-view__feedback">{{ semanticFeedback }}</p>
+          <p v-if="knowledgeFeedback" class="data-view__feedback">
+            {{ knowledgeFeedback }}
+          </p>
+          <p v-if="semanticFeedback" class="data-view__feedback">
+            {{ semanticFeedback }}
+          </p>
 
           <div v-if="selectedDatabase" class="data-view__stats">
             <article class="data-view__stat">
-              <span>Connection</span>
+              <span>Подключение</span>
               <strong>{{ selectedDatabase.engine }}</strong>
-              <small>{{ selectedDatabase.mode }}</small>
+              <small>{{ translateDatabaseMode(selectedDatabase.mode) }}</small>
             </article>
             <article class="data-view__stat">
-              <span>Knowledge status</span>
-              <strong>{{ knowledgeSummary?.status || selectedDatabase.knowledgeStatus || 'not_scanned' }}</strong>
-              <small>{{ formatTimestamp(knowledgeSummary?.last_scan?.finished_at || selectedDatabase.lastScanAt) }}</small>
+              <span>Статус слоя знаний</span>
+              <strong>{{
+                translateKnowledgeStatus(
+                  knowledgeSummary?.status ||
+                    selectedDatabase.knowledgeStatus ||
+                    "not_scanned",
+                )
+              }}</strong>
+              <small>{{
+                formatTimestamp(
+                  knowledgeSummary?.last_scan?.finished_at ||
+                    selectedDatabase.lastScanAt,
+                )
+              }}</small>
             </article>
             <article class="data-view__stat">
-              <span>Tables</span>
+              <span>Таблицы</span>
               <strong>{{ knowledgeSummary?.active_table_count ?? 0 }}</strong>
-              <small>{{ knowledgeSummary?.active_column_count ?? 0 }} columns</small>
+              <small
+                >{{ knowledgeSummary?.active_column_count ?? 0 }} колонок</small
+              >
             </article>
             <article class="data-view__stat">
-              <span>Relations</span>
-              <strong>{{ knowledgeSummary?.active_relationship_count ?? 0 }}</strong>
-              <small>FK graph + persisted scan diff</small>
+              <span>Связи</span>
+              <strong>{{
+                knowledgeSummary?.active_relationship_count ?? 0
+              }}</strong>
+              <small>FK-граф и сохранённая история сканирования.</small>
             </article>
             <article class="data-view__stat">
-              <span>Semantic</span>
-              <strong>{{ semanticCatalog ? 'active' : 'inactive' }}</strong>
+              <span>Семантика</span>
+              <strong>{{ semanticCatalog ? "активна" : "не активна" }}</strong>
               <small>
-                {{ semanticCatalog?.tables.length ?? 0 }} tables ·
-                {{ semanticCatalog?.relationships.length ?? 0 }} relations
+                {{ semanticCatalog?.tables.length ?? 0 }} таблиц ·
+                {{ semanticCatalog?.relationships.length ?? 0 }} связей
               </small>
             </article>
           </div>
         </section>
 
-    <section class="data-view__panel" v-if="knowledgeSummary">
-      <header class="data-view__head data-view__head--compact">
-        <div>
-          <p class="eyebrow">Scan Runs</p>
-          <h2>Последние парсинги</h2>
-        </div>
-      </header>
-      <div v-if="scanRuns.length" class="data-view__scan-list">
-        <article v-for="run in scanRuns.slice(0, 6)" :key="run.id" class="data-view__scan-card">
-          <div>
-            <strong>{{ run.scan_type }}</strong>
-            <p>{{ run.status }} · {{ run.stage }}</p>
-          </div>
-          <small>{{ formatTimestamp(run.finished_at || run.started_at) }}</small>
-          <span>
-            tables {{ numberFromSummary(run.summary, 'active_tables') }},
-            columns {{ numberFromSummary(run.summary, 'active_columns') }},
-            rels {{ numberFromSummary(run.summary, 'active_relationships') }}
-          </span>
-        </article>
-      </div>
-      <div v-else class="data-view__empty">
-        Для этой базы пока нет persisted scan runs. Запустите `Full scan`.
-      </div>
-    </section>
-
-    <section class="data-view__panel" v-if="knowledgeSummary">
-      <div class="data-view__knowledge">
-        <aside class="data-view__tables">
+        <section class="data-view__panel" v-if="knowledgeSummary">
           <header class="data-view__head data-view__head--compact">
             <div>
-              <p class="eyebrow">Knowledge Tables</p>
-              <h2>Сканированная схема</h2>
+              <p class="eyebrow">Запуски сканирования</p>
+              <h2>Последние парсинги</h2>
             </div>
           </header>
-          <div v-if="!knowledgeSummary.tables.length" class="data-view__empty">
-            База подключена, но knowledge layer ещё не заполнен.
-          </div>
-          <button
-            v-for="table in knowledgeSummary.tables"
-            :key="table.id"
-            type="button"
-            class="data-view__table-pill"
-            :class="{ 'is-active': selectedTableId === table.id }"
-            @click="selectedTableId = table.id"
-          >
-            <strong>{{ table.schema_name }}.{{ table.table_name }}</strong>
-            <span>{{ table.column_count }} cols · PK {{ table.primary_key.join(', ') || 'none' }}</span>
-            <small>{{ table.row_count ?? '—' }} rows · {{ table.object_type }}</small>
-          </button>
-        </aside>
-
-        <div class="data-view__detail">
-          <div v-if="selectedTable" class="data-view__detail-body">
-            <header class="data-view__head data-view__head--compact">
+          <div v-if="scanRuns.length" class="data-view__scan-list">
+            <article
+              v-for="run in scanRuns.slice(0, 6)"
+              :key="run.id"
+              class="data-view__scan-card"
+            >
               <div>
-                <p class="eyebrow">Table Editor</p>
-                <h2>{{ selectedTable.schema_name }}.{{ selectedTable.table_name }}</h2>
-                <p class="data-view__hint">
-                  Manual fields сохраняются между сканами. Auto-поля пересчитываются при каждом parse.
+                <strong>{{ translateScanType(run.scan_type) }}</strong>
+                <p>
+                  {{ translateScanStatus(run.status) }} ·
+                  {{ translateScanStage(run.stage) }}
                 </p>
               </div>
-              <button class="app-button app-button--ghost" type="button" :disabled="loadingTable" @click="loadSelectedTable">
-                {{ loadingTable ? 'Загрузка…' : 'Обновить таблицу' }}
-              </button>
-            </header>
-
-            <div class="data-view__form-grid">
-              <label>
-                <span>Description</span>
-                <textarea v-model="tableDraft.description" rows="3"></textarea>
-              </label>
-              <label>
-                <span>Business meaning</span>
-                <textarea v-model="tableDraft.businessMeaning" rows="3"></textarea>
-              </label>
-              <label>
-                <span>Domain</span>
-                <input v-model="tableDraft.domain" type="text" placeholder="orders / finance / users" />
-              </label>
-              <label>
-                <span>Tags</span>
-                <input v-model="tableDraft.tags" type="text" placeholder="finance, orders, pii" />
-              </label>
-              <label>
-                <span>Sensitivity</span>
-                <input v-model="tableDraft.sensitivity" type="text" placeholder="pii / financial / internal" />
-              </label>
-            </div>
-
-            <div class="data-view__inline-actions">
-              <button class="app-button" type="button" :disabled="isSavingTable" @click="saveTable">
-                {{ isSavingTable ? 'Сохранение…' : 'Сохранить table overrides' }}
-              </button>
-              <p class="data-view__auto-copy">
-                Auto: {{ selectedTable.description_auto || '—' }}<br />
-                Domain auto: {{ selectedTable.domain_auto || '—' }}
-              </p>
-            </div>
-
-            <section class="data-view__subpanel">
-              <header class="data-view__subhead">
-                <h3>Columns</h3>
-                <p>Manual semantic labels, synonyms и hidden-for-LLM flags.</p>
-              </header>
-              <div class="data-view__column-list">
-                <article v-for="column in selectedTable.columns || []" :key="column.id" class="data-view__column-card">
-                  <div class="data-view__column-meta">
-                    <strong>{{ column.column_name }}</strong>
-                    <span>{{ column.data_type }} · {{ column.is_nullable ? 'nullable' : 'required' }}</span>
-                    <small>sample: {{ column.sample_values.join(', ') || '—' }}</small>
-                  </div>
-                  <div class="data-view__column-edit">
-                    <input v-model="getColumnDraft(column).semanticLabel" type="text" placeholder="semantic label" />
-                    <input v-model="getColumnDraft(column).synonyms" type="text" placeholder="synonyms через запятую" />
-                    <input v-model="getColumnDraft(column).sensitivity" type="text" placeholder="sensitivity" />
-                    <label class="data-view__check">
-                      <input v-model="getColumnDraft(column).hiddenForLlm" type="checkbox" />
-                      <span>Hide from LLM</span>
-                    </label>
-                    <textarea v-model="getColumnDraft(column).description" rows="2" placeholder="column description"></textarea>
-                    <button class="app-button app-button--ghost app-button--tiny" type="button" @click="saveColumn(column.id)">
-                      Сохранить column
-                    </button>
-                  </div>
-                </article>
-              </div>
-            </section>
-
-            <section class="data-view__subpanel">
-              <header class="data-view__subhead">
-                <h3>Relationships</h3>
-                <p>FK edges из scan layer. Можно апрувить и отключать связи вручную.</p>
-              </header>
-              <div v-if="selectedTable.relationships?.length" class="data-view__relationship-list">
-                <article
-                  v-for="relationship in selectedTable.relationships"
-                  :key="relationship.id"
-                  class="data-view__relationship-card"
-                >
-                  <div>
-                    <strong>
-                      {{ relationship.from_table_name }}.{{ relationship.from_column_name }}
-                      →
-                      {{ relationship.to_table_name }}.{{ relationship.to_column_name }}
-                    </strong>
-                    <p>
-                      {{ relationship.relation_type }} · confidence {{ relationship.confidence.toFixed(2) }}
-                    </p>
-                  </div>
-                  <div class="data-view__relationship-edit">
-                    <input v-model="getRelationshipDraft(relationship).cardinality" type="text" placeholder="many_to_one" />
-                    <input v-model="getRelationshipDraft(relationship).confidence" type="number" min="0" max="1" step="0.1" />
-                    <label class="data-view__check">
-                      <input v-model="getRelationshipDraft(relationship).approved" type="checkbox" />
-                      <span>Approved</span>
-                    </label>
-                    <label class="data-view__check">
-                      <input v-model="getRelationshipDraft(relationship).isDisabled" type="checkbox" />
-                      <span>Disabled</span>
-                    </label>
-                    <input v-model="getRelationshipDraft(relationship).description" type="text" placeholder="comment" />
-                    <button
-                      class="app-button app-button--ghost app-button--tiny"
-                      type="button"
-                      @click="saveRelationship(relationship.id)"
-                    >
-                      Сохранить relation
-                    </button>
-                  </div>
-                </article>
-              </div>
-              <div v-else class="data-view__empty">Для выбранной таблицы связей пока нет.</div>
-            </section>
+              <small>{{
+                formatTimestamp(run.finished_at || run.started_at)
+              }}</small>
+              <span>
+                таблиц {{ numberFromSummary(run.summary, "active_tables") }},
+                колонок {{ numberFromSummary(run.summary, "active_columns") }},
+                связей
+                {{ numberFromSummary(run.summary, "active_relationships") }}
+              </span>
+            </article>
           </div>
           <div v-else class="data-view__empty">
-            Выберите таблицу слева, чтобы править semantics и связи.
+            Для этой базы пока нет сохранённых запусков сканирования. Запустите
+            «Полный скан».
           </div>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <section class="data-view__panel" v-if="erdGraph?.nodes.length">
-      <header class="data-view__head data-view__head--compact">
-        <div>
-          <p class="eyebrow">ERD</p>
-          <h2>Graph View</h2>
-          <p class="data-view__hint">Physical FK graph по последнему scan snapshot.</p>
-        </div>
-        <div class="data-view__graph-controls">
-          <label class="data-view__toggle">
-            <input v-model="showGraphColumns" type="checkbox" />
-            <span>Columns</span>
-          </label>
-          <label class="data-view__toggle">
-            <input v-model="showGraphSemantic" type="checkbox" :disabled="!semanticCatalog?.tables.length" />
-            <span>Semantic labels</span>
-          </label>
-        </div>
-      </header>
-      <VChart class="data-view__erd" :option="erdOption" autoresize />
-    </section>
-
-    <section class="data-view__panel" v-if="semanticCatalog">
-      <header class="data-view__head data-view__head--compact">
-        <div>
-          <p class="eyebrow">Semantic Catalog</p>
-          <h2>Ontology layer</h2>
-          <p class="data-view__hint">
-            Rule-based inference plus optional LLM enrichment. Catalog хранится в БД и используется retrieval-слоем.
-          </p>
-        </div>
-        <div class="data-view__semantic-actions">
-          <label class="data-view__toggle">
-            <input v-model="semanticAutoRefreshEnabled" type="checkbox" />
-            <span>Auto refresh</span>
-          </label>
-          <button class="app-button app-button--ghost" type="button" :disabled="isActivatingSemantic" @click="activateSemantic">
-            {{ isActivatingSemantic ? 'Обновляем…' : 'Refresh semantic' }}
-          </button>
-        </div>
-      </header>
-      <p v-if="semanticFeedback" class="data-view__feedback">{{ semanticFeedback }}</p>
-      <div class="data-view__semantic-compose">
-        <label class="data-view__semantic-description">
-          <span>Database description for semantic activation</span>
-          <textarea
-            v-model="semanticDescription"
-            rows="6"
-            placeholder="Опишите предметную область, ключевые сущности, что означает каждая строка, и любые важные бизнес-правила."
-          ></textarea>
-          <small>Это описание пойдёт в semantic catalog и поможет LLM разметить таблицы, колонки и роли.</small>
-        </label>
-      </div>
-      <div class="data-view__semantic-source">
-        <article class="data-view__semantic-source-item">
-          <span>Selected database</span>
-          <strong>{{ selectedDatabase?.name || semanticCatalog.database_id }}</strong>
-          <small>{{ semanticCatalog.database_id }}</small>
-        </article>
-        <article class="data-view__semantic-source-item">
-          <span>Activation endpoint</span>
-          <strong>/api/metadata/semantic-catalog/activate</strong>
-          <small>Response is rendered below and persisted in service DB.</small>
-        </article>
-        <article class="data-view__semantic-source-item">
-          <span>Semantic status</span>
-          <strong>{{ semanticCatalog.tables.length ? 'active' : 'empty' }}</strong>
-          <small>{{ semanticCatalog.relationships.length }} relationships · {{ semanticCatalog.join_paths.length }} join paths</small>
-        </article>
-      </div>
-      <section class="data-view__subpanel data-view__subpanel--tight">
-        <header class="data-view__subhead">
-          <h3>Relationship Graph</h3>
-          <p>Отдельный граф связей, который сохраняется в каталоге и передаётся в LLM-контекст.</p>
-        </header>
-        <div v-if="semanticCatalog.relationship_graph.length" class="data-view__graph-list">
-          <article
-            v-for="edge in semanticCatalog.relationship_graph"
-            :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
-            class="data-view__graph-card"
-          >
-            <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
-            <strong>{{ edge.on }}</strong>
-          </article>
-        </div>
-        <div v-else class="data-view__empty">Для этой базы graph edges пока отсутствуют.</div>
-      </section>
-      <div class="data-view__semantic-grid">
-        <article class="data-view__semantic-stat">
-          <span>Tables</span>
-          <strong>{{ semanticCatalog.tables.length }}</strong>
-        </article>
-        <article class="data-view__semantic-stat">
-          <span>Relationships</span>
-          <strong>{{ semanticCatalog.relationships.length }}</strong>
-        </article>
-        <article class="data-view__semantic-stat">
-          <span>Join paths</span>
-          <strong>{{ semanticCatalog.join_paths.length }}</strong>
-        </article>
-        <article class="data-view__semantic-stat">
-          <span>Dialect</span>
-          <strong>{{ semanticCatalog.dialect }}</strong>
-        </article>
-      </div>
-      <div v-if="semanticCatalog.tables.length" class="data-view__semantic-list">
-        <article v-for="table in semanticCatalog.tables.slice(0, 8)" :key="`${table.schema_name}.${table.table_name}`" class="data-view__semantic-card">
-          <div>
-            <strong>{{ table.label }}</strong>
-            <p>{{ table.schema_name }}.{{ table.table_name }} · {{ table.table_role }}</p>
-          </div>
-          <small>
-            {{ table.columns.length }} columns ·
-            {{ table.join_paths.length }} join paths
-          </small>
-        </article>
-      </div>
-    </section>
-
-    <section class="data-view__panel">
-      <header class="data-view__head">
-        <div>
-          <p class="eyebrow">Compatibility Layer</p>
-          <h2>Dictionary</h2>
-          <p class="data-view__hint">
-            Semantic dictionary остаётся совместимым со старым NL→SQL pipeline. После scan он может синхронизироваться
-            автоматически, а здесь его можно дополнять вручную.
-          </p>
-        </div>
-      </header>
-      <form class="data-view__create" @submit.prevent="createTerm">
-        <input v-model="draft.term" type="text" placeholder="Термин (например revenue_total)" required />
-        <input
-          v-model="draft.mappedExpression"
-          type="text"
-          placeholder="SQL-выражение (например SUM(orders.amount))"
-          required
-        />
-        <input v-model="draft.synonyms" type="text" placeholder="Синонимы через запятую" />
-        <button class="app-button" type="submit" :disabled="isCreatingTerm">
-          {{ isCreatingTerm ? 'Сохранение…' : 'Добавить термин' }}
-        </button>
-      </form>
-      <p v-if="dictionaryFeedback" class="data-view__feedback">{{ dictionaryFeedback }}</p>
-
-      <div v-if="!store.workspace.dictionary.length" class="data-view__empty">
-        Словарь пуст. После scan он может автоматически наполняться table/column terms.
-      </div>
-      <table v-else class="data-view__table">
-        <thead>
-          <tr>
-            <th>Термин</th>
-            <th>Выражение</th>
-            <th>Описание</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="term in store.workspace.dictionary" :key="term.id">
-            <td>
-              <strong>{{ term.term }}</strong>
-              <p v-if="term.synonyms.length" class="data-view__syn">{{ term.synonyms.join(', ') }}</p>
-            </td>
-            <td><code>{{ term.mappedExpression }}</code></td>
-            <td>{{ term.description }}</td>
-            <td>
-              <button class="app-button app-button--link app-button--tiny" type="button" @click="removeTerm(term.id)">
-                Удалить
+        <section class="data-view__panel" v-if="knowledgeSummary">
+          <div class="data-view__knowledge">
+            <aside class="data-view__tables">
+              <header class="data-view__head data-view__head--compact">
+                <div>
+                  <p class="eyebrow">Таблицы слоя знаний</p>
+                  <h2>Сканированная схема</h2>
+                </div>
+              </header>
+              <div
+                v-if="!knowledgeSummary.tables.length"
+                class="data-view__empty"
+              >
+                База подключена, но слой знаний ещё не заполнен.
+              </div>
+              <button
+                v-for="table in knowledgeSummary.tables"
+                :key="table.id"
+                type="button"
+                class="data-view__table-pill"
+                :class="{ 'is-active': selectedTableId === table.id }"
+                @click="selectedTableId = table.id"
+              >
+                <strong>{{ table.schema_name }}.{{ table.table_name }}</strong>
+                <span
+                  >{{ table.column_count }} кол. · PK
+                  {{ table.primary_key.join(", ") || "нет" }}</span
+                >
+                <small
+                  >{{ table.row_count ?? "—" }} строк ·
+                  {{ translateTableObjectType(table.object_type) }}</small
+                >
               </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-  </div>
-  </div>
+            </aside>
 
-  <AddDatabaseModal
-    v-if="showAddDatabase"
-    @close="showAddDatabase = false"
-    @submit="submitDatabase"
-  />
+            <div class="data-view__detail">
+              <div v-if="selectedTable" class="data-view__detail-body">
+                <header class="data-view__head data-view__head--compact">
+                  <div>
+                    <p class="eyebrow">Редактор таблицы</p>
+                    <h2>
+                      {{ selectedTable.schema_name }}.{{
+                        selectedTable.table_name
+                      }}
+                    </h2>
+                    <p class="data-view__hint">
+                      Ручные поля сохраняются между сканами. Автополя
+                      пересчитываются при каждом парсинге.
+                    </p>
+                  </div>
+                  <button
+                    class="app-button app-button--ghost"
+                    type="button"
+                    :disabled="loadingTable"
+                    @click="loadSelectedTable"
+                  >
+                    {{ loadingTable ? "Загрузка…" : "Обновить таблицу" }}
+                  </button>
+                </header>
+
+                <div class="data-view__form-grid">
+                  <label>
+                    <span>Описание</span>
+                    <textarea
+                      v-model="tableDraft.description"
+                      rows="3"
+                    ></textarea>
+                  </label>
+                  <label>
+                    <span>Бизнес-смысл</span>
+                    <textarea
+                      v-model="tableDraft.businessMeaning"
+                      rows="3"
+                    ></textarea>
+                  </label>
+                  <label>
+                    <span>Домен</span>
+                    <input
+                      v-model="tableDraft.domain"
+                      type="text"
+                      placeholder="заказы / финансы / пользователи"
+                    />
+                  </label>
+                  <label>
+                    <span>Теги</span>
+                    <input
+                      v-model="tableDraft.tags"
+                      type="text"
+                      placeholder="финансы, заказы, pii"
+                    />
+                  </label>
+                  <label>
+                    <span>Чувствительность</span>
+                    <input
+                      v-model="tableDraft.sensitivity"
+                      type="text"
+                      placeholder="pii / финансовые / внутренние"
+                    />
+                  </label>
+                </div>
+
+                <div class="data-view__inline-actions">
+                  <button
+                    class="app-button"
+                    type="button"
+                    :disabled="isSavingTable"
+                    @click="saveTable"
+                  >
+                    {{
+                      isSavingTable
+                        ? "Сохранение…"
+                        : "Сохранить переопределения таблицы"
+                    }}
+                  </button>
+                  <p class="data-view__auto-copy">
+                    Автоописание: {{ selectedTable.description_auto || "—"
+                    }}<br />
+                    Автодомен: {{ selectedTable.domain_auto || "—" }}
+                  </p>
+                </div>
+
+                <section class="data-view__subpanel">
+                  <header class="data-view__subhead">
+                    <h3>Колонки</h3>
+                    <p>
+                      Ручные семантические метки, синонимы и флаги скрытия для
+                      LLM.
+                    </p>
+                  </header>
+                  <div class="data-view__column-list">
+                    <article
+                      v-for="column in selectedTable.columns || []"
+                      :key="column.id"
+                      class="data-view__column-card"
+                    >
+                      <div class="data-view__column-meta">
+                        <strong>{{ column.column_name }}</strong>
+                        <span
+                          >{{ column.data_type }} ·
+                          {{
+                            column.is_nullable
+                              ? "может быть NULL"
+                              : "обязательно"
+                          }}</span
+                        >
+                        <small
+                          >примеры:
+                          {{ column.sample_values.join(", ") || "—" }}</small
+                        >
+                      </div>
+                      <div class="data-view__column-edit">
+                        <input
+                          v-model="getColumnDraft(column).semanticLabel"
+                          type="text"
+                          placeholder="семантическая метка"
+                        />
+                        <input
+                          v-model="getColumnDraft(column).synonyms"
+                          type="text"
+                          placeholder="синонимы через запятую"
+                        />
+                        <input
+                          v-model="getColumnDraft(column).sensitivity"
+                          type="text"
+                          placeholder="чувствительность"
+                        />
+                        <label class="data-view__check">
+                          <input
+                            v-model="getColumnDraft(column).hiddenForLlm"
+                            type="checkbox"
+                          />
+                          <span>Скрыть от LLM</span>
+                        </label>
+                        <textarea
+                          v-model="getColumnDraft(column).description"
+                          rows="2"
+                          placeholder="описание колонки"
+                        ></textarea>
+                        <button
+                          class="app-button app-button--ghost app-button--tiny"
+                          type="button"
+                          @click="saveColumn(column.id)"
+                        >
+                          Сохранить колонку
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                </section>
+
+                <section class="data-view__subpanel">
+                  <header class="data-view__subhead">
+                    <h3>Связи</h3>
+                    <p>
+                      FK-рёбра из слоя сканирования. Можно подтверждать и
+                      отключать связи вручную.
+                    </p>
+                  </header>
+                  <div
+                    v-if="selectedTable.relationships?.length"
+                    class="data-view__relationship-list"
+                  >
+                    <article
+                      v-for="relationship in selectedTable.relationships"
+                      :key="relationship.id"
+                      class="data-view__relationship-card"
+                    >
+                      <div>
+                        <strong>
+                          {{ relationship.from_table_name }}.{{
+                            relationship.from_column_name
+                          }}
+                          →
+                          {{ relationship.to_table_name }}.{{
+                            relationship.to_column_name
+                          }}
+                        </strong>
+                        <p>
+                          {{
+                            translateRelationType(relationship.relation_type)
+                          }}
+                          · уверенность
+                          {{ relationship.confidence.toFixed(2) }}
+                        </p>
+                      </div>
+                      <div class="data-view__relationship-edit">
+                        <input
+                          v-model="
+                            getRelationshipDraft(relationship).cardinality
+                          "
+                          type="text"
+                          placeholder="many_to_one"
+                        />
+                        <input
+                          v-model="
+                            getRelationshipDraft(relationship).confidence
+                          "
+                          type="number"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                        />
+                        <label class="data-view__check">
+                          <input
+                            v-model="
+                              getRelationshipDraft(relationship).approved
+                            "
+                            type="checkbox"
+                          />
+                          <span>Подтвердить</span>
+                        </label>
+                        <label class="data-view__check">
+                          <input
+                            v-model="
+                              getRelationshipDraft(relationship).isDisabled
+                            "
+                            type="checkbox"
+                          />
+                          <span>Отключить</span>
+                        </label>
+                        <input
+                          v-model="
+                            getRelationshipDraft(relationship).description
+                          "
+                          type="text"
+                          placeholder="комментарий"
+                        />
+                        <button
+                          class="app-button app-button--ghost app-button--tiny"
+                          type="button"
+                          @click="saveRelationship(relationship.id)"
+                        >
+                          Сохранить связь
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else class="data-view__empty">
+                    Для выбранной таблицы связей пока нет.
+                  </div>
+                </section>
+              </div>
+              <div v-else class="data-view__empty">
+                Выберите таблицу слева, чтобы редактировать семантику и связи.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="data-view__panel" v-if="erdGraph?.nodes.length">
+          <header class="data-view__head data-view__head--compact">
+            <div>
+              <p class="eyebrow">ERD</p>
+              <h2>Граф связей</h2>
+              <p class="data-view__hint">
+                Физический FK-граф по последнему снимку сканирования.
+              </p>
+            </div>
+            <div class="data-view__graph-controls">
+              <label class="data-view__toggle">
+                <input v-model="showGraphColumns" type="checkbox" />
+                <span>Колонки</span>
+              </label>
+              <label class="data-view__toggle">
+                <input
+                  v-model="showGraphSemantic"
+                  type="checkbox"
+                  :disabled="!semanticCatalog?.tables.length"
+                />
+                <span>Семантические метки</span>
+              </label>
+            </div>
+          </header>
+          <VChart class="data-view__erd" :option="erdOption" autoresize />
+        </section>
+
+        <section class="data-view__panel" v-if="semanticCatalog">
+          <header class="data-view__head data-view__head--compact">
+            <div>
+              <p class="eyebrow">Семантический каталог</p>
+              <h2>Онтологический слой</h2>
+              <p class="data-view__hint">
+                Правила плюс опциональное обогащение через LLM. Каталог хранится
+                в БД и используется слоем поиска контекста.
+              </p>
+            </div>
+            <div class="data-view__semantic-actions">
+              <label class="data-view__toggle">
+                <input v-model="semanticAutoRefreshEnabled" type="checkbox" />
+                <span>Автообновление</span>
+              </label>
+              <button
+                class="app-button app-button--ghost"
+                type="button"
+                :disabled="isActivatingSemantic"
+                @click="activateSemantic"
+              >
+                {{ isActivatingSemantic ? "Обновляем…" : "Обновить семантику" }}
+              </button>
+            </div>
+          </header>
+          <p v-if="semanticFeedback" class="data-view__feedback">
+            {{ semanticFeedback }}
+          </p>
+          <div class="data-view__semantic-compose">
+            <label class="data-view__semantic-description">
+              <span>Описание базы для семантической активации</span>
+              <textarea
+                v-model="semanticDescription"
+                rows="6"
+                placeholder="Опишите предметную область, ключевые сущности, что означает каждая строка, и любые важные бизнес-правила."
+              ></textarea>
+              <small
+                >Это описание попадёт в семантический каталог и поможет LLM
+                разметить таблицы, колонки и роли.</small
+              >
+            </label>
+          </div>
+          <div class="data-view__semantic-source">
+            <article class="data-view__semantic-source-item">
+              <span>Выбранная база</span>
+              <strong>{{
+                selectedDatabase?.name || semanticCatalog.database_id
+              }}</strong>
+              <small>{{ semanticCatalog.database_id }}</small>
+            </article>
+            <article class="data-view__semantic-source-item">
+              <span>API-эндпоинт активации</span>
+              <strong>/api/metadata/semantic-catalog/activate</strong>
+              <small
+                >Ответ отображается ниже и сохраняется в служебной БД.</small
+              >
+            </article>
+            <article class="data-view__semantic-source-item">
+              <span>Статус семантики</span>
+              <strong>{{
+                semanticCatalog.tables.length ? "активна" : "пуста"
+              }}</strong>
+              <small
+                >{{ semanticCatalog.relationships.length }} связей ·
+                {{ semanticCatalog.join_paths.length }} маршрутов JOIN</small
+              >
+            </article>
+          </div>
+          <section class="data-view__subpanel data-view__subpanel--tight">
+            <header class="data-view__subhead">
+              <h3>Граф связей</h3>
+              <p>
+                Отдельный граф связей, который сохраняется в каталоге и
+                передаётся в LLM-контекст.
+              </p>
+            </header>
+            <div
+              v-if="semanticCatalog.relationship_graph.length"
+              class="data-view__graph-list"
+            >
+              <article
+                v-for="edge in semanticCatalog.relationship_graph"
+                :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
+                class="data-view__graph-card"
+              >
+                <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
+                <strong>{{ edge.on }}</strong>
+              </article>
+            </div>
+            <div v-else class="data-view__empty">
+              Для этой базы рёбра графа пока отсутствуют.
+            </div>
+          </section>
+          <div class="data-view__semantic-grid">
+            <article class="data-view__semantic-stat">
+              <span>Таблицы</span>
+              <strong>{{ semanticCatalog.tables.length }}</strong>
+            </article>
+            <article class="data-view__semantic-stat">
+              <span>Связи</span>
+              <strong>{{ semanticCatalog.relationships.length }}</strong>
+            </article>
+            <article class="data-view__semantic-stat">
+              <span>Маршруты JOIN</span>
+              <strong>{{ semanticCatalog.join_paths.length }}</strong>
+            </article>
+            <article class="data-view__semantic-stat">
+              <span>Диалект</span>
+              <strong>{{ semanticCatalog.dialect }}</strong>
+            </article>
+          </div>
+          <div
+            v-if="semanticCatalog.tables.length"
+            class="data-view__semantic-list"
+          >
+            <article
+              v-for="table in semanticCatalog.tables.slice(0, 8)"
+              :key="`${table.schema_name}.${table.table_name}`"
+              class="data-view__semantic-card"
+            >
+              <div>
+                <strong>{{ table.label }}</strong>
+                <p>
+                  {{ table.schema_name }}.{{ table.table_name }} ·
+                  {{ translateTableRole(table.table_role) }}
+                </p>
+              </div>
+              <small>
+                {{ table.columns.length }} колонок ·
+                {{ table.join_paths.length }} маршрутов JOIN
+              </small>
+            </article>
+          </div>
+        </section>
+
+        <section class="data-view__panel">
+          <header class="data-view__head">
+            <div>
+              <p class="eyebrow">Слой совместимости</p>
+              <h2>Словарь</h2>
+              <p class="data-view__hint">
+                Семантический словарь остаётся совместимым со старым
+                NL→SQL-пайплайном. После сканирования он может
+                синхронизироваться автоматически, а здесь его можно дополнять
+                вручную.
+              </p>
+            </div>
+          </header>
+          <form class="data-view__create" @submit.prevent="createTerm">
+            <input
+              v-model="draft.term"
+              type="text"
+              placeholder="Термин (например revenue_total)"
+              required
+            />
+            <input
+              v-model="draft.mappedExpression"
+              type="text"
+              placeholder="SQL-выражение (например SUM(orders.amount))"
+              required
+            />
+            <input
+              v-model="draft.synonyms"
+              type="text"
+              placeholder="Синонимы через запятую"
+            />
+            <button class="app-button" type="submit" :disabled="isCreatingTerm">
+              {{ isCreatingTerm ? "Сохранение…" : "Добавить термин" }}
+            </button>
+          </form>
+          <p v-if="dictionaryFeedback" class="data-view__feedback">
+            {{ dictionaryFeedback }}
+          </p>
+
+          <div
+            v-if="!store.workspace.dictionary.length"
+            class="data-view__empty"
+          >
+            Словарь пуст. После сканирования он может автоматически наполняться
+            терминами таблиц и колонок.
+          </div>
+          <table v-else class="data-view__table">
+            <thead>
+              <tr>
+                <th>Термин</th>
+                <th>Выражение</th>
+                <th>Описание</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="term in store.workspace.dictionary" :key="term.id">
+                <td>
+                  <strong>{{ term.term }}</strong>
+                  <p v-if="term.synonyms.length" class="data-view__syn">
+                    {{ term.synonyms.join(", ") }}
+                  </p>
+                </td>
+                <td>
+                  <code>{{ term.mappedExpression }}</code>
+                </td>
+                <td>{{ term.description }}</td>
+                <td>
+                  <button
+                    class="app-button app-button--link app-button--tiny"
+                    type="button"
+                    @click="removeTerm(term.id)"
+                  >
+                    Удалить
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </div>
+
+    <AddDatabaseModal
+      v-if="showAddDatabase"
+      @close="showAddDatabase = false"
+      @submit="submitDatabase"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import VChart from 'vue-echarts';
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import VChart from "vue-echarts";
 
-import { api } from '@/api/client';
-import AddDatabaseModal from '@/components/layout/AddDatabaseModal.vue';
-import ChatSidebar from '@/components/chat/ChatSidebar.vue';
+import { api } from "@/api/client";
+import AddDatabaseModal from "@/components/layout/AddDatabaseModal.vue";
+import ChatSidebar from "@/components/chat/ChatSidebar.vue";
 import type {
   ApiERDGraph,
   ApiKnowledgeColumn,
   ApiKnowledgeRelationship,
   ApiKnowledgeSummary,
   ApiKnowledgeTable,
-  ApiSemanticCatalog
-} from '@/api/types';
-import { useChatStore } from '@/stores/chat';
-import { useWorkspaceStore } from '@/stores/workspace';
+  ApiSemanticCatalog,
+} from "@/api/types";
+import { useChatStore } from "@/stores/chat";
+import { useWorkspaceStore } from "@/stores/workspace";
 
 const store = useWorkspaceStore();
 const chat = useChatStore();
 
-const selectedDatabaseId = ref('');
+const selectedDatabaseId = ref("");
 const knowledgeSummary = ref<ApiKnowledgeSummary | null>(null);
 const semanticCatalog = ref<ApiSemanticCatalog | null>(null);
 const selectedTableId = ref<string | null>(null);
 const selectedTable = ref<ApiKnowledgeTable | null>(null);
 const erdGraph = ref<ApiERDGraph | null>(null);
-const scanRuns = ref<Array<{ id: string; scan_type: string; status: string; stage: string; summary: Record<string, unknown>; started_at: string; finished_at?: string | null }>>([]);
+const scanRuns = ref<
+  Array<{
+    id: string;
+    scan_type: string;
+    status: string;
+    stage: string;
+    summary: Record<string, unknown>;
+    started_at: string;
+    finished_at?: string | null;
+  }>
+>([]);
 
 const isCreatingTerm = ref(false);
 const isScanning = ref(false);
@@ -506,53 +771,66 @@ const loadingTable = ref(false);
 const isActivatingSemantic = ref(false);
 const isDeletingDatabase = ref(false);
 const showAddDatabase = ref(false);
-const semanticDescription = ref('');
+const semanticDescription = ref("");
 const showGraphColumns = ref(true);
 const showGraphSemantic = ref(true);
 
-const knowledgeFeedback = ref('');
-const dictionaryFeedback = ref('');
-const semanticFeedback = ref('');
+const knowledgeFeedback = ref("");
+const dictionaryFeedback = ref("");
+const semanticFeedback = ref("");
 const semanticAutoRefreshEnabled = ref(true);
-const semanticAutoRefreshKey = ref('');
-const SEMANTIC_AUTO_REFRESH_LS_KEY = 'sql-ide.semantic-auto-refresh-enabled';
+const semanticAutoRefreshKey = ref("");
+const SEMANTIC_AUTO_REFRESH_LS_KEY = "sql-ide.semantic-auto-refresh-enabled";
 
 const draft = reactive({
-  term: '',
-  mappedExpression: '',
-  synonyms: ''
+  term: "",
+  mappedExpression: "",
+  synonyms: "",
 });
 
 const tableDraft = reactive({
-  description: '',
-  businessMeaning: '',
-  domain: '',
-  tags: '',
-  sensitivity: ''
+  description: "",
+  businessMeaning: "",
+  domain: "",
+  tags: "",
+  sensitivity: "",
 });
 
-const columnDrafts = reactive<Record<string, {
-  description: string;
-  semanticLabel: string;
-  synonyms: string;
-  sensitivity: string;
-  hiddenForLlm: boolean;
-}>>({});
+const columnDrafts = reactive<
+  Record<
+    string,
+    {
+      description: string;
+      semanticLabel: string;
+      synonyms: string;
+      sensitivity: string;
+      hiddenForLlm: boolean;
+    }
+  >
+>({});
 
-const relationshipDrafts = reactive<Record<string, {
-  cardinality: string;
-  confidence: string;
-  approved: boolean;
-  isDisabled: boolean;
-  description: string;
-}>>({});
+const relationshipDrafts = reactive<
+  Record<
+    string,
+    {
+      cardinality: string;
+      confidence: string;
+      approved: boolean;
+      isDisabled: boolean;
+      description: string;
+    }
+  >
+>({});
 
-const selectedDatabase = computed(() =>
-  store.workspace.databases.find((database) => database.id === selectedDatabaseId.value) ?? null
+const selectedDatabase = computed(
+  () =>
+    store.workspace.databases.find(
+      (database) => database.id === selectedDatabaseId.value,
+    ) ?? null,
 );
 
 const semanticTableLookup = computed(() => {
-  const map = new Map<string, ApiSemanticCatalog['tables'][number]>();
+  const map = new Map<string, ApiSemanticCatalog["tables"][number]>();
   for (const table of semanticCatalog.value?.tables ?? []) {
     map.set(`${table.schema_name}.${table.table_name}`, table);
   }
@@ -560,53 +838,55 @@ const semanticTableLookup = computed(() => {
 });
 
 function truncateText(value: string, limit = 88) {
-  const compact = value.replace(/\s+/g, ' ').trim();
+  const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= limit) {
     return compact;
   }
   return `${compact.slice(0, Math.max(limit - 1, 0)).trimEnd()}…`;
 }
 
-function tableNodeKey(node: ApiERDGraph['nodes'][number]) {
+function tableNodeKey(node: ApiERDGraph["nodes"][number]) {
   return `${node.schema_name}.${node.table_name}`;
 }
 
-function tableNodeColumns(node: ApiERDGraph['nodes'][number]) {
+function tableNodeColumns(node: ApiERDGraph["nodes"][number]) {
   const semantic = semanticTableLookup.value.get(tableNodeKey(node));
   return semantic?.columns.map((column) => column.column_name) ?? [];
 }
 
-function tableNodeSemanticSummary(node: ApiERDGraph['nodes'][number]) {
+function tableNodeSemanticSummary(node: ApiERDGraph["nodes"][number]) {
   const semantic = semanticTableLookup.value.get(tableNodeKey(node));
   if (!semantic || !showGraphSemantic.value) {
-    return '';
+    return "";
   }
   const parts = [
     semantic.table_role,
-    semantic.grain ? `grain: ${semantic.grain}` : '',
-    semantic.main_date_column ? `date: ${semantic.main_date_column}` : '',
-    semantic.business_description ? truncateText(semantic.business_description, 92) : ''
+    semantic.grain ? `grain: ${semantic.grain}` : "",
+    semantic.main_date_column ? `date: ${semantic.main_date_column}` : "",
+    semantic.business_description
+      ? truncateText(semantic.business_description, 92)
+      : "",
   ].filter(Boolean);
-  return parts.join(' · ');
+  return parts.join(" · ");
 }
 
-function tableNodeColor(node: ApiERDGraph['nodes'][number]) {
+function tableNodeColor(node: ApiERDGraph["nodes"][number]) {
   const semantic = semanticTableLookup.value.get(tableNodeKey(node));
   switch (semantic?.table_role) {
-    case 'fact':
-      return '#8aa4ff';
-    case 'dimension':
-      return '#81c995';
-    case 'bridge':
-      return '#f4c26b';
-    case 'snapshot':
-      return '#d9a3ff';
-    case 'event':
-      return '#5cc8ff';
-    case 'lookup':
-      return '#9ab1c3';
+    case "fact":
+      return "#8aa4ff";
+    case "dimension":
+      return "#81c995";
+    case "bridge":
+      return "#f4c26b";
+    case "snapshot":
+      return "#d9a3ff";
+    case "event":
+      return "#5cc8ff";
+    case "lookup":
+      return "#9ab1c3";
     default:
-      return '#2b6fff';
+      return "#2b6fff";
   }
 }
 
@@ -614,7 +894,7 @@ const erdOption = computed(() => {
   const graph = erdGraph.value;
   if (!graph?.nodes.length) {
     return {
-      series: []
+      series: [],
     };
   }
 
@@ -622,8 +902,9 @@ const erdOption = computed(() => {
     const columns = tableNodeColumns(node);
     const semantic = semanticTableLookup.value.get(tableNodeKey(node));
     const columnPreview = showGraphColumns.value
-      ? columns.slice(0, 3).join(', ') + (columns.length > 3 ? ` · +${columns.length - 3}` : '')
-      : '';
+      ? columns.slice(0, 3).join(", ") +
+        (columns.length > 3 ? ` · +${columns.length - 3}` : "")
+      : "";
     const semanticSummary = tableNodeSemanticSummary(node);
 
     return {
@@ -632,7 +913,12 @@ const erdOption = computed(() => {
       value: node.row_count ?? node.column_count,
       symbolSize: Math.max(
         42,
-        Math.min(92, 24 + node.column_count * 2 + (showGraphSemantic.value && semantic ? 10 : 0))
+        Math.min(
+          92,
+          24 +
+            node.column_count * 2 +
+            (showGraphSemantic.value && semantic ? 10 : 0),
+        ),
       ),
       category: node.schema_name,
       schema_name: node.schema_name,
@@ -646,15 +932,18 @@ const erdOption = computed(() => {
       business_description: semantic?.business_description ?? null,
       main_date_column: semantic?.main_date_column ?? null,
       itemStyle: {
-        color: tableNodeColor(node)
-      }
+        color: tableNodeColor(node),
+      },
     };
   });
 
   return {
     tooltip: {
-      trigger: 'item',
-      formatter: (params: { data?: Record<string, unknown>; name?: string }) => {
+      trigger: "item",
+      formatter: (params: {
+        data?: Record<string, unknown>;
+        name?: string;
+      }) => {
         const data = (params.data ?? {}) as {
           schema_name?: string;
           table_name?: string;
@@ -668,128 +957,252 @@ const erdOption = computed(() => {
           main_date_column?: string | null;
         };
         const lines = [
-          `<strong>${data.schema_name ? `${data.schema_name}.` : ''}${data.table_name ?? params.name ?? ''}</strong>`,
-          `Columns: ${data.column_count ?? 0}`,
-          `Rows: ${data.row_count ?? '—'}`
+          `<strong>${data.schema_name ? `${data.schema_name}.` : ""}${data.table_name ?? params.name ?? ""}</strong>`,
+          `Колонки: ${data.column_count ?? 0}`,
+          `Строки: ${data.row_count ?? "—"}`,
         ];
         if (showGraphColumns.value && data.columns?.length) {
-          lines.push(`Columns list: ${data.columns.join(', ')}`);
+          lines.push(`Список колонок: ${data.columns.join(", ")}`);
         }
         if (showGraphSemantic.value && data.semantic_summary) {
-          lines.push(`Semantic: ${data.semantic_summary}`);
+          lines.push(`Семантика: ${data.semantic_summary}`);
         }
         if (data.business_description) {
-          lines.push(`Description: ${data.business_description}`);
+          lines.push(`Описание: ${data.business_description}`);
         }
         if (data.main_date_column) {
-          lines.push(`Main date: ${data.main_date_column}`);
+          lines.push(`Главная дата: ${data.main_date_column}`);
         }
-        return lines.join('<br/>');
-      }
+        return lines.join("<br/>");
+      },
     },
     series: [
       {
-        type: 'graph',
-        layout: 'force',
+        type: "graph",
+        layout: "force",
         roam: true,
         draggable: true,
         force: {
           repulsion: 180,
-          edgeLength: 110
+          edgeLength: 110,
         },
         label: {
           show: true,
-          formatter: (params: { data?: Record<string, unknown>; name?: string }) => {
+          formatter: (params: {
+            data?: Record<string, unknown>;
+            name?: string;
+          }) => {
             const data = (params.data ?? {}) as {
               name?: string;
               column_preview?: string;
               semantic_summary?: string;
             };
-            const lines = [data.name ?? params.name ?? ''];
+            const lines = [data.name ?? params.name ?? ""];
             if (showGraphColumns.value && data.column_preview) {
               lines.push(data.column_preview);
             }
             if (showGraphSemantic.value && data.semantic_summary) {
               lines.push(data.semantic_summary);
             }
-            return lines.filter(Boolean).join('\n');
+            return lines.filter(Boolean).join("\n");
           },
-          color: '#e8eaed',
+          color: "#e8eaed",
           fontSize: 11,
           lineHeight: 15,
           width: 170,
-          overflow: 'truncate'
+          overflow: "truncate",
         },
         lineStyle: {
-          color: '#8aa4ff',
+          color: "#8aa4ff",
           width: 1.4,
-          opacity: 0.75
+          opacity: 0.75,
         },
         itemStyle: {
-          color: '#2b6fff',
-          borderColor: '#dbe5ff',
-          borderWidth: 2
+          color: "#2b6fff",
+          borderColor: "#dbe5ff",
+          borderWidth: 2,
         },
         data: nodes,
         links: graph.edges.map((edge) => ({
           source: edge.source,
           target: edge.target,
-          value: edge.source_label
-        }))
-      }
-    ]
+          value: edge.source_label,
+        })),
+      },
+    ],
   };
 });
 
 function formatTimestamp(value?: string | null) {
-  if (!value) return '—';
+  if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('ru-RU', {
-    dateStyle: 'medium',
-    timeStyle: 'short'
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(date);
 }
 
 function numberFromSummary(summary: Record<string, unknown>, key: string) {
   const value = summary[key];
-  return typeof value === 'number' ? value : 0;
+  return typeof value === "number" ? value : 0;
+}
+
+function translateDatabaseMode(value?: string | null) {
+  switch (value) {
+    case "read_only":
+      return "Только чтение";
+    case "read_write":
+      return "Чтение и запись";
+    case "demo":
+      return "Демо";
+    default:
+      return value || "—";
+  }
+}
+
+function translateKnowledgeStatus(value?: string | null) {
+  switch (value) {
+    case "active":
+      return "Активен";
+    case "connected":
+      return "Подключён";
+    case "syncing":
+      return "Сканируется";
+    case "not_scanned":
+      return "Не сканировался";
+    case "failed":
+      return "Ошибка";
+    default:
+      return value || "—";
+  }
+}
+
+function translateScanType(value?: string | null) {
+  switch (value) {
+    case "full":
+      return "Полный скан";
+    case "incremental":
+      return "Инкрементальный скан";
+    default:
+      return value || "—";
+  }
+}
+
+function translateScanStatus(value?: string | null) {
+  switch (value) {
+    case "completed":
+      return "Завершён";
+    case "running":
+      return "В процессе";
+    case "failed":
+      return "Ошибка";
+    case "queued":
+      return "В очереди";
+    default:
+      return value || "—";
+  }
+}
+
+function translateScanStage(value?: string | null) {
+  switch (value) {
+    case "queued":
+      return "Ожидание";
+    case "schema":
+    case "schema_snapshot":
+      return "Снимок схемы";
+    case "columns":
+      return "Колонки";
+    case "relationships":
+      return "Связи";
+    case "semantic":
+    case "semantic_catalog":
+      return "Семантика";
+    case "completed":
+      return "Завершение";
+    default:
+      return value || "—";
+  }
+}
+
+function translateTableObjectType(value?: string | null) {
+  switch (value) {
+    case "table":
+      return "таблица";
+    case "view":
+      return "представление";
+    case "materialized_view":
+      return "материализованное представление";
+    default:
+      return value || "—";
+  }
+}
+
+function translateRelationType(value?: string | null) {
+  switch (value) {
+    case "foreign_key":
+      return "внешний ключ";
+    case "semantic":
+      return "семантическая связь";
+    default:
+      return value || "—";
+  }
+}
+
+function translateTableRole(value?: string | null) {
+  switch (value) {
+    case "fact":
+      return "факт";
+    case "dimension":
+      return "измерение";
+    case "bridge":
+      return "мост";
+    case "lookup":
+      return "справочник";
+    case "reference":
+      return "референс";
+    default:
+      return value || "—";
+  }
 }
 
 function splitCsv(value: string) {
   return value
-    .split(',')
+    .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
 function syncTableDraft(table: ApiKnowledgeTable | null) {
-  tableDraft.description = table?.description_manual ?? '';
-  tableDraft.businessMeaning = table?.business_meaning_manual ?? '';
-  tableDraft.domain = table?.domain_manual ?? '';
-  tableDraft.tags = (table?.tags ?? []).join(', ');
-  tableDraft.sensitivity = table?.sensitivity ?? '';
+  tableDraft.description = table?.description_manual ?? "";
+  tableDraft.businessMeaning = table?.business_meaning_manual ?? "";
+  tableDraft.domain = table?.domain_manual ?? "";
+  tableDraft.tags = (table?.tags ?? []).join(", ");
+  tableDraft.sensitivity = table?.sensitivity ?? "";
 
   Object.keys(columnDrafts).forEach((key) => delete columnDrafts[key]);
-  Object.keys(relationshipDrafts).forEach((key) => delete relationshipDrafts[key]);
+  Object.keys(relationshipDrafts).forEach(
+    (key) => delete relationshipDrafts[key],
+  );
 
   for (const column of table?.columns ?? []) {
     columnDrafts[column.id] = {
-      description: column.description_manual ?? '',
-      semanticLabel: column.semantic_label_manual ?? column.semantic_label_auto ?? '',
-      synonyms: column.synonyms.join(', '),
-      sensitivity: column.sensitivity ?? '',
-      hiddenForLlm: Boolean(column.hidden_for_llm)
+      description: column.description_manual ?? "",
+      semanticLabel:
+        column.semantic_label_manual ?? column.semantic_label_auto ?? "",
+      synonyms: column.synonyms.join(", "),
+      sensitivity: column.sensitivity ?? "",
+      hiddenForLlm: Boolean(column.hidden_for_llm),
     };
   }
 
   for (const relationship of table?.relationships ?? []) {
     relationshipDrafts[relationship.id] = {
-      cardinality: relationship.cardinality ?? '',
+      cardinality: relationship.cardinality ?? "",
       confidence: String(relationship.confidence ?? 1),
       approved: Boolean(relationship.approved),
       isDisabled: Boolean(relationship.is_disabled),
-      description: relationship.description_manual ?? ''
+      description: relationship.description_manual ?? "",
     };
   }
 }
@@ -797,11 +1210,12 @@ function syncTableDraft(table: ApiKnowledgeTable | null) {
 function getColumnDraft(column: ApiKnowledgeColumn) {
   if (!columnDrafts[column.id]) {
     columnDrafts[column.id] = {
-      description: column.description_manual ?? '',
-      semanticLabel: column.semantic_label_manual ?? column.semantic_label_auto ?? '',
-      synonyms: column.synonyms.join(', '),
-      sensitivity: column.sensitivity ?? '',
-      hiddenForLlm: Boolean(column.hidden_for_llm)
+      description: column.description_manual ?? "",
+      semanticLabel:
+        column.semantic_label_manual ?? column.semantic_label_auto ?? "",
+      synonyms: column.synonyms.join(", "),
+      sensitivity: column.sensitivity ?? "",
+      hiddenForLlm: Boolean(column.hidden_for_llm),
     };
   }
   return columnDrafts[column.id];
@@ -810,11 +1224,11 @@ function getColumnDraft(column: ApiKnowledgeColumn) {
 function getRelationshipDraft(relationship: ApiKnowledgeRelationship) {
   if (!relationshipDrafts[relationship.id]) {
     relationshipDrafts[relationship.id] = {
-      cardinality: relationship.cardinality ?? '',
+      cardinality: relationship.cardinality ?? "",
       confidence: String(relationship.confidence ?? 1),
       approved: Boolean(relationship.approved),
       isDisabled: Boolean(relationship.is_disabled),
-      description: relationship.description_manual ?? ''
+      description: relationship.description_manual ?? "",
     };
   }
   return relationshipDrafts[relationship.id];
@@ -835,9 +1249,9 @@ function mergeTableIntoSummary(table: ApiKnowledgeTable) {
           sensitivity: table.sensitivity,
           column_count: table.column_count,
           row_count: table.row_count,
-          primary_key: table.primary_key
+          primary_key: table.primary_key,
         }
-      : item
+      : item,
   );
 }
 
@@ -852,7 +1266,10 @@ async function loadSelectedTable() {
     selectedTable.value = table;
     syncTableDraft(table);
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось загрузить детали таблицы.';
+    knowledgeFeedback.value =
+      error instanceof Error
+        ? error.message
+        : "Не удалось загрузить детали таблицы.";
     selectedTable.value = null;
   } finally {
     loadingTable.value = false;
@@ -864,11 +1281,16 @@ function buildSemanticDatabaseDescription() {
   if (explicitDescription) {
     return `${explicitDescription}\n\nПиши все label, business_description и synonyms на русском языке.`;
   }
-  const databaseName = selectedDatabase.value?.name?.trim() || selectedDatabaseId.value || 'database';
+  const databaseName =
+    selectedDatabase.value?.name?.trim() ||
+    selectedDatabaseId.value ||
+    "database";
   return `База данных «${databaseName}». Пиши все label, business_description и synonyms на русском языке.`;
 }
 
-async function refreshSemanticCatalog(options: { auto?: boolean; force?: boolean } = {}) {
+async function refreshSemanticCatalog(
+  options: { auto?: boolean; force?: boolean } = {},
+) {
   if (!selectedDatabaseId.value) {
     return;
   }
@@ -877,29 +1299,36 @@ async function refreshSemanticCatalog(options: { auto?: boolean; force?: boolean
   }
 
   const description = buildSemanticDatabaseDescription();
-  const lastScanId = knowledgeSummary.value?.last_scan?.id ?? 'no-scan';
+  const lastScanId = knowledgeSummary.value?.last_scan?.id ?? "no-scan";
   const autoKey = `${selectedDatabaseId.value}::${lastScanId}::${description}`;
-  if (options.auto && !options.force && semanticAutoRefreshKey.value === autoKey) {
+  if (
+    options.auto &&
+    !options.force &&
+    semanticAutoRefreshKey.value === autoKey
+  ) {
     return;
   }
 
   isActivatingSemantic.value = true;
   if (!options.auto) {
-    semanticFeedback.value = '';
+    semanticFeedback.value = "";
   }
 
   try {
     semanticCatalog.value = await api.activateSemanticCatalog({
       database_id: selectedDatabaseId.value,
       refresh: true,
-      database_description: description
+      database_description: description,
     });
     semanticAutoRefreshKey.value = autoKey;
     semanticFeedback.value = options.auto
       ? `Семантический каталог автоматически обновлён для ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`
       : `Семантический каталог активирован для ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
   } catch (error) {
-    semanticFeedback.value = error instanceof Error ? error.message : 'Не удалось активировать semantic.';
+    semanticFeedback.value =
+      error instanceof Error
+        ? error.message
+        : "Не удалось активировать семантику.";
   } finally {
     isActivatingSemantic.value = false;
   }
@@ -912,24 +1341,27 @@ async function loadKnowledge() {
     scanRuns.value = [];
     erdGraph.value = null;
     semanticCatalog.value = null;
-    semanticAutoRefreshKey.value = '';
+    semanticAutoRefreshKey.value = "";
     return;
   }
 
-  knowledgeFeedback.value = '';
-  semanticFeedback.value = '';
-  const [summaryResult, runsResult, graphResult, semanticResult] = await Promise.allSettled([
-    api.getKnowledge(selectedDatabaseId.value),
-    api.getKnowledgeScanRuns(selectedDatabaseId.value),
-    api.getERD(selectedDatabaseId.value),
-    api.getSemanticCatalog(selectedDatabaseId.value)
-  ]);
+  knowledgeFeedback.value = "";
+  semanticFeedback.value = "";
+  const [summaryResult, runsResult, graphResult, semanticResult] =
+    await Promise.allSettled([
+      api.getKnowledge(selectedDatabaseId.value),
+      api.getKnowledgeScanRuns(selectedDatabaseId.value),
+      api.getERD(selectedDatabaseId.value),
+      api.getSemanticCatalog(selectedDatabaseId.value),
+    ]);
 
-  if (summaryResult.status === 'fulfilled') {
+  if (summaryResult.status === "fulfilled") {
     const summary = summaryResult.value;
     knowledgeSummary.value = summary;
 
-    const stillExists = summary.tables.find((table) => table.id === selectedTableId.value);
+    const stillExists = summary.tables.find(
+      (table) => table.id === selectedTableId.value,
+    );
     if (!stillExists) {
       selectedTableId.value = summary.tables[0]?.id ?? null;
     }
@@ -943,52 +1375,60 @@ async function loadKnowledge() {
     knowledgeSummary.value = null;
     selectedTable.value = null;
     selectedTableId.value = null;
-    knowledgeFeedback.value = summaryResult.reason instanceof Error
-      ? summaryResult.reason.message
-      : 'Не удалось загрузить knowledge layer.';
+    knowledgeFeedback.value =
+      summaryResult.reason instanceof Error
+        ? summaryResult.reason.message
+        : "Не удалось загрузить слой знаний.";
   }
 
-  if (runsResult.status === 'fulfilled') {
+  if (runsResult.status === "fulfilled") {
     scanRuns.value = runsResult.value;
   } else {
     scanRuns.value = [];
     if (!knowledgeFeedback.value) {
-      knowledgeFeedback.value = runsResult.reason instanceof Error
-        ? runsResult.reason.message
-        : 'Не удалось загрузить scan runs.';
+      knowledgeFeedback.value =
+        runsResult.reason instanceof Error
+          ? runsResult.reason.message
+          : "Не удалось загрузить запуски сканирования.";
     }
   }
 
-  if (graphResult.status === 'fulfilled') {
+  if (graphResult.status === "fulfilled") {
     erdGraph.value = graphResult.value;
   } else {
     erdGraph.value = null;
     if (!knowledgeFeedback.value) {
-      knowledgeFeedback.value = graphResult.reason instanceof Error
-        ? graphResult.reason.message
-        : 'Не удалось загрузить ERD graph.';
+      knowledgeFeedback.value =
+        graphResult.reason instanceof Error
+          ? graphResult.reason.message
+          : "Не удалось загрузить граф ERD.";
     }
   }
 
-  if (semanticResult.status === 'fulfilled') {
+  if (semanticResult.status === "fulfilled") {
     semanticCatalog.value = semanticResult.value;
   } else {
     semanticCatalog.value = null;
-    semanticFeedback.value = semanticResult.reason instanceof Error
-      ? semanticResult.reason.message
-      : 'Не удалось загрузить semantic catalog.';
+    semanticFeedback.value =
+      semanticResult.reason instanceof Error
+        ? semanticResult.reason.message
+        : "Не удалось загрузить семантический каталог.";
   }
 
-  if (selectedDatabaseId.value && semanticCatalog.value && semanticAutoRefreshEnabled.value) {
+  if (
+    selectedDatabaseId.value &&
+    semanticCatalog.value &&
+    semanticAutoRefreshEnabled.value
+  ) {
     await refreshSemanticCatalog({ auto: true });
   }
 }
 
 async function reload() {
-  await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+  await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
   await chat.loadDatabases();
   if (!selectedDatabaseId.value) {
-    selectedDatabaseId.value = store.workspace.databases[0]?.id ?? '';
+    selectedDatabaseId.value = store.workspace.databases[0]?.id ?? "";
     if (selectedDatabaseId.value) {
       await selectDatabase(selectedDatabaseId.value);
       return;
@@ -1000,22 +1440,25 @@ async function reload() {
   await loadKnowledge();
 }
 
-async function runScan(mode: 'full' | 'incremental') {
+async function runScan(mode: "full" | "incremental") {
   if (!selectedDatabaseId.value) return;
   isScanning.value = true;
-  knowledgeFeedback.value = '';
+  knowledgeFeedback.value = "";
   try {
-    if (mode === 'full') {
+    if (mode === "full") {
       await api.runKnowledgeFullScan(selectedDatabaseId.value);
     } else {
       await api.runKnowledgeIncrementalScan(selectedDatabaseId.value);
     }
-    await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+    await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
     await chat.loadDatabases();
     await loadKnowledge();
-    knowledgeFeedback.value = `${mode === 'full' ? 'Full' : 'Incremental'} scan завершён.`;
+    knowledgeFeedback.value = `${mode === "full" ? "Полный" : "Инкрементальный"} скан завершён.`;
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось выполнить scan.';
+    knowledgeFeedback.value =
+      error instanceof Error
+        ? error.message
+        : "Не удалось выполнить сканирование.";
   } finally {
     isScanning.value = false;
   }
@@ -1035,34 +1478,39 @@ async function deleteSelectedDatabase(databaseId?: string) {
   if (!targetDatabase || targetDatabase.isDemo || !targetId) {
     return;
   }
-  const confirmed = window.confirm(`Удалить базу данных «${targetDatabase.name}»?`);
+  const confirmed = window.confirm(
+    `Удалить базу данных «${targetDatabase.name}»?`,
+  );
   if (!confirmed) {
     return;
   }
   isDeletingDatabase.value = true;
   try {
     await api.deleteDatabase(targetId);
-    await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+    await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
     await chat.loadDatabases();
-    const stillSelectedExists = store.workspace.databases.some((database) => database.id === previousSelectedId);
+    const stillSelectedExists = store.workspace.databases.some(
+      (database) => database.id === previousSelectedId,
+    );
     if (targetId === previousSelectedId || !stillSelectedExists) {
-      const nextDatabase = store.workspace.databases[0]?.id ?? '';
+      const nextDatabase = store.workspace.databases[0]?.id ?? "";
       selectedDatabaseId.value = nextDatabase;
       if (nextDatabase) {
         await chat.selectDatabase(nextDatabase);
-        semanticDescription.value = selectedDatabase.value?.description ?? '';
+        semanticDescription.value = selectedDatabase.value?.description ?? "";
       } else {
         semanticCatalog.value = null;
         knowledgeSummary.value = null;
         selectedTable.value = null;
         scanRuns.value = [];
         erdGraph.value = null;
-        semanticDescription.value = '';
+        semanticDescription.value = "";
       }
     }
-    knowledgeFeedback.value = 'Database deleted.';
+    knowledgeFeedback.value = "База данных удалена.";
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось удалить базу.';
+    knowledgeFeedback.value =
+      error instanceof Error ? error.message : "Не удалось удалить базу.";
   } finally {
     isDeletingDatabase.value = false;
   }
@@ -1075,14 +1523,14 @@ async function selectDatabase(databaseId: string) {
   if (databaseId === selectedDatabaseId.value) {
     await chat.selectDatabase(databaseId);
     if (!semanticDescription.value.trim()) {
-      semanticDescription.value = selectedDatabase.value?.description ?? '';
+      semanticDescription.value = selectedDatabase.value?.description ?? "";
     }
     return;
   }
   selectedDatabaseId.value = databaseId;
   await chat.selectDatabase(databaseId);
   if (!semanticDescription.value.trim()) {
-    semanticDescription.value = selectedDatabase.value?.description ?? '';
+    semanticDescription.value = selectedDatabase.value?.description ?? "";
   }
 }
 
@@ -1108,17 +1556,18 @@ async function renameDatabase(databaseId: string, title: string) {
   }
   try {
     await api.updateDatabase(databaseId, { name: title.trim() });
-    await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+    await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
     await chat.loadDatabases();
     if (databaseId === selectedDatabaseId.value) {
       selectedDatabaseId.value = databaseId;
       if (!semanticDescription.value.trim()) {
-        semanticDescription.value = selectedDatabase.value?.description ?? '';
+        semanticDescription.value = selectedDatabase.value?.description ?? "";
       }
     }
-    knowledgeFeedback.value = 'Database renamed.';
+    knowledgeFeedback.value = "База данных переименована.";
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось переименовать базу.';
+    knowledgeFeedback.value =
+      error instanceof Error ? error.message : "Не удалось переименовать базу.";
   }
 }
 
@@ -1145,11 +1594,11 @@ async function submitDatabase(payload: {
       password: payload.password,
       tables: payload.tables,
       importSchemaToDictionary: payload.importSchemaToDictionary,
-      allowedTables: payload.allowedTables
+      allowedTables: payload.allowedTables,
     });
     showAddDatabase.value = false;
     selectedDatabaseId.value = created.id;
-    semanticDescription.value = created.description ?? '';
+    semanticDescription.value = created.description ?? "";
     await chat.selectDatabase(created.id);
     await reload();
   } catch {
@@ -1166,13 +1615,14 @@ async function saveTable() {
       business_meaning_manual: tableDraft.businessMeaning || null,
       domain_manual: tableDraft.domain || null,
       tags: splitCsv(tableDraft.tags),
-      sensitivity: tableDraft.sensitivity || null
+      sensitivity: tableDraft.sensitivity || null,
     });
     mergeTableIntoSummary(table);
     erdGraph.value = await api.getERD(selectedDatabaseId.value);
-    knowledgeFeedback.value = 'Table overrides сохранены.';
+    knowledgeFeedback.value = "Переопределения таблицы сохранены.";
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось сохранить таблицу.';
+    knowledgeFeedback.value =
+      error instanceof Error ? error.message : "Не удалось сохранить таблицу.";
   } finally {
     isSavingTable.value = false;
   }
@@ -1187,12 +1637,13 @@ async function saveColumn(columnId: string) {
       semantic_label_manual: draftState.semanticLabel || null,
       synonyms: splitCsv(draftState.synonyms),
       sensitivity: draftState.sensitivity || null,
-      hidden_for_llm: draftState.hiddenForLlm
+      hidden_for_llm: draftState.hiddenForLlm,
     });
     mergeTableIntoSummary(table);
-    knowledgeFeedback.value = 'Column overrides сохранены.';
+    knowledgeFeedback.value = "Переопределения колонки сохранены.";
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось сохранить колонку.';
+    knowledgeFeedback.value =
+      error instanceof Error ? error.message : "Не удалось сохранить колонку.";
   }
 }
 
@@ -1205,33 +1656,34 @@ async function saveRelationship(relationshipId: string) {
       confidence: Number.parseFloat(draftState.confidence) || 0,
       approved: draftState.approved,
       is_disabled: draftState.isDisabled,
-      description_manual: draftState.description || null
+      description_manual: draftState.description || null,
     });
     mergeTableIntoSummary(table);
     erdGraph.value = await api.getERD(selectedDatabaseId.value);
-    knowledgeFeedback.value = 'Relationship overrides сохранены.';
+    knowledgeFeedback.value = "Переопределения связи сохранены.";
   } catch (error) {
-    knowledgeFeedback.value = error instanceof Error ? error.message : 'Не удалось сохранить связь.';
+    knowledgeFeedback.value =
+      error instanceof Error ? error.message : "Не удалось сохранить связь.";
   }
 }
 
 async function createTerm() {
   isCreatingTerm.value = true;
-  dictionaryFeedback.value = '';
+  dictionaryFeedback.value = "";
   try {
     const synonyms = splitCsv(draft.synonyms);
     await api.createDictionaryEntry({
       term: draft.term.trim(),
       synonyms,
       mapped_expression: draft.mappedExpression.trim(),
-      description: 'Добавлено вручную из Data View',
-      object_type: 'manual'
+      description: "Добавлено вручную из раздела «Данные».",
+      object_type: "manual",
     });
-    draft.term = '';
-    draft.mappedExpression = '';
-    draft.synonyms = '';
-    dictionaryFeedback.value = 'Термин добавлен.';
-    await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+    draft.term = "";
+    draft.mappedExpression = "";
+    draft.synonyms = "";
+    dictionaryFeedback.value = "Термин добавлен.";
+    await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
   } finally {
     isCreatingTerm.value = false;
   }
@@ -1239,48 +1691,48 @@ async function createTerm() {
 
 async function removeTerm(id: string) {
   await api.deleteDictionaryEntry(id);
-  await store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep');
+  await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
 }
 
-watch(
-  selectedDatabaseId,
-  async (value, previousValue) => {
-    if (!value || value === previousValue) return;
-    selectedTableId.value = null;
-    selectedTable.value = null;
-    if (!semanticDescription.value.trim()) {
-      semanticDescription.value = selectedDatabase.value?.description ?? '';
-    }
-    await loadKnowledge();
+watch(selectedDatabaseId, async (value, previousValue) => {
+  if (!value || value === previousValue) return;
+  selectedTableId.value = null;
+  selectedTable.value = null;
+  if (!semanticDescription.value.trim()) {
+    semanticDescription.value = selectedDatabase.value?.description ?? "";
   }
-);
+  await loadKnowledge();
+});
 
-watch(
-  selectedTableId,
-  async (value, previousValue) => {
-    if (!value || value === previousValue) return;
-    await loadSelectedTable();
-  }
-);
+watch(selectedTableId, async (value, previousValue) => {
+  if (!value || value === previousValue) return;
+  await loadSelectedTable();
+});
 
 onMounted(async () => {
   const storedSemanticAutoRefresh =
-    typeof window !== 'undefined' ? window.localStorage.getItem(SEMANTIC_AUTO_REFRESH_LS_KEY) : null;
+    typeof window !== "undefined"
+      ? window.localStorage.getItem(SEMANTIC_AUTO_REFRESH_LS_KEY)
+      : null;
   if (storedSemanticAutoRefresh !== null) {
-    semanticAutoRefreshEnabled.value = storedSemanticAutoRefresh !== 'false';
+    semanticAutoRefreshEnabled.value = storedSemanticAutoRefresh !== "false";
   }
   await Promise.allSettled([
-    store.refreshWorkspace(store.selectedNotebookId || undefined, 'keep'),
-    chat.initialize()
+    store.refreshWorkspace(store.selectedNotebookId || undefined, "keep"),
+    chat.initialize(),
   ]);
-  selectedDatabaseId.value = chat.activeDbId || store.workspace.databases[0]?.id || '';
-  if (selectedDatabaseId.value && chat.activeDbId !== selectedDatabaseId.value) {
+  selectedDatabaseId.value =
+    chat.activeDbId || store.workspace.databases[0]?.id || "";
+  if (
+    selectedDatabaseId.value &&
+    chat.activeDbId !== selectedDatabaseId.value
+  ) {
     await chat.selectDatabase(selectedDatabaseId.value);
   }
 });
 
 watch(semanticAutoRefreshEnabled, (enabled) => {
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     window.localStorage.setItem(SEMANTIC_AUTO_REFRESH_LS_KEY, String(enabled));
   }
   if (enabled && selectedDatabaseId.value && semanticCatalog.value) {
@@ -1294,14 +1746,16 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1rem;
+  grid-template-columns: var(--app-shell-sidebar-width) minmax(0, 1fr);
+  gap: var(--app-shell-gap);
+  padding: var(--app-shell-gap);
   background: var(--bg);
 }
 
 .data-shell__sidebar {
   min-height: 0;
+  width: var(--app-shell-sidebar-width);
+  max-width: 100%;
 }
 
 .data-shell__content {
@@ -1321,7 +1775,11 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(circle at top right, rgba(138, 180, 248, 0.08), transparent 28%),
+    radial-gradient(
+      circle at top right,
+      rgba(138, 180, 248, 0.08),
+      transparent 28%
+    ),
     linear-gradient(180deg, rgba(26, 29, 36, 0.96), rgba(18, 20, 27, 0.98));
   padding: 1.1rem 1.15rem;
   box-shadow: var(--shadow-soft);
@@ -1329,8 +1787,16 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__panel--hero {
   background:
-    radial-gradient(circle at top right, rgba(129, 201, 149, 0.08), transparent 24%),
-    radial-gradient(circle at top left, rgba(138, 180, 248, 0.14), transparent 28%),
+    radial-gradient(
+      circle at top right,
+      rgba(129, 201, 149, 0.08),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at top left,
+      rgba(138, 180, 248, 0.14),
+      transparent 28%
+    ),
     linear-gradient(180deg, rgba(21, 24, 34, 0.98), rgba(15, 17, 23, 0.99));
 }
 
@@ -1373,6 +1839,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   flex-wrap: wrap;
   gap: 0.55rem;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .data-view__active-db {
@@ -1427,6 +1894,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.75rem;
+  margin-top: 12px;
 }
 
 .data-view__stat {

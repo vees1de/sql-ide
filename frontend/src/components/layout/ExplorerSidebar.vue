@@ -89,7 +89,7 @@
                 class="row-delete"
                 role="button"
                 tabindex="0"
-                title="Удалить notebook"
+                title="Удалить ноутбук"
                 @click="onDeleteNotebook($event, notebook.id)"
                 @keydown.enter="onDeleteNotebook($event as unknown as MouseEvent, notebook.id)"
               >
@@ -115,7 +115,7 @@
     </div>
 
     <div v-if="workspace.dictionary.length" class="sidebar__section">
-      <p class="eyebrow">Dictionary</p>
+      <p class="eyebrow">Словарь</p>
       <div class="tag-list">
         <span
           v-for="term in workspace.dictionary.slice(0, 10)"

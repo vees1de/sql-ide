@@ -3,12 +3,22 @@
     <div class="modal-backdrop" @click.self="$emit('close')">
       <div class="modal">
         <div class="modal__header">
-          <span class="modal__title">Добавить в дашборд</span>
-          <button class="modal__close" type="button" @click="$emit('close')">✕</button>
+          <span class="modal__title">Add To Dashboard</span>
+          <button class="modal__close" type="button" @click="$emit('close')">
+            вњ•
+          </button>
         </div>
 
         <div class="modal__body">
-          <p v-if="dashboardsStore.loading" class="modal__hint">Загрузка…</p>
+          <div v-if="dashboardsStore.loading" class="modal__list">
+            <div
+              v-for="item in 4"
+              :key="`dashboard-modal-skeleton-${item}`"
+              class="modal__list-item modal__list-item--skeleton"
+            >
+              <AppSkeleton height="0.85rem" width="62%" radius="6px" />
+            </div>
+          </div>
 
           <template v-else>
             <div v-if="dashboardsStore.dashboards.length" class="modal__list">
@@ -16,23 +26,25 @@
                 v-for="dashboard in dashboardsStore.dashboards"
                 :key="dashboard.id"
                 class="modal__list-item"
-                :class="{ 'modal__list-item--selected': selectedId === dashboard.id }"
+                :class="{
+                  'modal__list-item--selected': selectedId === dashboard.id,
+                }"
                 type="button"
                 @click="selectedId = dashboard.id"
               >
                 {{ dashboard.title }}
               </button>
             </div>
-            <p v-else class="modal__hint">У вас пока нет дашбордов.</p>
+            <p v-else class="modal__hint">You don't have any dashboards yet.</p>
 
-            <div class="modal__or">или</div>
+            <div class="modal__or">or</div>
 
             <div class="modal__new-dashboard">
               <input
                 v-model="newTitle"
                 class="modal__input"
                 type="text"
-                placeholder="Создать новый дашборд…"
+                placeholder="Create a new dashboard..."
                 @focus="selectedId = null"
               />
             </div>
@@ -40,14 +52,16 @@
         </div>
 
         <div class="modal__footer">
-          <button class="btn btn--ghost" type="button" @click="$emit('close')">Отмена</button>
+          <button class="btn btn--ghost" type="button" @click="$emit('close')">
+            Cancel
+          </button>
           <button
             class="btn btn--primary"
             type="button"
             :disabled="(!selectedId && !newTitle.trim()) || saving"
             @click="submit"
           >
-            {{ saving ? '…' : 'Добавить' }}
+            {{ saving ? "..." : "Add" }}
           </button>
         </div>
 
@@ -58,27 +72,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useDashboardsStore } from '@/stores/dashboards';
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import AppSkeleton from "@/components/ui/AppSkeleton.vue";
+import { useDashboardsStore } from "@/stores/dashboards";
 
 const props = defineProps<{
   widgetId: string;
 }>();
 
 const emit = defineEmits<{
-  (event: 'close'): void;
+  (event: "close"): void;
 }>();
 
 const router = useRouter();
 const dashboardsStore = useDashboardsStore();
 
 const selectedId = ref<string | null>(null);
-const newTitle = ref('');
+const newTitle = ref("");
 const saving = ref(false);
 const errorMsg = ref<string | null>(null);
 
-onMounted(() => { void dashboardsStore.loadDashboards(); });
+onMounted(() => {
+  void dashboardsStore.loadDashboards();
+});
 
 async function submit() {
   saving.value = true;
@@ -92,18 +109,20 @@ async function submit() {
         widgets: [{ widget_id: props.widgetId }],
       });
       dashboardId = created.id;
-      emit('close');
+      emit("close");
       void router.push(`/dashboards/${dashboardId}`);
       return;
     }
 
     if (dashboardId) {
-      await dashboardsStore.addWidget(dashboardId, { widget_id: props.widgetId });
-      emit('close');
+      await dashboardsStore.addWidget(dashboardId, {
+        widget_id: props.widgetId,
+      });
+      emit("close");
       void router.push(`/dashboards/${dashboardId}`);
     }
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : 'Ошибка.';
+    errorMsg.value = e instanceof Error ? e.message : "Something went wrong.";
   } finally {
     saving.value = false;
   }
@@ -153,7 +172,10 @@ async function submit() {
   font-size: 0.9rem;
   padding: 2px 6px;
   border-radius: 4px;
-  &:hover { background: var(--line); }
+
+  &:hover {
+    background: var(--line);
+  }
 }
 
 .modal__body {
@@ -188,8 +210,18 @@ async function submit() {
   cursor: pointer;
   transition: border-color 0.15s;
 
-  &:hover { border-color: rgba(112, 59, 247, 0.5); }
-  &--selected { border-color: rgba(112, 59, 247, 0.8); background: rgba(112, 59, 247, 0.1); }
+  &:hover {
+    border-color: rgba(112, 59, 247, 0.5);
+  }
+
+  &--selected {
+    border-color: rgba(112, 59, 247, 0.8);
+    background: rgba(112, 59, 247, 0.1);
+  }
+}
+
+.modal__list-item--skeleton {
+  pointer-events: none;
 }
 
 .modal__or {
@@ -198,16 +230,23 @@ async function submit() {
   color: var(--muted);
   position: relative;
 
-  &::before, &::after {
-    content: '';
+  &::before,
+  &::after {
+    content: "";
     position: absolute;
     top: 50%;
     width: 38%;
     height: 1px;
     background: var(--line);
   }
-  &::before { left: 0; }
-  &::after { right: 0; }
+
+  &::before {
+    left: 0;
+  }
+
+  &::after {
+    right: 0;
+  }
 }
 
 .modal__input {
@@ -220,7 +259,10 @@ async function submit() {
   width: 100%;
   box-sizing: border-box;
   outline: none;
-  &:focus { border-color: rgba(112, 59, 247, 0.7); }
+
+  &:focus {
+    border-color: rgba(112, 59, 247, 0.7);
+  }
 }
 
 .modal__footer {
@@ -246,7 +288,11 @@ async function submit() {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 }
 
 .btn--primary {
@@ -254,8 +300,13 @@ async function submit() {
   border-color: transparent;
   color: #fff;
   font-weight: 600;
-  &:not(:disabled):hover { background: rgba(112, 59, 247, 1); }
+
+  &:not(:disabled):hover {
+    background: rgba(112, 59, 247, 1);
+  }
 }
 
-.btn--ghost:hover { background: var(--line); }
+.btn--ghost:hover {
+  background: var(--line);
+}
 </style>

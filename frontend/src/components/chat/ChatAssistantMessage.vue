@@ -63,7 +63,7 @@
           type="button"
           @click="$emit('switch-mode', payload.mode_suggestion)"
         >
-          {{ payload.mode_suggestion === 'thinking' ? 'Thinking' : 'Fast' }}
+          {{ payload.mode_suggestion === 'thinking' ? 'Вдумчиво' : 'Быстро' }}
         </button>
       </div>
     </section>
@@ -146,7 +146,7 @@ const reasoningLines = computed(() => {
   }
 
   if (typeof interpretation?.confidence === 'number') {
-    lines.push(`Confidence: ${Math.round(interpretation.confidence * 100)}%`);
+    lines.push(`Уверенность: ${Math.round(interpretation.confidence * 100)}%`);
   }
 
   if (payload.value?.tables_used?.length) {
