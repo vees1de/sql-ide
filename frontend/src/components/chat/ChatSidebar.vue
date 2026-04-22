@@ -91,7 +91,7 @@
                   <AppSkeleton width="14px" height="14px" radius="6px" />
                   <AppSkeleton width="14px" height="14px" radius="6px" />
                   <AppSkeleton class="chat-sidebar__folder-name-skeleton" height="0.84rem" radius="6px" />
-                  <AppSkeleton width="24px" height="22px" radius="999px" />
+                  <AppSkeleton width="78px" height="0.72rem" radius="5px" />
                 </div>
                 <div class="chat-sidebar__folder-body">
                   <div class="chat-sidebar__session-list">
@@ -258,22 +258,22 @@
 
               <span class="chat-sidebar__db-meta">
                 <span
-                  v-if="dashboardView === 'dashboards' && item.is_public"
+                  v-if="isDashboardItemPublic(item)"
                   class="chat-sidebar__db-pill chat-sidebar__db-pill--accent"
                 >
                   Публичный
                 </span>
                 <span
-                  v-if="dashboardView === 'dashboards' && item.is_hidden"
+                  v-if="isDashboardItemHidden(item)"
                   class="chat-sidebar__db-pill"
                 >
                   Скрытый
                 </span>
                 <span
-                  v-else-if="dashboardView === 'widgets'"
+                  v-else-if="isWidgetItem(item)"
                   class="chat-sidebar__db-pill"
                 >
-                  {{ translateVisualizationType(item.visualization_type) }}
+                  {{ widgetVisualizationLabel(item) }}
                 </span>
               </span>
             </RouterLink>
@@ -417,21 +417,44 @@
                 <span class="chat-sidebar__folder-name">{{
                   database.name
                 }}</span>
-                <span class="chat-sidebar__folder-meta-pill">{{
-                  database.sessions.length
-                }}</span>
+                <span
+                  class="chat-sidebar__folder-meta"
+                  :title="folderMetaText(database)"
+                >
+                  {{ folderMetaText(database) }}
+                </span>
               </button>
 
               <div
                 v-show="isOpen(database.id)"
                 class="chat-sidebar__folder-body"
               >
-                <p class="chat-sidebar__folder-meta">
-                  {{ database.dialect }}
-                  <span v-if="database.table_count != null">
-                    · {{ formatTableCount(database.table_count) }}</span
-                  >
-                </p>
+                <button
+                  class="chat-sidebar__session chat-sidebar__session--create"
+                  type="button"
+                  @click="$emit('create-session', database.id)"
+                >
+                  <span class="chat-sidebar__session-icon" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="13"
+                      height="13"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                  <span class="chat-sidebar__session-text">
+                    <span class="chat-sidebar__session-title">Новый чат</span>
+                    <span class="chat-sidebar__session-sub"
+                      >Создать в этой базе</span
+                    >
+                  </span>
+                </button>
 
                 <div
                   v-if="!database.sessions.length"
@@ -503,33 +526,6 @@
                     </span>
                   </article>
                 </div>
-
-                <button
-                  class="chat-sidebar__session chat-sidebar__session--create"
-                  type="button"
-                  @click="$emit('create-session', database.id)"
-                >
-                  <span class="chat-sidebar__session-icon" aria-hidden="true">
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="13"
-                      height="13"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                  </span>
-                  <span class="chat-sidebar__session-text">
-                    <span class="chat-sidebar__session-title">Новый чат</span>
-                    <span class="chat-sidebar__session-sub"
-                      >Создать в этой базе</span
-                    >
-                  </span>
-                </button>
               </div>
             </div>
           </template>
@@ -604,6 +600,7 @@ import type {
 } from "@/api/types";
 
 type TreeDatabase = ApiDatabaseDescriptor & { sessions: ApiChatSessionRead[] };
+type DashboardItem = ApiDashboardRead | ApiWidgetRead;
 
 const props = defineProps<{
   databases: ApiDatabaseDescriptor[];
@@ -834,12 +831,32 @@ function isDashboardItemActive(id: string) {
   return route.path === "/dashboards" || route.path === `/dashboards/${id}`;
 }
 
-function itemTitle(item: ApiDashboardRead | ApiWidgetRead) {
+function isWidgetItem(item: DashboardItem): item is ApiWidgetRead {
+  return "visualization_type" in item;
+}
+
+function isDashboardItem(item: DashboardItem): item is ApiDashboardRead {
+  return "layout_type" in item;
+}
+
+function isDashboardItemPublic(item: DashboardItem) {
+  return isDashboardItem(item) && item.is_public;
+}
+
+function isDashboardItemHidden(item: DashboardItem) {
+  return isDashboardItem(item) && item.is_hidden;
+}
+
+function widgetVisualizationLabel(item: DashboardItem) {
+  return isWidgetItem(item) ? translateVisualizationType(item.visualization_type) : "";
+}
+
+function itemTitle(item: DashboardItem) {
   return item.title;
 }
 
-function itemSubtitle(item: ApiDashboardRead | ApiWidgetRead) {
-  if ("visualization_type" in item) {
+function itemSubtitle(item: DashboardItem) {
+  if (isWidgetItem(item)) {
     return `${translateVisualizationType(item.visualization_type)} · ${translateRefreshPolicy(item.refresh_policy)}`;
   }
   return item.description || "Без описания";
@@ -898,6 +915,14 @@ function translateDatabaseStatus(value?: string | null) {
 
 function formatTableCount(count: number) {
   return `${count} табл.`;
+}
+
+function folderMetaText(database: TreeDatabase) {
+  const parts = [database.dialect];
+  if (database.table_count != null) {
+    parts.push(formatTableCount(database.table_count));
+  }
+  return parts.join(" · ");
 }
 
 function rename(session: ApiChatSessionRead) {
@@ -1109,10 +1134,12 @@ function formatTime(value: string) {
 
 .chat-sidebar__tree {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 2px;
 }
 
@@ -1231,10 +1258,13 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__folder {
+  display: flex;
+  flex-direction: column;
   border: 1px solid transparent;
   border-radius: 12px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.02);
+  min-height: 0;
 }
 
 .chat-sidebar__folder--skeleton {
@@ -1250,6 +1280,7 @@ function formatTime(value: string) {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
   width: 100%;
   padding: 0.55rem 0.6rem;
   border: none;
@@ -1298,32 +1329,33 @@ function formatTime(value: string) {
   flex: 1;
 }
 
-.chat-sidebar__folder-meta-pill {
-  min-width: 24px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  display: inline-grid;
-  place-items: center;
-  color: var(--muted);
-  font-size: 0.68rem;
-  flex-shrink: 0;
-}
-
-.chat-sidebar__folder-body {
-  padding: 0 0.6rem 0.65rem 1.2rem;
-}
-
 .chat-sidebar__folder-meta {
-  margin: 0 0 0.5rem;
+  flex: 0 1 42%;
+  min-width: 0;
   color: var(--muted-2);
   font-size: 0.7rem;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.chat-sidebar__folder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 0.6rem 0.65rem 1.2rem;
+}
+
+.chat-sidebar__folder--active.chat-sidebar__folder--open .chat-sidebar__folder-body {
+  max-height: min(42vh, 24rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .chat-sidebar__empty-branch {
-  margin-bottom: 0.45rem;
   padding: 0.55rem 0.6rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
@@ -1335,6 +1367,7 @@ function formatTime(value: string) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-height: 0;
 }
 
 .chat-sidebar__session {
@@ -1369,8 +1402,8 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__session--create {
-  margin-top: 0.35rem;
   color: var(--muted);
+  flex-shrink: 0;
 }
 
 .chat-sidebar__session--create:hover {

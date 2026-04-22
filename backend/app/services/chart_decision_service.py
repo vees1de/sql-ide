@@ -210,7 +210,14 @@ class ResultShapeAnalyzer:
         if preferred is not None:
             return preferred
 
-        candidates = [column for column in categorical_columns if 2 <= column.distinct_count <= 12]
+        def _looks_like_entity_id(column: ColumnInfo) -> bool:
+            lowered = column.name.lower()
+            return lowered.endswith("_id") or lowered == "id"
+
+        candidates = [
+            column for column in categorical_columns
+            if 2 <= column.distinct_count <= 12 and not _looks_like_entity_id(column)
+        ]
         if temporal_columns and candidates:
             return candidates[0]
         if len(candidates) >= 2:
@@ -248,6 +255,7 @@ class ChartDecisionService:
         return self._decide(resolved_semantics, shape)
 
     def _decide(self, semantics: QuerySemantics, shape: ResultShape) -> ChartDecision:
+        semantics = self._reconcile_semantics_with_shape(semantics, shape)
         if shape.row_count == 0:
             return self._decision(
                 chart_type="table",
@@ -439,9 +447,22 @@ class ChartDecisionService:
     def _resolve_y_field(self, shape: ResultShape, semantics: QuerySemantics) -> str | None:
         if semantics.metric and semantics.metric.name and shape.column(semantics.metric.name) is not None:
             return semantics.metric.name
+        if semantics.flags.is_ranking or semantics.flags.is_share or semantics.intent == "share":
+            rate_column = self._first_rate_like_numeric(shape)
+            if rate_column is not None:
+                return rate_column.name
         y_candidate = shape.y_candidate()
         if y_candidate is not None:
             return y_candidate.name
+        return None
+
+    @staticmethod
+    def _first_rate_like_numeric(shape: ResultShape) -> ColumnInfo | None:
+        rate_markers = ("rate", "share", "ratio", "conversion", "percent", "pct")
+        for column in shape.numeric_columns:
+            lowered = column.name.lower()
+            if any(marker in lowered for marker in rate_markers):
+                return column
         return None
 
     def _series_column_for_comparison(self, semantics: QuerySemantics, shape: ResultShape) -> ColumnInfo | None:
@@ -494,9 +515,29 @@ class ChartDecisionService:
         }
         return aliases.get(normalized, normalized)
 
+    def _reconcile_semantics_with_shape(self, semantics: QuerySemantics, shape: ResultShape) -> QuerySemantics:
+        flags = semantics.flags
+        needs_patch = False
+        patched_flags_kwargs = flags.model_dump()
+        if flags.is_time_series and not shape.temporal_columns:
+            patched_flags_kwargs["is_time_series"] = False
+            needs_patch = True
+        if flags.is_comparison and shape.series_column is None:
+            patched_flags_kwargs["is_comparison"] = False
+            needs_patch = True
+        if not flags.is_ranking and not shape.temporal_columns and shape.categorical_columns and shape.numeric_columns:
+            if self._first_rate_like_numeric(shape) is not None and 0 < shape.row_count <= 50:
+                patched_flags_kwargs["is_ranking"] = True
+                needs_patch = True
+        if not needs_patch:
+            return semantics
+        patched = semantics.model_copy(deep=True)
+        patched.flags = SemanticFlagsPayload(**patched_flags_kwargs)
+        return patched
+
     def _semantics_from_shape(self, shape: ResultShape) -> QuerySemantics:
         flags = SemanticFlagsPayload(
-            is_time_series=bool(shape.temporal_columns or shape.series_column),
+            is_time_series=bool(shape.temporal_columns),
             is_comparison=bool(shape.series_column),
         )
         time = None

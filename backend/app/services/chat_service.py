@@ -17,6 +17,9 @@ class SqlDraftConflictError(ValueError):
     pass
 
 
+DEFAULT_CHAT_SESSION_TITLE = "Новый чат"
+
+
 class ChatService:
     def __init__(self) -> None:
         self.workspace_service = WorkspaceService()
@@ -42,9 +45,14 @@ class ChatService:
         payload: ChatSessionCreate | None = None,
     ) -> ChatSessionModel:
         resolve_dialect(db, database_connection_id)
-        title = (payload.title if payload and payload.title else "Новый чат").strip()
+        title = (payload.title if payload and payload.title else DEFAULT_CHAT_SESSION_TITLE).strip()
         if not title:
-            title = "Новый чат"
+            title = DEFAULT_CHAT_SESSION_TITLE
+
+        if title == DEFAULT_CHAT_SESSION_TITLE:
+            reusable = self._find_reusable_empty_session(db, database_connection_id)
+            if reusable is not None:
+                return reusable
 
         session = ChatSessionModel(
             database_connection_id=database_connection_id,
@@ -59,6 +67,35 @@ class ChatService:
         db.commit()
         db.refresh(session)
         return session
+
+    def _find_reusable_empty_session(self, db: Session, database_connection_id: str) -> ChatSessionModel | None:
+        sessions = (
+            db.query(ChatSessionModel)
+            .options(
+                selectinload(ChatSessionModel.messages),
+                selectinload(ChatSessionModel.executions),
+            )
+            .filter(
+                ChatSessionModel.database_connection_id == database_connection_id,
+                ChatSessionModel.archived.is_(False),
+            )
+            .order_by(ChatSessionModel.updated_at.desc(), ChatSessionModel.created_at.desc())
+            .all()
+        )
+        for session in sessions:
+            if self._is_reusable_empty_session(session):
+                return session
+        return None
+
+    def _is_reusable_empty_session(self, session: ChatSessionModel) -> bool:
+        return (
+            (session.title or "").strip() == DEFAULT_CHAT_SESSION_TITLE
+            and not (session.current_sql_draft or "").strip()
+            and not (session.last_executed_sql or "").strip()
+            and not session.last_intent_json
+            and not session.messages
+            and not session.executions
+        )
 
     def get_session(self, db: Session, session_id: str) -> ChatSessionModel | None:
         return (
@@ -183,11 +220,10 @@ class ChatService:
     def title_from_prompt(self, prompt: str) -> str:
         cleaned = " ".join(prompt.strip().split())
         if not cleaned:
-            return "Новый чат"
-        return cleaned[:64].rstrip(" ,.;:") or "Новый чат"
+            return DEFAULT_CHAT_SESSION_TITLE
+        return cleaned[:64].rstrip(" ,.;:") or DEFAULT_CHAT_SESSION_TITLE
 
     def maybe_auto_title(self, session: ChatSessionModel, prompt: str) -> str | None:
-        if session.title and session.title != "Новый чат":
+        if session.title and session.title != DEFAULT_CHAT_SESSION_TITLE:
             return None
         return self.title_from_prompt(prompt)
-

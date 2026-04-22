@@ -1538,8 +1538,8 @@ function selectChatSession(sessionId: string) {
   void chat.selectSession(sessionId);
 }
 
-function createChatSession() {
-  void chat.createSession(selectedDatabaseId.value || undefined);
+function createChatSession(databaseId?: string) {
+  void chat.createSession(databaseId || selectedDatabaseId.value || undefined);
 }
 
 function renameChatSession(sessionId: string, title: string) {

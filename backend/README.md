@@ -103,3 +103,27 @@ YANDEX_AI_MODEL_ALIAS=qwen
 - строить безопасный `SELECT` SQL по demo-схеме или через LLM по реальной схеме БД
 - автоматически выбирать chart spec и писать короткий insight
 - выдавать clarification cell при неоднозначном запросе
+
+## Eval `/chat text-to-sql`
+
+Для агентного цикла `прогон -> оценка -> фиксы -> повторный прогон` добавлен отдельный harness:
+
+```bash
+python backend/scripts/eval_chat_text_to_sql.py \
+  --cases backend/evals/chat_text_to_sql_demo_suite.json \
+  --api-base http://127.0.0.1:8000/api \
+  --fail-under 0.85
+```
+
+Что делает harness:
+
+- гоняет реальные запросы через `POST /api/chat/...`
+- отдельно оценивает `clarification / understanding`, `sql`, `chart`
+- при необходимости выполняет сгенерированный SQL через `/execute`
+- пишет машинно-читаемые артефакты:
+  - `results.json`
+  - `summary.json`
+  - `failing_steps.json`
+  - `repair_brief.md`
+
+Suite-файл хранится в JSON и поддерживает multi-turn кейсы, ожидания по `intent`, SQL-паттернам, результату выполнения и chart recommendation. Это удобно давать LLM-агенту как вход для автоматического улучшения `backend/app/services/llm_service.py`, `backend/app/services/chat_sql_adapter.py`, `backend/app/agents/semantic.py`, `backend/app/services/chart_decision_service.py` и связанных частей пайплайна.

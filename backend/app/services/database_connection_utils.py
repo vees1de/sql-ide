@@ -38,7 +38,7 @@ def build_connection_url(connection: DatabaseConnectionPayload) -> str:
         return f"sqlite:///{connection.database or ':memory:'}"
 
     driver_prefix = {
-        "postgresql": "postgresql+psycopg2",
+        "postgresql": _postgres_driver_prefix(),
         "mysql": "mysql+pymysql",
         "mariadb": "mysql+pymysql",
         "clickhouse": "clickhouse+native",
@@ -63,3 +63,14 @@ def ping_engine(engine) -> None:
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
 
+
+def _postgres_driver_prefix() -> str:
+    try:
+        import psycopg2  # noqa: F401
+    except ImportError:
+        try:
+            import psycopg  # noqa: F401
+        except ImportError:
+            return "postgresql+psycopg2"
+        return "postgresql+psycopg"
+    return "postgresql+psycopg2"

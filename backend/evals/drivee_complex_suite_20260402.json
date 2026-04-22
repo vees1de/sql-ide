@@ -1,0 +1,131 @@
+{
+  "suite_name": "drivee_complex_chat_text_to_sql_20260402",
+  "database_id": "30a98b573aef4c069fd14d129e21f82b",
+  "query_mode": "thinking",
+  "llm_model_alias": "gpt120",
+  "cases": [
+    {
+      "id": "hourly_completion_conversion",
+      "title": "Hourly created vs completed vs completion rate",
+      "tags": ["complex", "timeseries", "conversion"],
+      "steps": [
+        {
+          "user": "За 2 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": [
+                "2026-04-02",
+                "group by",
+                "order_timestamp",
+                "driverdone_timestamp"
+              ],
+              "required_tables": [
+                "train"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour", "bucket"],
+                ["created_orders", "total_orders", "orders_created"],
+                ["completed_orders", "done_orders", "completed_rides", "completed_count"],
+                ["completion_rate", "conversion_rate", "done_rate"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour", "bucket"],
+                "y_any_of": ["created_orders", "total_orders", "orders_created", "completed_orders", "completion_rate"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "top_drivers_non_completion_rate",
+      "title": "Top drivers by accepted but not completed share",
+      "tags": ["complex", "ranking", "driver"],
+      "steps": [
+        {
+          "user": "За 2 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "clarification_reply": "Группируй по driver_id. Принятым считай заказ, у которого driveraccept_timestamp IS NOT NULL; завершённым — у которого driverdone_timestamp IS NOT NULL. Минимум 20 принятых заказов на водителя.",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": [
+                "2026-04-02",
+                "driver_id",
+                "driveraccept_timestamp",
+                "driverdone_timestamp",
+                "limit 10"
+              ],
+              "required_tables": [
+                "train"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_column_groups": [
+                ["driver_id"],
+                ["accepted_orders", "accepted_count", "total_accepted"],
+                ["not_completed_orders", "failed_after_accept", "not_done_orders"],
+                ["non_completion_rate", "not_completed_rate", "fail_rate"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["driver_id"],
+                "y_any_of": ["non_completion_rate", "not_completed_rate", "fail_rate"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "hourly_pickup_vs_ride_duration",
+      "title": "Hourly pickup time vs ride duration",
+      "tags": ["complex", "sla", "timeseries"],
+      "steps": [
+        {
+          "user": "За 2 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+          "clarification_reply": "Считать завершённым status_order = 'done'. Фильтровать по order_timestamp = '2026-04-02'. Группировка по часам.",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": [
+                "2026-04-02",
+                "group by",
+                "driveraccept_timestamp",
+                "driverarrived_timestamp",
+                "driverstarttheride_timestamp",
+                "driverdone_timestamp"
+              ],
+              "required_tables": [
+                "train"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour", "bucket"],
+                ["avg_pickup_minutes", "pickup_minutes", "avg_time_to_arrival", "avg_pickup_time"],
+                ["avg_ride_minutes", "ride_minutes", "avg_ride_time"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour", "bucket"],
+                "y_any_of": ["avg_pickup_minutes", "pickup_minutes", "avg_time_to_arrival", "avg_ride_minutes", "ride_minutes"]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

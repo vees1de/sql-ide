@@ -1,0 +1,23 @@
+{
+  "suite_name": "drivee_complex_chat_text_to_sql_20260402",
+  "api_base": "http://127.0.0.1:8000/api",
+  "started_at": "2026-04-22T08:25:59.215591+00:00",
+  "finished_at": "2026-04-22T08:26:26.744660+00:00",
+  "duration_seconds": 27.529,
+  "case_count": 3,
+  "step_count": 3,
+  "scores": {
+    "understanding": 1.0,
+    "sql": 0.8585,
+    "chart": 0.4445,
+    "overall": 0.7677
+  },
+  "judge_used": false,
+  "failures_by_code": {
+    "execution_required_column_missing": 5,
+    "chart_y_mismatch": 3,
+    "execution_row_count_low": 1,
+    "chart_type_mismatch": 1,
+    "chart_x_mismatch": 1
+  }
+}

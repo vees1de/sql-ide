@@ -1,0 +1,2645 @@
+{
+  "suite": {
+    "suite_name": "drivee_complex_chat_text_to_sql",
+    "database_id": "30a98b573aef4c069fd14d129e21f82b",
+    "database_name": null,
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "cases": [
+      {
+        "id": "hourly_completion_conversion",
+        "title": "Hourly created vs completed vs completion rate",
+        "tags": [
+          "complex",
+          "timeseries",
+          "conversion"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": "Hour",
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2026-04-14",
+                  "group by",
+                  "order_timestamp",
+                  "driverdone_timestamp"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "train"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": null,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  [
+                    "created_orders",
+                    "total_orders",
+                    "orders_created"
+                  ],
+                  [
+                    "completed_orders",
+                    "done_orders",
+                    "completed_rides",
+                    "completed_count"
+                  ],
+                  [
+                    "completion_rate",
+                    "conversion_rate",
+                    "done_rate"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "line"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  "y_any_of": [
+                    "created_orders",
+                    "total_orders",
+                    "orders_created",
+                    "completed_orders",
+                    "completion_rate"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "top_drivers_non_completion_rate",
+        "title": "Top drivers by accepted but not completed share",
+        "tags": [
+          "complex",
+          "ranking",
+          "driver"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": "Группируй по водителям, то есть по driver_id.",
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2026-04-14",
+                  "driver_id",
+                  "driveraccept_timestamp",
+                  "driverdone_timestamp",
+                  "limit 10"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "train"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": 10,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "driver_id"
+                  ],
+                  [
+                    "accepted_orders",
+                    "accepted_count",
+                    "total_accepted"
+                  ],
+                  [
+                    "not_completed_orders",
+                    "failed_after_accept",
+                    "not_done_orders"
+                  ],
+                  [
+                    "non_completion_rate",
+                    "not_completed_rate",
+                    "fail_rate"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "bar"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "driver_id"
+                  ],
+                  "y_any_of": [
+                    "non_completion_rate",
+                    "not_completed_rate",
+                    "fail_rate"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "hourly_pickup_vs_ride_duration",
+        "title": "Hourly pickup time vs ride duration",
+        "tags": [
+          "complex",
+          "sla",
+          "timeseries"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": "Считать завершённым status_order = 'done'. Фильтровать по order_timestamp = '2026-04-14'. Группировка по часам.",
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2026-04-14",
+                  "group by",
+                  "driveraccept_timestamp",
+                  "driverarrived_timestamp",
+                  "driverstarttheride_timestamp",
+                  "driverdone_timestamp"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "train"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": null,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  [
+                    "avg_pickup_minutes",
+                    "pickup_minutes",
+                    "avg_time_to_arrival",
+                    "avg_pickup_time"
+                  ],
+                  [
+                    "avg_ride_minutes",
+                    "ride_minutes",
+                    "avg_ride_time"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "line"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  "y_any_of": [
+                    "avg_pickup_minutes",
+                    "pickup_minutes",
+                    "avg_time_to_arrival",
+                    "avg_ride_minutes",
+                    "ride_minutes"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "suite_name": "drivee_complex_chat_text_to_sql",
+    "api_base": "http://127.0.0.1:8000/api",
+    "started_at": "2026-04-22T07:26:15.376504+00:00",
+    "finished_at": "2026-04-22T07:27:19.076870+00:00",
+    "duration_seconds": 63.7,
+    "case_count": 3,
+    "step_count": 3,
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.8601,
+      "chart": 0.5556,
+      "overall": 0.4719
+    },
+    "judge_used": false,
+    "failures_by_code": {
+      "execution_required_column_missing": 6,
+      "clarification_unexpected": 3,
+      "chart_y_mismatch": 3,
+      "chart_type_mismatch": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "hourly_completion_conversion",
+      "title": "Hourly created vs completed vs completion rate",
+      "tags": [
+        "complex",
+        "timeseries",
+        "conversion"
+      ],
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "session_id": "63b9f5efaf9741c691d0be5a9d794c71",
+      "scores": {
+        "understanding": 0.0,
+        "sql": 0.9231,
+        "chart": 0.6667,
+        "overall": 0.5299
+      },
+      "issue_counts": {
+        "clarification_unexpected": 1,
+        "execution_required_column_missing": 1,
+        "chart_y_mismatch": 1
+      },
+      "steps": [
+        {
+          "case_id": "hourly_completion_conversion",
+          "step_index": 1,
+          "step_ref": "hourly_completion_conversion#step1",
+          "user_prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "order_timestamp",
+                "driverdone_timestamp"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "train"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": null,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created"
+                ],
+                [
+                  "completed_orders",
+                  "done_orders",
+                  "completed_rides",
+                  "completed_count"
+                ],
+                [
+                  "completion_rate",
+                  "conversion_rate",
+                  "done_rate"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "line"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created",
+                  "completed_orders",
+                  "completion_rate"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "30a98b573aef4c069fd14d129e21f82b",
+              "name": "drivee test data",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": true,
+            "clarification_question": "How should the result be grouped?",
+            "clarification_options": [
+              {
+                "id": "Month",
+                "label": "Month",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "Week",
+                "label": "Week",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "Day",
+                "label": "Day",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.offset_hours",
+                "label": "train.offset_hours",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.status_order",
+                "label": "train.status_order",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.status_tender",
+                "label": "train.status_tender",
+                "detail": null,
+                "reason": null
+              }
+            ],
+            "message_kind": "answer",
+            "initial_message_kind": "clarification",
+            "clarification_transcript": [
+              {
+                "round": 1,
+                "question": "How should the result be grouped?",
+                "answer": "Hour",
+                "options": [
+                  {
+                    "id": "Month",
+                    "label": "Month",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Week",
+                    "label": "Week",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Day",
+                    "label": "Day",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.offset_hours",
+                    "label": "train.offset_hours",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_order",
+                    "label": "train.status_order",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_tender",
+                    "label": "train.status_tender",
+                    "detail": null,
+                    "reason": null
+                  }
+                ]
+              },
+              {
+                "round": 2,
+                "question": "How should the result be grouped?",
+                "answer": "Hour",
+                "options": [
+                  {
+                    "id": "Month",
+                    "label": "Month",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Week",
+                    "label": "Week",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Day",
+                    "label": "Day",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.offset_hours",
+                    "label": "train.offset_hours",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_order",
+                    "label": "train.status_order",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_tender",
+                    "label": "train.status_tender",
+                    "detail": null,
+                    "reason": null
+                  }
+                ]
+              }
+            ],
+            "intent": {
+              "raw_prompt": "Hour",
+              "metric": null,
+              "dimensions": [
+                "hour"
+              ],
+              "filters": [
+                {
+                  "field": "order_timestamp",
+                  "operator": "between",
+                  "value": [
+                    "2026-04-14",
+                    "2026-04-15"
+                  ]
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2026-04-14",
+                "end": "2026-04-15",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "line",
+              "ambiguities": [],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 0.98,
+              "follow_up": false
+            },
+            "sql": "SELECT date_trunc('hour', order_timestamp) AS hour,\n       COUNT(*) AS orders_created,\n       COUNT(CASE WHEN driverdone_timestamp IS NOT NULL THEN 1 END) AS rides_completed,\n       COUNT(CASE WHEN driverdone_timestamp IS NOT NULL THEN 1 END)::float / NULLIF(COUNT(*), 0) AS conversion_rate\nFROM train\nWHERE order_timestamp >= '2026-04-14'::date\n  AND order_timestamp < '2026-04-15'::date\nGROUP BY hour\nORDER BY hour\nLIMIT 50;",
+            "execution": {
+              "id": "19c3bd069d2b4fdd985734add7cb95cc",
+              "session_id": "63b9f5efaf9741c691d0be5a9d794c71",
+              "sql_text": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  COUNT(*) AS orders_created,\n  COUNT(CASE WHEN NOT driverdone_timestamp IS NULL THEN 1 END) AS rides_completed,\n  CAST(COUNT(CASE WHEN NOT driverdone_timestamp IS NULL THEN 1 END) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS conversion_rate\nFROM train\nWHERE\n  order_timestamp >= CAST('2026-04-14' AS DATE)\n  AND order_timestamp < CAST('2026-04-15' AS DATE)\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+              "columns": [
+                {
+                  "name": "hour",
+                  "type": "datetime64[ns]"
+                },
+                {
+                  "name": "orders_created",
+                  "type": "int64"
+                },
+                {
+                  "name": "rides_completed",
+                  "type": "int64"
+                },
+                {
+                  "name": "conversion_rate",
+                  "type": "float64"
+                }
+              ],
+              "rows_preview": [
+                {
+                  "hour": "2026-04-14T00:00:00.000",
+                  "orders_created": 18,
+                  "rides_completed": 5,
+                  "conversion_rate": 0.2777777778
+                },
+                {
+                  "hour": "2026-04-14T01:00:00.000",
+                  "orders_created": 8,
+                  "rides_completed": 3,
+                  "conversion_rate": 0.375
+                },
+                {
+                  "hour": "2026-04-14T05:00:00.000",
+                  "orders_created": 3,
+                  "rides_completed": 1,
+                  "conversion_rate": 0.3333333333
+                },
+                {
+                  "hour": "2026-04-14T06:00:00.000",
+                  "orders_created": 9,
+                  "rides_completed": 4,
+                  "conversion_rate": 0.4444444444
+                },
+                {
+                  "hour": "2026-04-14T07:00:00.000",
+                  "orders_created": 140,
+                  "rides_completed": 65,
+                  "conversion_rate": 0.4642857143
+                },
+                {
+                  "hour": "2026-04-14T08:00:00.000",
+                  "orders_created": 419,
+                  "rides_completed": 192,
+                  "conversion_rate": 0.4582338902
+                },
+                {
+                  "hour": "2026-04-14T09:00:00.000",
+                  "orders_created": 239,
+                  "rides_completed": 87,
+                  "conversion_rate": 0.3640167364
+                },
+                {
+                  "hour": "2026-04-14T10:00:00.000",
+                  "orders_created": 192,
+                  "rides_completed": 83,
+                  "conversion_rate": 0.4322916667
+                },
+                {
+                  "hour": "2026-04-14T11:00:00.000",
+                  "orders_created": 168,
+                  "rides_completed": 67,
+                  "conversion_rate": 0.3988095238
+                },
+                {
+                  "hour": "2026-04-14T12:00:00.000",
+                  "orders_created": 165,
+                  "rides_completed": 87,
+                  "conversion_rate": 0.5272727273
+                },
+                {
+                  "hour": "2026-04-14T13:00:00.000",
+                  "orders_created": 219,
+                  "rides_completed": 101,
+                  "conversion_rate": 0.4611872146
+                },
+                {
+                  "hour": "2026-04-14T14:00:00.000",
+                  "orders_created": 192,
+                  "rides_completed": 96,
+                  "conversion_rate": 0.5
+                },
+                {
+                  "hour": "2026-04-14T15:00:00.000",
+                  "orders_created": 186,
+                  "rides_completed": 93,
+                  "conversion_rate": 0.5
+                },
+                {
+                  "hour": "2026-04-14T16:00:00.000",
+                  "orders_created": 190,
+                  "rides_completed": 81,
+                  "conversion_rate": 0.4263157895
+                },
+                {
+                  "hour": "2026-04-14T17:00:00.000",
+                  "orders_created": 218,
+                  "rides_completed": 111,
+                  "conversion_rate": 0.5091743119
+                },
+                {
+                  "hour": "2026-04-14T18:00:00.000",
+                  "orders_created": 135,
+                  "rides_completed": 81,
+                  "conversion_rate": 0.6
+                },
+                {
+                  "hour": "2026-04-14T19:00:00.000",
+                  "orders_created": 93,
+                  "rides_completed": 48,
+                  "conversion_rate": 0.5161290323
+                },
+                {
+                  "hour": "2026-04-14T20:00:00.000",
+                  "orders_created": 83,
+                  "rides_completed": 31,
+                  "conversion_rate": 0.3734939759
+                },
+                {
+                  "hour": "2026-04-14T21:00:00.000",
+                  "orders_created": 66,
+                  "rides_completed": 20,
+                  "conversion_rate": 0.303030303
+                },
+                {
+                  "hour": "2026-04-14T22:00:00.000",
+                  "orders_created": 47,
+                  "rides_completed": 9,
+                  "conversion_rate": 0.1914893617
+                },
+                {
+                  "hour": "2026-04-14T23:00:00.000",
+                  "orders_created": 63,
+                  "rides_completed": 11,
+                  "conversion_rate": 0.1746031746
+                }
+              ],
+              "rows_preview_truncated": false,
+              "row_count": 21,
+              "execution_time_ms": 118,
+              "chart_recommendation": {
+                "recommended_view": "chart",
+                "chart_type": "line",
+                "x": "hour",
+                "y": "rides_completed",
+                "series": null,
+                "variant": "single_series",
+                "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+                "rule_id": "R4",
+                "confidence": 0.88,
+                "data": {
+                  "kind": "single_series",
+                  "chartType": "line",
+                  "variant": "single_series",
+                  "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+                  "ruleId": "R4",
+                  "confidence": 0.88,
+                  "x": {
+                    "field": "hour",
+                    "values": [
+                      "2026-04-14T00:00:00.000",
+                      "2026-04-14T01:00:00.000",
+                      "2026-04-14T05:00:00.000",
+                      "2026-04-14T06:00:00.000",
+                      "2026-04-14T07:00:00.000",
+                      "2026-04-14T08:00:00.000",
+                      "2026-04-14T09:00:00.000",
+                      "2026-04-14T10:00:00.000",
+                      "2026-04-14T11:00:00.000",
+                      "2026-04-14T12:00:00.000",
+                      "2026-04-14T13:00:00.000",
+                      "2026-04-14T14:00:00.000",
+                      "2026-04-14T15:00:00.000",
+                      "2026-04-14T16:00:00.000",
+                      "2026-04-14T17:00:00.000",
+                      "2026-04-14T18:00:00.000",
+                      "2026-04-14T19:00:00.000",
+                      "2026-04-14T20:00:00.000",
+                      "2026-04-14T21:00:00.000",
+                      "2026-04-14T22:00:00.000",
+                      "2026-04-14T23:00:00.000"
+                    ],
+                    "type": "categorical"
+                  },
+                  "y": {
+                    "field": "rides_completed",
+                    "values": [
+                      5.0,
+                      3.0,
+                      1.0,
+                      4.0,
+                      65.0,
+                      192.0,
+                      87.0,
+                      83.0,
+                      67.0,
+                      87.0,
+                      101.0,
+                      96.0,
+                      93.0,
+                      81.0,
+                      111.0,
+                      81.0,
+                      48.0,
+                      31.0,
+                      20.0,
+                      9.0,
+                      11.0
+                    ],
+                    "unit": null
+                  },
+                  "stacked": false
+                },
+                "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+              },
+              "error_message": null,
+              "created_at": "2026-04-22T07:26:47.118834"
+            },
+            "chart": {
+              "recommended_view": "chart",
+              "chart_type": "line",
+              "x": "hour",
+              "y": "rides_completed",
+              "series": null,
+              "variant": "single_series",
+              "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+              "rule_id": "R4",
+              "confidence": 0.88,
+              "data": {
+                "kind": "single_series",
+                "chartType": "line",
+                "variant": "single_series",
+                "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+                "ruleId": "R4",
+                "confidence": 0.88,
+                "x": {
+                  "field": "hour",
+                  "values": [
+                    "2026-04-14T00:00:00.000",
+                    "2026-04-14T01:00:00.000",
+                    "2026-04-14T05:00:00.000",
+                    "2026-04-14T06:00:00.000",
+                    "2026-04-14T07:00:00.000",
+                    "2026-04-14T08:00:00.000",
+                    "2026-04-14T09:00:00.000",
+                    "2026-04-14T10:00:00.000",
+                    "2026-04-14T11:00:00.000",
+                    "2026-04-14T12:00:00.000",
+                    "2026-04-14T13:00:00.000",
+                    "2026-04-14T14:00:00.000",
+                    "2026-04-14T15:00:00.000",
+                    "2026-04-14T16:00:00.000",
+                    "2026-04-14T17:00:00.000",
+                    "2026-04-14T18:00:00.000",
+                    "2026-04-14T19:00:00.000",
+                    "2026-04-14T20:00:00.000",
+                    "2026-04-14T21:00:00.000",
+                    "2026-04-14T22:00:00.000",
+                    "2026-04-14T23:00:00.000"
+                  ],
+                  "type": "categorical"
+                },
+                "y": {
+                  "field": "rides_completed",
+                  "values": [
+                    5.0,
+                    3.0,
+                    1.0,
+                    4.0,
+                    65.0,
+                    192.0,
+                    87.0,
+                    83.0,
+                    67.0,
+                    87.0,
+                    101.0,
+                    96.0,
+                    93.0,
+                    81.0,
+                    111.0,
+                    81.0,
+                    48.0,
+                    31.0,
+                    20.0,
+                    9.0,
+                    11.0
+                  ],
+                  "unit": null
+                },
+                "stacked": false
+              },
+              "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+            }
+          },
+          "scores": {
+            "understanding": 0.0,
+            "sql": 0.9231,
+            "chart": 0.6667,
+            "overall": 0.5299
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_unexpected",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "Expected a direct answer, but the system asked for clarification."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2026-04-14` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `group by` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `order_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverdone_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `train` found; actual tables=['train']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_status_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Execution succeeded; error=None"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_min_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=21, expected at least 1"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['hour', 'hour_bucket', 'order_hour', 'bucket']; actual columns=['conversion_rate', 'hour', 'orders_created', 'rides_completed']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['created_orders', 'total_orders', 'orders_created']; actual columns=['conversion_rate', 'hour', 'orders_created', 'rides_completed']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['completed_orders', 'done_orders', 'completed_rides', 'completed_count']; actual columns=['conversion_rate', 'hour', 'orders_created', 'rides_completed']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['completion_rate', 'conversion_rate', 'done_rate']; actual columns=['conversion_rate', 'hour', 'orders_created', 'rides_completed']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_type_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart type=line, acceptable=['line']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_x_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart x=hour, acceptable=['hour', 'hour_bucket', 'order_hour', 'bucket']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_y_mismatch",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart y=rides_completed, acceptable=['created_orders', 'total_orders', 'orders_created', 'completed_orders', 'completion_rate']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "top_drivers_non_completion_rate",
+      "title": "Top drivers by accepted but not completed share",
+      "tags": [
+        "complex",
+        "ranking",
+        "driver"
+      ],
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "session_id": "80a6336646204f92ab0f8fba5641f30b",
+      "scores": {
+        "understanding": 0.0,
+        "sql": 0.8,
+        "chart": 0.3333,
+        "overall": 0.3778
+      },
+      "issue_counts": {
+        "clarification_unexpected": 1,
+        "execution_required_column_missing": 3,
+        "chart_type_mismatch": 1,
+        "chart_y_mismatch": 1
+      },
+      "steps": [
+        {
+          "case_id": "top_drivers_non_completion_rate",
+          "step_index": 1,
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "user_prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2026-04-14",
+                "driver_id",
+                "driveraccept_timestamp",
+                "driverdone_timestamp",
+                "limit 10"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "train"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "driver_id"
+                ],
+                [
+                  "accepted_orders",
+                  "accepted_count",
+                  "total_accepted"
+                ],
+                [
+                  "not_completed_orders",
+                  "failed_after_accept",
+                  "not_done_orders"
+                ],
+                [
+                  "non_completion_rate",
+                  "not_completed_rate",
+                  "fail_rate"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "bar"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "driver_id"
+                ],
+                "y_any_of": [
+                  "non_completion_rate",
+                  "not_completed_rate",
+                  "fail_rate"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "30a98b573aef4c069fd14d129e21f82b",
+              "name": "drivee test data",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": true,
+            "clarification_question": "How should the result be grouped?",
+            "clarification_options": [
+              {
+                "id": "Month",
+                "label": "Month",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "Week",
+                "label": "Week",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "Day",
+                "label": "Day",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.offset_hours",
+                "label": "train.offset_hours",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.status_order",
+                "label": "train.status_order",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.status_tender",
+                "label": "train.status_tender",
+                "detail": null,
+                "reason": null
+              }
+            ],
+            "message_kind": "answer",
+            "initial_message_kind": "clarification",
+            "clarification_transcript": [
+              {
+                "round": 1,
+                "question": "How should the result be grouped?",
+                "answer": "Группируй по водителям, то есть по driver_id.",
+                "options": [
+                  {
+                    "id": "Month",
+                    "label": "Month",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Week",
+                    "label": "Week",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Day",
+                    "label": "Day",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.offset_hours",
+                    "label": "train.offset_hours",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_order",
+                    "label": "train.status_order",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_tender",
+                    "label": "train.status_tender",
+                    "detail": null,
+                    "reason": null
+                  }
+                ]
+              }
+            ],
+            "intent": {
+              "raw_prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Группируй по водителям, то есть по driver_id. Нужен bar chart.",
+              "metric": "share_not_completed",
+              "dimensions": [
+                "driver_id"
+              ],
+              "filters": [
+                {
+                  "field": "order_timestamp",
+                  "operator": "=",
+                  "value": "2026-04-14"
+                },
+                {
+                  "field": "driveraccept_timestamp",
+                  "operator": "IS NOT NULL",
+                  "value": null
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2026-04-14",
+                "end": "2026-04-14",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "bar",
+              "ambiguities": [],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 0.95,
+              "follow_up": false
+            },
+            "sql": "SELECT\n  driver_id,\n  COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL) AS accepted_cnt,\n  COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL AND driverdone_timestamp IS NULL) AS not_completed_cnt,\n  (COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL AND driverdone_timestamp IS NULL)::numeric / NULLIF(COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL), 0)) AS share_not_completed\nFROM train\nWHERE order_timestamp::date = DATE '2026-04-14'\nGROUP BY driver_id\nHAVING COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL) >= 20\nORDER BY share_not_completed DESC NULLS LAST\nLIMIT 10;",
+            "execution": {
+              "id": "83955a4cd8b4463fa5e901fe93aabd9c",
+              "session_id": "80a6336646204f92ab0f8fba5641f30b",
+              "sql_text": "SELECT\n  driver_id,\n  COUNT(*) FILTER(WHERE\n    NOT driveraccept_timestamp IS NULL) AS accepted_cnt,\n  COUNT(*) FILTER(WHERE\n    NOT driveraccept_timestamp IS NULL AND driverdone_timestamp IS NULL) AS not_completed_cnt,\n  (\n    CAST(COUNT(*) FILTER(WHERE\n      NOT driveraccept_timestamp IS NULL AND driverdone_timestamp IS NULL) AS DECIMAL) / NULLIF(COUNT(*) FILTER(WHERE\n      NOT driveraccept_timestamp IS NULL), 0)\n  ) AS share_not_completed\nFROM train\nWHERE\n  CAST(order_timestamp AS DATE) = CAST('2026-04-14' AS DATE)\nGROUP BY\n  driver_id\nHAVING\n  COUNT(*) FILTER(WHERE\n    NOT driveraccept_timestamp IS NULL) >= 20\nORDER BY\n  share_not_completed DESC NULLS LAST\nLIMIT 10",
+              "columns": [
+                {
+                  "name": "driver_id",
+                  "type": "object"
+                },
+                {
+                  "name": "accepted_cnt",
+                  "type": "int64"
+                },
+                {
+                  "name": "not_completed_cnt",
+                  "type": "int64"
+                },
+                {
+                  "name": "share_not_completed",
+                  "type": "float64"
+                }
+              ],
+              "rows_preview": [
+                {
+                  "driver_id": "51ecc84af8897408",
+                  "accepted_cnt": 28,
+                  "not_completed_cnt": 2,
+                  "share_not_completed": 0.0714285714
+                },
+                {
+                  "driver_id": "5eaa28ce7863098f",
+                  "accepted_cnt": 28,
+                  "not_completed_cnt": 2,
+                  "share_not_completed": 0.0714285714
+                },
+                {
+                  "driver_id": "14bf67cb957d47a2",
+                  "accepted_cnt": 30,
+                  "not_completed_cnt": 2,
+                  "share_not_completed": 0.0666666667
+                },
+                {
+                  "driver_id": "0e957bf8142c6495",
+                  "accepted_cnt": 20,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.05
+                },
+                {
+                  "driver_id": "9fb037c07ad0a2b4",
+                  "accepted_cnt": 21,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.0476190476
+                },
+                {
+                  "driver_id": "1f4b066f201c98ec",
+                  "accepted_cnt": 21,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.0476190476
+                },
+                {
+                  "driver_id": "48ac1d23961334de",
+                  "accepted_cnt": 21,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.0476190476
+                },
+                {
+                  "driver_id": "5f3b2547ad5fd520",
+                  "accepted_cnt": 24,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.0416666667
+                },
+                {
+                  "driver_id": "c10e5eaf72d6881d",
+                  "accepted_cnt": 25,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.04
+                },
+                {
+                  "driver_id": "58fe49a6559c186f",
+                  "accepted_cnt": 26,
+                  "not_completed_cnt": 1,
+                  "share_not_completed": 0.0384615385
+                }
+              ],
+              "rows_preview_truncated": false,
+              "row_count": 10,
+              "execution_time_ms": 86,
+              "chart_recommendation": {
+                "recommended_view": "chart",
+                "chart_type": "line",
+                "x": "driver_id",
+                "y": "accepted_cnt",
+                "series": "driver_id",
+                "variant": "multi_series",
+                "explanation": "Запрос распознан как сравнение динамики во времени, поэтому выбран линейный график с несколькими сериями.",
+                "rule_id": "R3",
+                "confidence": 0.9,
+                "data": {
+                  "kind": "multi_series",
+                  "chartType": "line",
+                  "variant": "multi_series",
+                  "explanation": "Запрос распознан как сравнение динамики во времени, поэтому выбран линейный график с несколькими сериями.",
+                  "ruleId": "R3",
+                  "confidence": 0.9,
+                  "x": {
+                    "field": "driver_id",
+                    "values": [
+                      "51ecc84af8897408",
+                      "5eaa28ce7863098f",
+                      "14bf67cb957d47a2",
+                      "0e957bf8142c6495",
+                      "9fb037c07ad0a2b4",
+                      "1f4b066f201c98ec",
+                      "48ac1d23961334de",
+                      "5f3b2547ad5fd520",
+                      "c10e5eaf72d6881d",
+                      "58fe49a6559c186f"
+                    ],
+                    "type": "categorical"
+                  },
+                  "series": [
+                    {
+                      "name": "51ecc84af8897408",
+                      "data": [
+                        28.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "5eaa28ce7863098f",
+                      "data": [
+                        0.0,
+                        28.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "14bf67cb957d47a2",
+                      "data": [
+                        0.0,
+                        0.0,
+                        30.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "0e957bf8142c6495",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        20.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "9fb037c07ad0a2b4",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        21.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "1f4b066f201c98ec",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        21.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "48ac1d23961334de",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        21.0,
+                        0.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "5f3b2547ad5fd520",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        24.0,
+                        0.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "c10e5eaf72d6881d",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        25.0,
+                        0.0
+                      ]
+                    },
+                    {
+                      "name": "58fe49a6559c186f",
+                      "data": [
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                        26.0
+                      ]
+                    }
+                  ],
+                  "seriesField": "driver_id",
+                  "stackable": false,
+                  "stacked": false
+                },
+                "reason": "Запрос распознан как сравнение динамики во времени, поэтому выбран линейный график с несколькими сериями."
+              },
+              "error_message": null,
+              "created_at": "2026-04-22T07:27:04.249068"
+            },
+            "chart": {
+              "recommended_view": "chart",
+              "chart_type": "line",
+              "x": "driver_id",
+              "y": "accepted_cnt",
+              "series": "driver_id",
+              "variant": "multi_series",
+              "explanation": "Запрос распознан как сравнение динамики во времени, поэтому выбран линейный график с несколькими сериями.",
+              "rule_id": "R3",
+              "confidence": 0.9,
+              "data": {
+                "kind": "multi_series",
+                "chartType": "line",
+                "variant": "multi_series",
+                "explanation": "Запрос распознан как сравнение динамики во времени, поэтому выбран линейный график с несколькими сериями.",
+                "ruleId": "R3",
+                "confidence": 0.9,
+                "x": {
+                  "field": "driver_id",
+                  "values": [
+                    "51ecc84af8897408",
+                    "5eaa28ce7863098f",
+                    "14bf67cb957d47a2",
+                    "0e957bf8142c6495",
+                    "9fb037c07ad0a2b4",
+                    "1f4b066f201c98ec",
+                    "48ac1d23961334de",
+                    "5f3b2547ad5fd520",
+                    "c10e5eaf72d6881d",
+                    "58fe49a6559c186f"
+                  ],
+                  "type": "categorical"
+                },
+                "series": [
+                  {
+                    "name": "51ecc84af8897408",
+                    "data": [
+                      28.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "5eaa28ce7863098f",
+                    "data": [
+                      0.0,
+                      28.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "14bf67cb957d47a2",
+                    "data": [
+                      0.0,
+                      0.0,
+                      30.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "0e957bf8142c6495",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      20.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "9fb037c07ad0a2b4",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      21.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "1f4b066f201c98ec",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      21.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "48ac1d23961334de",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      21.0,
+                      0.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "5f3b2547ad5fd520",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      24.0,
+                      0.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "c10e5eaf72d6881d",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      25.0,
+                      0.0
+                    ]
+                  },
+                  {
+                    "name": "58fe49a6559c186f",
+                    "data": [
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      0.0,
+                      26.0
+                    ]
+                  }
+                ],
+                "seriesField": "driver_id",
+                "stackable": false,
+                "stacked": false
+              },
+              "reason": "Запрос распознан как сравнение динамики во времени, поэтому выбран линейный график с несколькими сериями."
+            }
+          },
+          "scores": {
+            "understanding": 0.0,
+            "sql": 0.8,
+            "chart": 0.3333,
+            "overall": 0.3778
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_unexpected",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "Expected a direct answer, but the system asked for clarification."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2026-04-14` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driver_id` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driveraccept_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverdone_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `limit 10` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `train` found; actual tables=['train']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_status_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Execution succeeded; error=None"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_min_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=10, expected at least 1"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_max_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=10, expected at most 10"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['driver_id']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['accepted_orders', 'accepted_count', 'total_accepted']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['not_completed_orders', 'failed_after_accept', 'not_done_orders']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['non_completion_rate', 'not_completed_rate', 'fail_rate']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_type_mismatch",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart type=line, acceptable=['bar']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_x_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart x=driver_id, acceptable=['driver_id']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_y_mismatch",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart y=accepted_cnt, acceptable=['non_completion_rate', 'not_completed_rate', 'fail_rate']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "hourly_pickup_vs_ride_duration",
+      "title": "Hourly pickup time vs ride duration",
+      "tags": [
+        "complex",
+        "sla",
+        "timeseries"
+      ],
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "session_id": "3cbacdd8394843c98afd3cfa4f5ad420",
+      "scores": {
+        "understanding": 0.0,
+        "sql": 0.8571,
+        "chart": 0.6667,
+        "overall": 0.5079
+      },
+      "issue_counts": {
+        "clarification_unexpected": 1,
+        "execution_required_column_missing": 2,
+        "chart_y_mismatch": 1
+      },
+      "steps": [
+        {
+          "case_id": "hourly_pickup_vs_ride_duration",
+          "step_index": 1,
+          "step_ref": "hourly_pickup_vs_ride_duration#step1",
+          "user_prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "driveraccept_timestamp",
+                "driverarrived_timestamp",
+                "driverstarttheride_timestamp",
+                "driverdone_timestamp"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "train"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": null,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "avg_pickup_minutes",
+                  "pickup_minutes",
+                  "avg_time_to_arrival",
+                  "avg_pickup_time"
+                ],
+                [
+                  "avg_ride_minutes",
+                  "ride_minutes",
+                  "avg_ride_time"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "line"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "avg_pickup_minutes",
+                  "pickup_minutes",
+                  "avg_time_to_arrival",
+                  "avg_ride_minutes",
+                  "ride_minutes"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "30a98b573aef4c069fd14d129e21f82b",
+              "name": "drivee test data",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": true,
+            "clarification_question": "How should the result be grouped?",
+            "clarification_options": [
+              {
+                "id": "Month",
+                "label": "Month",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "Week",
+                "label": "Week",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "Day",
+                "label": "Day",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.offset_hours",
+                "label": "train.offset_hours",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.status_order",
+                "label": "train.status_order",
+                "detail": null,
+                "reason": null
+              },
+              {
+                "id": "train.status_tender",
+                "label": "train.status_tender",
+                "detail": null,
+                "reason": null
+              }
+            ],
+            "message_kind": "answer",
+            "initial_message_kind": "clarification",
+            "clarification_transcript": [
+              {
+                "round": 1,
+                "question": "How should the result be grouped?",
+                "answer": "Считать завершённым status_order = 'done'. Фильтровать по order_timestamp = '2026-04-14'. Группировка по часам.",
+                "options": [
+                  {
+                    "id": "Month",
+                    "label": "Month",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Week",
+                    "label": "Week",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "Day",
+                    "label": "Day",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.offset_hours",
+                    "label": "train.offset_hours",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_order",
+                    "label": "train.status_order",
+                    "detail": null,
+                    "reason": null
+                  },
+                  {
+                    "id": "train.status_tender",
+                    "label": "train.status_tender",
+                    "detail": null,
+                    "reason": null
+                  }
+                ]
+              }
+            ],
+            "intent": {
+              "raw_prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+              "metric": null,
+              "dimensions": [
+                "hour"
+              ],
+              "filters": [
+                {
+                  "field": "status_order",
+                  "operator": "=",
+                  "value": "done"
+                },
+                {
+                  "field": "order_timestamp",
+                  "operator": "=",
+                  "value": "2026-04-14"
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2026-04-14",
+                "end": "2026-04-14",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "line",
+              "ambiguities": [],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 1.0,
+              "follow_up": false
+            },
+            "sql": "SELECT date_trunc('hour', order_timestamp) AS hour,\n       AVG(EXTRACT(EPOCH FROM (driverarrived_timestamp - driveraccept_timestamp))) AS avg_accept_to_arrival_sec,\n       AVG(EXTRACT(EPOCH FROM (driverdone_timestamp - driverstarttheride_timestamp))) AS avg_ride_duration_sec\nFROM train\nWHERE status_order = 'done'\n  AND order_timestamp::date = DATE '2026-04-14'\n  AND driverarrived_timestamp IS NOT NULL\n  AND driveraccept_timestamp IS NOT NULL\n  AND driverdone_timestamp IS NOT NULL\n  AND driverstarttheride_timestamp IS NOT NULL\nGROUP BY hour\nORDER BY hour;",
+            "execution": {
+              "id": "f58e4b4b1784493e8973c5f8a1c8541f",
+              "session_id": "3cbacdd8394843c98afd3cfa4f5ad420",
+              "sql_text": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM (\n    driverarrived_timestamp - driveraccept_timestamp\n  ))) AS avg_accept_to_arrival_sec,\n  AVG(EXTRACT(EPOCH FROM (\n    driverdone_timestamp - driverstarttheride_timestamp\n  ))) AS avg_ride_duration_sec\nFROM train\nWHERE\n  status_order = 'done'\n  AND CAST(order_timestamp AS DATE) = CAST('2026-04-14' AS DATE)\n  AND NOT driverarrived_timestamp IS NULL\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverdone_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+              "columns": [
+                {
+                  "name": "hour",
+                  "type": "datetime64[ns]"
+                },
+                {
+                  "name": "avg_accept_to_arrival_sec",
+                  "type": "float64"
+                },
+                {
+                  "name": "avg_ride_duration_sec",
+                  "type": "float64"
+                }
+              ],
+              "rows_preview": [
+                {
+                  "hour": "2026-04-14T00:00:00.000",
+                  "avg_accept_to_arrival_sec": 214.0,
+                  "avg_ride_duration_sec": 625.6
+                },
+                {
+                  "hour": "2026-04-14T01:00:00.000",
+                  "avg_accept_to_arrival_sec": 311.3333333333,
+                  "avg_ride_duration_sec": 1020.3333333333
+                },
+                {
+                  "hour": "2026-04-14T05:00:00.000",
+                  "avg_accept_to_arrival_sec": 315.0,
+                  "avg_ride_duration_sec": 78.0
+                },
+                {
+                  "hour": "2026-04-14T06:00:00.000",
+                  "avg_accept_to_arrival_sec": 100.75,
+                  "avg_ride_duration_sec": 134.25
+                },
+                {
+                  "hour": "2026-04-14T07:00:00.000",
+                  "avg_accept_to_arrival_sec": 144.2461538462,
+                  "avg_ride_duration_sec": 230.0
+                },
+                {
+                  "hour": "2026-04-14T08:00:00.000",
+                  "avg_accept_to_arrival_sec": 131.9010416667,
+                  "avg_ride_duration_sec": 212.9114583333
+                },
+                {
+                  "hour": "2026-04-14T09:00:00.000",
+                  "avg_accept_to_arrival_sec": 120.183908046,
+                  "avg_ride_duration_sec": 193.7356321839
+                },
+                {
+                  "hour": "2026-04-14T10:00:00.000",
+                  "avg_accept_to_arrival_sec": 132.0361445783,
+                  "avg_ride_duration_sec": 247.4096385542
+                },
+                {
+                  "hour": "2026-04-14T11:00:00.000",
+                  "avg_accept_to_arrival_sec": 104.552238806,
+                  "avg_ride_duration_sec": 280.5373134328
+                },
+                {
+                  "hour": "2026-04-14T12:00:00.000",
+                  "avg_accept_to_arrival_sec": 134.9540229885,
+                  "avg_ride_duration_sec": 280.3563218391
+                },
+                {
+                  "hour": "2026-04-14T13:00:00.000",
+                  "avg_accept_to_arrival_sec": 149.8217821782,
+                  "avg_ride_duration_sec": 235.9801980198
+                },
+                {
+                  "hour": "2026-04-14T14:00:00.000",
+                  "avg_accept_to_arrival_sec": 149.2604166667,
+                  "avg_ride_duration_sec": 284.5729166667
+                },
+                {
+                  "hour": "2026-04-14T15:00:00.000",
+                  "avg_accept_to_arrival_sec": 124.1720430108,
+                  "avg_ride_duration_sec": 249.8279569892
+                },
+                {
+                  "hour": "2026-04-14T16:00:00.000",
+                  "avg_accept_to_arrival_sec": 155.962962963,
+                  "avg_ride_duration_sec": 272.5308641975
+                },
+                {
+                  "hour": "2026-04-14T17:00:00.000",
+                  "avg_accept_to_arrival_sec": 135.8738738739,
+                  "avg_ride_duration_sec": 262.8108108108
+                },
+                {
+                  "hour": "2026-04-14T18:00:00.000",
+                  "avg_accept_to_arrival_sec": 112.8518518519,
+                  "avg_ride_duration_sec": 282.4691358025
+                },
+                {
+                  "hour": "2026-04-14T19:00:00.000",
+                  "avg_accept_to_arrival_sec": 119.0208333333,
+                  "avg_ride_duration_sec": 293.0833333333
+                },
+                {
+                  "hour": "2026-04-14T20:00:00.000",
+                  "avg_accept_to_arrival_sec": 125.7096774194,
+                  "avg_ride_duration_sec": 289.7096774194
+                },
+                {
+                  "hour": "2026-04-14T21:00:00.000",
+                  "avg_accept_to_arrival_sec": 136.5,
+                  "avg_ride_duration_sec": 259.9
+                },
+                {
+                  "hour": "2026-04-14T22:00:00.000",
+                  "avg_accept_to_arrival_sec": 171.8888888889,
+                  "avg_ride_duration_sec": 244.6666666667
+                },
+                {
+                  "hour": "2026-04-14T23:00:00.000",
+                  "avg_accept_to_arrival_sec": 206.4545454545,
+                  "avg_ride_duration_sec": 235.6363636364
+                }
+              ],
+              "rows_preview_truncated": false,
+              "row_count": 21,
+              "execution_time_ms": 62,
+              "chart_recommendation": {
+                "recommended_view": "chart",
+                "chart_type": "line",
+                "x": "hour",
+                "y": "avg_accept_to_arrival_sec",
+                "series": null,
+                "variant": "single_series",
+                "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+                "rule_id": "R4",
+                "confidence": 0.88,
+                "data": {
+                  "kind": "single_series",
+                  "chartType": "line",
+                  "variant": "single_series",
+                  "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+                  "ruleId": "R4",
+                  "confidence": 0.88,
+                  "x": {
+                    "field": "hour",
+                    "values": [
+                      "2026-04-14T00:00:00.000",
+                      "2026-04-14T01:00:00.000",
+                      "2026-04-14T05:00:00.000",
+                      "2026-04-14T06:00:00.000",
+                      "2026-04-14T07:00:00.000",
+                      "2026-04-14T08:00:00.000",
+                      "2026-04-14T09:00:00.000",
+                      "2026-04-14T10:00:00.000",
+                      "2026-04-14T11:00:00.000",
+                      "2026-04-14T12:00:00.000",
+                      "2026-04-14T13:00:00.000",
+                      "2026-04-14T14:00:00.000",
+                      "2026-04-14T15:00:00.000",
+                      "2026-04-14T16:00:00.000",
+                      "2026-04-14T17:00:00.000",
+                      "2026-04-14T18:00:00.000",
+                      "2026-04-14T19:00:00.000",
+                      "2026-04-14T20:00:00.000",
+                      "2026-04-14T21:00:00.000",
+                      "2026-04-14T22:00:00.000",
+                      "2026-04-14T23:00:00.000"
+                    ],
+                    "type": "categorical"
+                  },
+                  "y": {
+                    "field": "avg_accept_to_arrival_sec",
+                    "values": [
+                      214.0,
+                      311.3333333333,
+                      315.0,
+                      100.75,
+                      144.2461538462,
+                      131.9010416667,
+                      120.183908046,
+                      132.0361445783,
+                      104.552238806,
+                      134.9540229885,
+                      149.8217821782,
+                      149.2604166667,
+                      124.1720430108,
+                      155.962962963,
+                      135.8738738739,
+                      112.8518518519,
+                      119.0208333333,
+                      125.7096774194,
+                      136.5,
+                      171.8888888889,
+                      206.4545454545
+                    ],
+                    "unit": null
+                  },
+                  "stacked": false
+                },
+                "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+              },
+              "error_message": null,
+              "created_at": "2026-04-22T07:27:19.064049"
+            },
+            "chart": {
+              "recommended_view": "chart",
+              "chart_type": "line",
+              "x": "hour",
+              "y": "avg_accept_to_arrival_sec",
+              "series": null,
+              "variant": "single_series",
+              "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+              "rule_id": "R4",
+              "confidence": 0.88,
+              "data": {
+                "kind": "single_series",
+                "chartType": "line",
+                "variant": "single_series",
+                "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+                "ruleId": "R4",
+                "confidence": 0.88,
+                "x": {
+                  "field": "hour",
+                  "values": [
+                    "2026-04-14T00:00:00.000",
+                    "2026-04-14T01:00:00.000",
+                    "2026-04-14T05:00:00.000",
+                    "2026-04-14T06:00:00.000",
+                    "2026-04-14T07:00:00.000",
+                    "2026-04-14T08:00:00.000",
+                    "2026-04-14T09:00:00.000",
+                    "2026-04-14T10:00:00.000",
+                    "2026-04-14T11:00:00.000",
+                    "2026-04-14T12:00:00.000",
+                    "2026-04-14T13:00:00.000",
+                    "2026-04-14T14:00:00.000",
+                    "2026-04-14T15:00:00.000",
+                    "2026-04-14T16:00:00.000",
+                    "2026-04-14T17:00:00.000",
+                    "2026-04-14T18:00:00.000",
+                    "2026-04-14T19:00:00.000",
+                    "2026-04-14T20:00:00.000",
+                    "2026-04-14T21:00:00.000",
+                    "2026-04-14T22:00:00.000",
+                    "2026-04-14T23:00:00.000"
+                  ],
+                  "type": "categorical"
+                },
+                "y": {
+                  "field": "avg_accept_to_arrival_sec",
+                  "values": [
+                    214.0,
+                    311.3333333333,
+                    315.0,
+                    100.75,
+                    144.2461538462,
+                    131.9010416667,
+                    120.183908046,
+                    132.0361445783,
+                    104.552238806,
+                    134.9540229885,
+                    149.8217821782,
+                    149.2604166667,
+                    124.1720430108,
+                    155.962962963,
+                    135.8738738739,
+                    112.8518518519,
+                    119.0208333333,
+                    125.7096774194,
+                    136.5,
+                    171.8888888889,
+                    206.4545454545
+                  ],
+                  "unit": null
+                },
+                "stacked": false
+              },
+              "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+            }
+          },
+          "scores": {
+            "understanding": 0.0,
+            "sql": 0.8571,
+            "chart": 0.6667,
+            "overall": 0.5079
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_unexpected",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "Expected a direct answer, but the system asked for clarification."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2026-04-14` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `group by` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driveraccept_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverarrived_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverstarttheride_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverdone_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `train` found; actual tables=['train']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_status_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Execution succeeded; error=None"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_min_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=21, expected at least 1"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['hour', 'hour_bucket', 'order_hour', 'bucket']; actual columns=['avg_accept_to_arrival_sec', 'avg_ride_duration_sec', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_pickup_time']; actual columns=['avg_accept_to_arrival_sec', 'avg_ride_duration_sec', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['avg_ride_minutes', 'ride_minutes', 'avg_ride_time']; actual columns=['avg_accept_to_arrival_sec', 'avg_ride_duration_sec', 'hour']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_type_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart type=line, acceptable=['line']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_x_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart x=hour, acceptable=['hour', 'hour_bucket', 'order_hour', 'bucket']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_y_mismatch",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart y=avg_accept_to_arrival_sec, acceptable=['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_ride_minutes', 'ride_minutes']"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "repair_targets": [
+    {
+      "code": "execution_required_column_missing",
+      "count": 6,
+      "summary": "Результат не содержит ожидаемых полей для таблицы/чарта.",
+      "files": [
+        "backend/app/agents/sql_generation.py",
+        "backend/app/services/chat_execution_service.py",
+        "backend/app/services/chart_data_adapter.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "hourly_completion_conversion#step1",
+          "prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "message": "Expected one of columns ['completed_orders', 'done_orders', 'completed_rides', 'completed_count']; actual columns=['conversion_rate', 'hour', 'orders_created', 'rides_completed']"
+        },
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Expected one of columns ['accepted_orders', 'accepted_count', 'total_accepted']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+        },
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Expected one of columns ['not_completed_orders', 'failed_after_accept', 'not_done_orders']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+        },
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Expected one of columns ['non_completion_rate', 'not_completed_rate', 'fail_rate']; actual columns=['accepted_cnt', 'driver_id', 'not_completed_cnt', 'share_not_completed']"
+        },
+        {
+          "step_ref": "hourly_pickup_vs_ride_duration#step1",
+          "prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+          "message": "Expected one of columns ['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_pickup_time']; actual columns=['avg_accept_to_arrival_sec', 'avg_ride_duration_sec', 'hour']"
+        }
+      ]
+    },
+    {
+      "code": "chart_y_mismatch",
+      "count": 3,
+      "summary": "Неверно выбрана метрика на оси Y.",
+      "files": [
+        "backend/app/services/chart_decision_service.py",
+        "backend/app/services/chart_data_adapter.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "hourly_completion_conversion#step1",
+          "prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "message": "Chart y=rides_completed, acceptable=['created_orders', 'total_orders', 'orders_created', 'completed_orders', 'completion_rate']"
+        },
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Chart y=accepted_cnt, acceptable=['non_completion_rate', 'not_completed_rate', 'fail_rate']"
+        },
+        {
+          "step_ref": "hourly_pickup_vs_ride_duration#step1",
+          "prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+          "message": "Chart y=avg_accept_to_arrival_sec, acceptable=['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_ride_minutes', 'ride_minutes']"
+        }
+      ]
+    },
+    {
+      "code": "clarification_unexpected",
+      "count": 3,
+      "summary": "Модель уходит в уточнение там, где ожидался прямой SQL-ответ.",
+      "files": [
+        "backend/app/services/llm_service.py",
+        "backend/app/agents/intent.py",
+        "backend/app/services/chat_sql_adapter.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "hourly_completion_conversion#step1",
+          "prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "message": "Expected a direct answer, but the system asked for clarification."
+        },
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Expected a direct answer, but the system asked for clarification."
+        },
+        {
+          "step_ref": "hourly_pickup_vs_ride_duration#step1",
+          "prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+          "message": "Expected a direct answer, but the system asked for clarification."
+        }
+      ]
+    },
+    {
+      "code": "chart_type_mismatch",
+      "count": 1,
+      "summary": "Выбран неподходящий тип графика.",
+      "files": [
+        "backend/app/services/chart_decision_service.py",
+        "backend/app/services/chart_data_adapter.py",
+        "backend/app/services/llm_service.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Chart type=line, acceptable=['bar']"
+        }
+      ]
+    }
+  ]
+}

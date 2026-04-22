@@ -75,7 +75,16 @@ class LLMService:
             "2. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, GRANT or transaction statements.\n"
             "3. Prefer explicit JOINs and explicit aliases.\n"
             "4. Keep SQL compatible with the provided SQL dialect.\n"
-            "5. If the request is ambiguous, set intent.clarification_question and return sql as null.\n"
+            "5. Ask for clarification only when the request is TRULY ambiguous — i.e. a choice between "
+            "different tables, metrics, or join paths meaningfully changes the SQL. Do NOT clarify when "
+            "the user already specified the grouping (e.g. 'по часам', 'by hour', 'по водителям', "
+            "'по driver_id'), the metric (e.g. 'конверсия', 'completion rate', 'доля ...'), the filter "
+            "(e.g. 'за 14 апреля 2026', 'только завершённые заказы'), or the chart type — in those cases "
+            "proceed directly with SQL. If the user listed multiple metrics in one request (e.g. "
+            "'количество созданных, количество завершённых и конверсию'), return a single SQL that "
+            "produces all of them as separate columns; do NOT ask which metric to pick. Set "
+            "clarification_question to null and populate sql whenever the request is specific enough "
+            "to write a safe SELECT.\n"
             "6. Keep warnings concise.\n"
             "7. Match the user's language in clarification text.\n"
             "8. Use conversation history when provided to resolve follow-up intent.\n"
@@ -122,8 +131,13 @@ class LLMService:
             "visualization hint, set visualization_hint, but treat it as a hint only.\n"
             "18. SEMANTIC FLAGS — set semantics.flags.is_time_series when the request is about a temporal "
             "trend or the chosen time column should drive the x-axis. Set is_comparison when the request "
-            "compares entities or periods. Set explicit_chart_request only when the user explicitly names "
-            "a chart type.\n"
+            "compares entities or periods. Set is_ranking=true when the request asks for top-N / bottom-N / "
+            "«топ» / «худшие» / ordering of entities by a metric (even if the result also has a rate column). "
+            "Set is_share=true when the metric is a ratio, share or conversion rate. Set top_n to the "
+            "requested number when the user asks for a specific N. Set explicit_chart_request only when the "
+            "user explicitly names a chart type. Populate semantics.metric.name with the SQL alias of the "
+            "primary metric column (e.g. 'share_not_completed', 'completion_rate'), so the chart engine can "
+            "pick the correct Y axis.\n"
             "19. COMPARISON SEMANTICS — when comparing periods or entities, fill semantics.comparison.kind "
             "with 'period_over_period' or 'entity_vs_entity' and populate semantics.comparison.entities "
             "when concrete entities are mentioned.\n"
@@ -164,7 +178,7 @@ class LLMService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=1400,
+                max_tokens=2200,
                 temperature=temperature,
                 model=target_model,
             )

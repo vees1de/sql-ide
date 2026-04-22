@@ -1,0 +1,555 @@
+[
+  {
+    "case_id": "hourly_completion_conversion",
+    "step_index": 1,
+    "step_ref": "hourly_completion_conversion#step1",
+    "user_prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt20",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2026-04-14",
+          "group by",
+          "order_timestamp",
+          "driverdone_timestamp"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "train"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          [
+            "created_orders",
+            "total_orders",
+            "orders_created"
+          ],
+          [
+            "completed_orders",
+            "done_orders",
+            "completed_rides",
+            "completed_count"
+          ],
+          [
+            "completion_rate",
+            "conversion_rate",
+            "done_rate"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          "y_any_of": [
+            "created_orders",
+            "total_orders",
+            "orders_created",
+            "completed_orders",
+            "completion_rate"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "How should the result be grouped?",
+      "clarification_options": [
+        {
+          "id": "Month",
+          "label": "Month",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "Week",
+          "label": "Week",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "Day",
+          "label": "Day",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.offset_hours",
+          "label": "train.offset_hours",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.status_order",
+          "label": "train.status_order",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.status_tender",
+          "label": "train.status_tender",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "clarification",
+      "intent": {
+        "raw_prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+        "metric": "order_count",
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": "line",
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.6499999999999999,
+        "follow_up": false
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  },
+  {
+    "case_id": "top_drivers_non_completion_rate",
+    "step_index": 1,
+    "step_ref": "top_drivers_non_completion_rate#step1",
+    "user_prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt20",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2026-04-14",
+          "driver_id",
+          "driveraccept_timestamp",
+          "driverdone_timestamp",
+          "limit 10"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "train"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": 10,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "driver_id"
+          ],
+          [
+            "accepted_orders",
+            "accepted_count",
+            "total_accepted"
+          ],
+          [
+            "not_completed_orders",
+            "failed_after_accept",
+            "not_done_orders"
+          ],
+          [
+            "non_completion_rate",
+            "not_completed_rate",
+            "fail_rate"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "bar"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "driver_id"
+          ],
+          "y_any_of": [
+            "non_completion_rate",
+            "not_completed_rate",
+            "fail_rate"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "How should the result be grouped?",
+      "clarification_options": [
+        {
+          "id": "Month",
+          "label": "Month",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "Week",
+          "label": "Week",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "Day",
+          "label": "Day",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.offset_hours",
+          "label": "train.offset_hours",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.status_order",
+          "label": "train.status_order",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.status_tender",
+          "label": "train.status_tender",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "clarification",
+      "intent": {
+        "raw_prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+        "metric": "order_count",
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": "bar",
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.6499999999999999,
+        "follow_up": true
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  },
+  {
+    "case_id": "hourly_pickup_vs_ride_duration",
+    "step_index": 1,
+    "step_ref": "hourly_pickup_vs_ride_duration#step1",
+    "user_prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt20",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2026-04-14",
+          "group by",
+          "driveraccept_timestamp",
+          "driverarrived_timestamp",
+          "driverstarttheride_timestamp",
+          "driverdone_timestamp"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "train"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          [
+            "avg_pickup_minutes",
+            "pickup_minutes",
+            "avg_time_to_arrival",
+            "avg_pickup_time"
+          ],
+          [
+            "avg_ride_minutes",
+            "ride_minutes",
+            "avg_ride_time"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          "y_any_of": [
+            "avg_pickup_minutes",
+            "pickup_minutes",
+            "avg_time_to_arrival",
+            "avg_ride_minutes",
+            "ride_minutes"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "How should the result be grouped?",
+      "clarification_options": [
+        {
+          "id": "Month",
+          "label": "Month",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "Week",
+          "label": "Week",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "Day",
+          "label": "Day",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.offset_hours",
+          "label": "train.offset_hours",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.status_order",
+          "label": "train.status_order",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "train.status_tender",
+          "label": "train.status_tender",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "clarification",
+      "intent": {
+        "raw_prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+        "metric": "avg_order_value",
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": "line",
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.6499999999999999,
+        "follow_up": true
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  }
+]

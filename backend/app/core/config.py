@@ -144,6 +144,8 @@ def get_settings() -> Settings:
     if uses_demo_data:
         analytics_database_url = f"sqlite:///{demo_analytics_path}"
 
+    analytics_uses_demo_data = uses_demo_data or _read_bool("BOOTSTRAP_DEMO_ANALYTICS", False)
+
     service_database_url = os.getenv("SERVICE_DATABASE_URL", "").strip()
     if not service_database_url:
         service_database_url = f"sqlite:///{service_db_path}"
@@ -162,14 +164,20 @@ def get_settings() -> Settings:
         data_dir=data_dir,
         service_database_url=service_database_url,
         analytics_database_url=analytics_database_url,
-        analytics_uses_demo_data=uses_demo_data or _read_bool("BOOTSTRAP_DEMO_ANALYTICS", False),
+        analytics_uses_demo_data=analytics_uses_demo_data,
         allowed_tables=allowed_tables,
         default_row_limit=int(os.getenv("DEFAULT_ROW_LIMIT", "50")),
         max_row_limit=int(os.getenv("MAX_ROW_LIMIT", "1000")),
         query_timeout_seconds=int(os.getenv("QUERY_TIMEOUT_SECONDS", "15")),
         demo_workspace_name=os.getenv("DEMO_WORKSPACE_NAME", "Demo Workspace"),
         demo_database_id=os.getenv("DEMO_DATABASE_ID", "demo_analytics"),
-        demo_database_name=os.getenv("DEMO_DATABASE_NAME", "Demo Analytics DB"),
+        demo_database_name=os.getenv(
+            "ANALYTICS_DATABASE_NAME",
+            os.getenv(
+                "DEMO_DATABASE_NAME",
+                "Demo Analytics DB" if analytics_uses_demo_data else "Analytics DB",
+            ),
+        ),
         llm_api_base_url=_resolve_llm_api_base_url(),
         llm_api_key=_resolve_llm_api_key(),
         llm_model=_resolve_llm_model(),

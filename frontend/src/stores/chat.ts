@@ -13,6 +13,7 @@ import type {
 const emptyExecution: ApiChatExecutionRead | null = null;
 
 export const useChatStore = defineStore('chat', () => {
+  const defaultSessionTitle = 'Новый чат';
   const databases = ref<ApiDatabaseDescriptor[]>([]);
   const sessions = ref<ApiChatSessionRead[]>([]);
   const messages = ref<ApiChatMessageRead[]>([]);
@@ -36,6 +37,7 @@ export const useChatStore = defineStore('chat', () => {
   const statusLabel = ref('Чат готов');
 
   let draftSaveTimer: number | null = null;
+  const pendingSessionCreates = new Map<string, Promise<string>>();
 
   const currentDatabase = computed(
     () => databases.value.find((database) => database.id === activeDbId.value) ?? null
@@ -178,16 +180,33 @@ export const useChatStore = defineStore('chat', () => {
       throw new Error('База данных не выбрана.');
     }
 
-    const session = await chatApi.createSession(databaseId);
-    activeDbId.value = databaseId;
-    syncSession(session);
-    activeSessionId.value = session.id;
-    messages.value = [];
-    setSessionDraft(session.current_sql_draft, session.sql_draft_version);
-    setSessionResult(null);
-    pendingUserMessage.value = '';
-    setStatus('Новый чат создан');
-    return session.id;
+    const pendingCreate = pendingSessionCreates.get(databaseId);
+    if (pendingCreate) {
+      return pendingCreate;
+    }
+
+    const createPromise = (async () => {
+      const session = await chatApi.createSession(databaseId);
+      if (databaseId !== activeDbId.value) {
+        sessions.value = [];
+      }
+      activeDbId.value = databaseId;
+      syncSession(session);
+      activeSessionId.value = session.id;
+      messages.value = [];
+      setSessionDraft(session.current_sql_draft, session.sql_draft_version);
+      setSessionResult(null);
+      pendingUserMessage.value = '';
+      setStatus(session.title === defaultSessionTitle ? 'Пустой чат открыт' : 'Новый чат создан');
+      return session.id;
+    })();
+
+    pendingSessionCreates.set(databaseId, createPromise);
+    try {
+      return await createPromise;
+    } finally {
+      pendingSessionCreates.delete(databaseId);
+    }
   }
 
   async function selectDatabase(databaseId: string) {

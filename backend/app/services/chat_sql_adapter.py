@@ -219,15 +219,13 @@ class ChatSqlAdapter:
                 if complexity == "complex":
                     mode_warnings.append("Сложный запрос выполнен в Fast режиме. Результат может быть приближённым.")
             else:
-                return self._build_clarification_result(
+                return self._build_llm_clarification_result(
                     db=db,
                     session=session,
                     intent=intent,
-                    schema=schema,
                     user_text=user_text,
                     dialect=schema.dialect,
-                    commit_updates=True,
-                    previous_intent=previous_intent,
+                    schema=schema,
                     query_mode=query_mode,
                     complexity=complexity,
                     llm_model_alias=llm_model_alias,
@@ -258,6 +256,70 @@ class ChatSqlAdapter:
             intent=intent,
             payload=payload,
             sql_draft=plan.sql,
+            assistant_text=assistant_text,
+            commit_updates=True,
+        )
+
+    def _build_llm_clarification_result(
+        self,
+        db: Session,
+        session: ChatSessionModel,
+        intent: IntentPayload,
+        user_text: str,
+        dialect: str,
+        schema,
+        query_mode: QueryMode,
+        complexity: str,
+        llm_model_alias: str | None,
+    ) -> AdapterResult:
+        llm_options = list(intent.clarification_options or [])
+        if llm_options:
+            options = [
+                ClarificationOption(
+                    id=(option.id or option.label or f"option-{index + 1}"),
+                    label=option.label or option.id or f"Вариант {index + 1}",
+                    detail=getattr(option, "detail", None),
+                    reason=getattr(option, "reason", None),
+                )
+                for index, option in enumerate(llm_options)
+            ]
+        else:
+            return self._build_clarification_result(
+                db=db,
+                session=session,
+                intent=intent,
+                schema=schema,
+                user_text=user_text,
+                dialect=dialect,
+                commit_updates=True,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
+            )
+        payload = StructuredPayload(
+            interpretation=self._build_interpretation(intent),
+            tables_used=[],
+            sql=None,
+            warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            message_kind="clarification",
+            needs_clarification=True,
+            clarification_question=intent.clarification_question,
+            clarification_options=options or None,
+            dialect=dialect,
+            query_mode=query_mode,
+            llm_model_alias=llm_model_alias,
+            complexity=complexity,
+            mode_suggestion=None,
+            mode_suggestion_reason=None,
+        )
+        assistant_text = payload.clarification_question or "Нужны дополнительные детали."
+        return self._persist_result(
+            db=db,
+            session=session,
+            user_text=user_text,
+            intent=intent,
+            payload=payload,
+            sql_draft=None,
             assistant_text=assistant_text,
             commit_updates=True,
         )
