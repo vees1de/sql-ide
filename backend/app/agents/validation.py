@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlglot import expressions as exp
 from sqlglot import parse, parse_one
 
 from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import ValidationPayload
+from app.schemas.semantic_catalog import SemanticCatalog, SemanticColumn
 
 
 class SQLValidationAgent:
@@ -15,9 +18,11 @@ class SQLValidationAgent:
         dialect: str,
         allowed_tables: list[str] | tuple[str, ...] | None = None,
         schema: SchemaMetadataResponse | None = None,
+        semantic_catalog: SemanticCatalog | None = None,
     ) -> ValidationPayload:
         errors: list[str] = []
         warnings: list[str] = []
+        confidence_reasons: list[str] = []
 
         try:
             statements = parse(sql, read=self._read_dialect(dialect))
@@ -53,6 +58,14 @@ class SQLValidationAgent:
         self._detect_bogus_cross_join(parsed, warnings)
         if schema is not None:
             self._detect_snapshot_join_without_aggregation(parsed, schema, warnings)
+        confidence_level = None
+        if semantic_catalog is not None:
+            confidence_level, confidence_reasons = self._semantic_round_trip(
+                parsed,
+                semantic_catalog,
+                warnings,
+                errors,
+            )
 
         parsed = self._apply_row_limit(parsed, warnings)
         final_sql = self.format_sql(parsed.sql(pretty=True, dialect=self._read_dialect(dialect)), dialect)
@@ -63,6 +76,8 @@ class SQLValidationAgent:
             tables=tables,
             warnings=warnings,
             errors=errors,
+            semantic_confidence_level=confidence_level,
+            semantic_confidence_reasons=confidence_reasons,
         )
 
     # ------------------------------------------------------------------
@@ -237,6 +252,240 @@ class SQLValidationAgent:
                 if isinstance(unwrapped, exp.Max):
                     return True
         return False
+
+    def _semantic_round_trip(
+        self,
+        parsed: exp.Expression,
+        semantic_catalog: SemanticCatalog,
+        warnings: list[str],
+        errors: list[str],
+    ) -> tuple[str, list[str]]:
+        reasons: list[str] = []
+        catalog_tables = {table.table_name.lower(): table for table in semantic_catalog.tables}
+        alias_map = self._alias_map(parsed)
+        query_tables = sorted({table.name for table in parsed.find_all(exp.Table)})
+
+        missing_tables = [table for table in query_tables if table.lower() not in catalog_tables]
+        if missing_tables:
+            errors.append(f"Semantic catalog does not contain tables from the query: {', '.join(missing_tables)}.")
+        elif query_tables:
+            reasons.append("Все таблицы запроса найдены в semantic catalog.")
+
+        fact_without_grain = [
+            table.table_name
+            for table_name in query_tables
+            if (table := catalog_tables.get(table_name.lower())) is not None
+            and table.table_role == "fact"
+            and not str(table.grain or "").strip()
+        ]
+        if fact_without_grain:
+            warnings.append(f"Fact-таблицы без grain в semantic catalog: {', '.join(sorted(set(fact_without_grain)))}.")
+        elif any(
+            (table := catalog_tables.get(table_name.lower())) is not None and table.table_role == "fact"
+            for table_name in query_tables
+        ):
+            reasons.append("У fact-таблиц, участвующих в запросе, заполнен grain.")
+
+        if len(query_tables) > 1:
+            disconnected = self._disconnected_tables(query_tables, semantic_catalog)
+            if disconnected:
+                errors.append(
+                    f"Semantic catalog has no join path covering: {', '.join(disconnected)}."
+                )
+            else:
+                reasons.append("Для всех таблиц запроса найдены join path в semantic catalog.")
+
+            invalid_join_pairs = self._invalid_join_pairs(parsed, alias_map, semantic_catalog)
+            if invalid_join_pairs:
+                details = ", ".join(sorted(f"{left}↔{right}" for left, right in invalid_join_pairs))
+                errors.append(f"JOIN uses table pairs outside semantic relationships: {details}.")
+            else:
+                reasons.append("JOIN-предикаты опираются на связи semantic catalog.")
+
+        invalid_filter_columns = self._columns_with_disabled_capability(
+            parsed.find_all(exp.Where),
+            alias_map,
+            catalog_tables,
+            capability="filterable",
+        )
+        if invalid_filter_columns:
+            warnings.append(
+                "Фильтры используют колонки без filterable=true: "
+                + ", ".join(sorted(invalid_filter_columns))
+                + "."
+            )
+        elif any(parsed.find_all(exp.Where)):
+            reasons.append("Фильтры опираются на filterable-колонки.")
+
+        invalid_group_columns = self._columns_with_disabled_capability(
+            (group for select in parsed.find_all(exp.Select) for group in [select.args.get("group")] if group is not None),
+            alias_map,
+            catalog_tables,
+            capability="groupable",
+        )
+        if invalid_group_columns:
+            warnings.append(
+                "Группировка использует колонки без groupable=true: "
+                + ", ".join(sorted(invalid_group_columns))
+                + "."
+            )
+        elif any(select.args.get("group") is not None for select in parsed.find_all(exp.Select)):
+            reasons.append("Группировки опираются на groupable-колонки.")
+
+        base_table = self._base_table(parsed, alias_map)
+        if base_table:
+            base_meta = catalog_tables.get(base_table.lower())
+            if base_meta is not None and base_meta.table_role in {"lookup", "bridge"}:
+                warnings.append(
+                    f"Основная таблица `{base_table}` имеет роль `{base_meta.table_role}`. "
+                    "Для агрегаций обычно нужна fact/event таблица."
+                )
+
+        score = 0
+        checks = 0
+        for passed in (
+            not missing_tables,
+            not fact_without_grain,
+            len(query_tables) <= 1 or not self._disconnected_tables(query_tables, semantic_catalog),
+            len(query_tables) <= 1 or not self._invalid_join_pairs(parsed, alias_map, semantic_catalog),
+            not invalid_filter_columns and not invalid_group_columns,
+        ):
+            checks += 1
+            if passed:
+                score += 1
+
+        if errors:
+            return "low", reasons[:4]
+        if score >= 4:
+            return "high", reasons[:4]
+        if score >= 2:
+            return "medium", reasons[:4]
+        return "low", reasons[:4]
+
+    def _alias_map(self, parsed: exp.Expression) -> dict[str, str]:
+        alias_map: dict[str, str] = {}
+        for table in parsed.find_all(exp.Table):
+            name = str(table.name or "")
+            if not name:
+                continue
+            alias = str(getattr(table, "alias_or_name", None) or name)
+            alias_map[name] = name
+            alias_map[alias] = name
+        return alias_map
+
+    def _base_table(self, parsed: exp.Expression, alias_map: dict[str, str]) -> str | None:
+        select = parsed if isinstance(parsed, exp.Select) else parsed.find(exp.Select)
+        if select is None:
+            return None
+        from_expr = select.args.get("from")
+        if from_expr is None:
+            return None
+        table = next(from_expr.find_all(exp.Table), None)
+        if table is None:
+            return None
+        return alias_map.get(str(getattr(table, "alias_or_name", None) or table.name), str(table.name))
+
+    def _disconnected_tables(
+        self,
+        query_tables: list[str],
+        semantic_catalog: SemanticCatalog,
+    ) -> list[str]:
+        adjacency: dict[str, set[str]] = {}
+        for relationship in semantic_catalog.relationships:
+            left = relationship.from_table.lower()
+            right = relationship.to_table.lower()
+            adjacency.setdefault(left, set()).add(right)
+            adjacency.setdefault(right, set()).add(left)
+
+        if not query_tables:
+            return []
+
+        pending = [query_tables[0].lower()]
+        visited = {query_tables[0].lower()}
+        while pending:
+            current = pending.pop(0)
+            for neighbor in adjacency.get(current, set()):
+                if neighbor in visited:
+                    continue
+                visited.add(neighbor)
+                pending.append(neighbor)
+
+        return sorted(table for table in query_tables if table.lower() not in visited)
+
+    def _invalid_join_pairs(
+        self,
+        parsed: exp.Expression,
+        alias_map: dict[str, str],
+        semantic_catalog: SemanticCatalog,
+    ) -> set[tuple[str, str]]:
+        known_pairs = {
+            tuple(sorted((relationship.from_table, relationship.to_table)))
+            for relationship in semantic_catalog.relationships
+        }
+        invalid_pairs: set[tuple[str, str]] = set()
+        for select in parsed.find_all(exp.Select):
+            for join in select.args.get("joins") or []:
+                on_expr = join.args.get("on")
+                if on_expr is None:
+                    continue
+                tables = {
+                    alias_map.get(str(column.table), str(column.table))
+                    for column in on_expr.find_all(exp.Column)
+                    if getattr(column, "table", None)
+                }
+                if len(tables) != 2:
+                    continue
+                pair = tuple(sorted(tables))
+                if pair not in known_pairs:
+                    invalid_pairs.add(pair)
+        return invalid_pairs
+
+    def _columns_with_disabled_capability(
+        self,
+        expressions,
+        alias_map: dict[str, str],
+        catalog_tables: dict[str, Any],
+        *,
+        capability: str,
+    ) -> set[str]:
+        invalid: set[str] = set()
+        for expression in expressions:
+            if expression is None:
+                continue
+            for column in expression.find_all(exp.Column):
+                resolved = self._resolve_catalog_column(column, alias_map, catalog_tables)
+                if resolved is None:
+                    continue
+                table_name, column_meta = resolved
+                if capability == "groupable" and "time_axis" in column_meta.analytics_roles:
+                    continue
+                if capability == "filterable" and column_meta.is_pk:
+                    continue
+                if not getattr(column_meta, capability):
+                    invalid.add(f"{table_name}.{column_meta.column_name}")
+        return invalid
+
+    def _resolve_catalog_column(
+        self,
+        column: exp.Column,
+        alias_map: dict[str, str],
+        catalog_tables: dict[str, Any],
+    ) -> tuple[str, SemanticColumn] | None:
+        table_token = str(getattr(column, "table", None) or "").strip()
+        column_name = str(getattr(column, "name", None) or "").strip()
+        if not column_name:
+            return None
+        resolved_table = alias_map.get(table_token, table_token)
+        table_meta = catalog_tables.get(resolved_table.lower())
+        if table_meta is None:
+            return None
+        column_meta = next(
+            (candidate for candidate in table_meta.columns if candidate.column_name.lower() == column_name.lower()),
+            None,
+        )
+        if column_meta is None:
+            return None
+        return table_meta.table_name, column_meta
 
     def format_sql(self, sql: str, dialect: str) -> str:
         cleaned_sql = sql.strip().rstrip(";")

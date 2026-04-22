@@ -19,8 +19,11 @@ dictionary_service = DictionaryService()
 
 
 @router.get("/semantic-dictionary", response_model=list[DictionaryEntryRead])
-def list_dictionary_entries(db: Session = Depends(get_db)) -> list[DictionaryEntryRead]:
-    return dictionary_service.list_entries(db)
+def list_dictionary_entries(
+    database_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> list[DictionaryEntryRead]:
+    return dictionary_service.list_entries(db, database_id=database_id)
 
 
 @router.post("/semantic-dictionary", response_model=DictionaryEntryRead, status_code=201)

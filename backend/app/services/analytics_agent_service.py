@@ -31,10 +31,13 @@ from app.schemas.query import (
     IntentPayload,
     QueryExecutionResult,
     QuerySemantics,
+    SemanticColumnRolePayload,
     SemanticComparisonPayload,
+    SemanticDataRolesPayload,
     SemanticFlagsPayload,
     SemanticMetricPayload,
     SemanticTimePayload,
+    ValidationPayload,
 )
 from app.services.analytics import AnalyticsExecutionService
 from app.services.clarification_resolver import apply_answers
@@ -59,6 +62,7 @@ class AnalyticsPlan:
     sql: str | None
     validation_errors: list[str]
     validation_warnings: list[str]
+    validation: ValidationPayload | None
     clarification: ClarificationResponse | None
     dashboard_recommendation: DashboardRecommendationResponse | None
     status: str
@@ -140,19 +144,30 @@ class AnalyticsAgentService:
         base_dictionary_entries = self._load_dictionary_entries(db)
         normalized_query = self._normalize_with_dictionary(request.query, base_dictionary_entries)
         database_id = context.database or settings.demo_database_id
-        catalog_context = self.semantic_catalog_service.build_retrieval_context(
-            db,
-            database_id,
-            normalized_query,
-            base_dictionary_entries,
-        )
-        schema = catalog_context.schema
-        dialect = schema.dialect
-        allowed_tables = [table.name for table in schema.tables]
-        catalog_dictionary_entries = [
-            DictionaryEntryRead.model_validate(entry) for entry in catalog_context.dictionary_entries
-        ]
-        dictionary_entries = self._merge_dictionary_entries(base_dictionary_entries, catalog_dictionary_entries)
+        fallback_schema, fallback_dialect, fallback_allowed_tables = self._resolve_schema_context(db, context)
+        catalog_context = None
+        semantic_catalog = None
+        try:
+            catalog_context = self.semantic_catalog_service.build_retrieval_context(
+                db,
+                database_id,
+                normalized_query,
+                base_dictionary_entries,
+            )
+        except Exception:
+            catalog_context = None
+        if catalog_context is not None:
+            schema = catalog_context.schema
+            semantic_catalog = catalog_context.catalog
+            catalog_dictionary_entries = [
+                DictionaryEntryRead.model_validate(entry) for entry in catalog_context.dictionary_entries
+            ]
+            dictionary_entries = self._merge_dictionary_entries(base_dictionary_entries, catalog_dictionary_entries)
+        else:
+            schema = fallback_schema
+            dictionary_entries = list(base_dictionary_entries)
+        dialect = fallback_dialect or schema.dialect
+        allowed_tables = list(fallback_allowed_tables or [table.name for table in schema.tables])
         previous_intent = self._resolve_previous_intent(db, context)
 
         intent = self.intent_agent.run(normalized_query, previous_intent=previous_intent)
@@ -168,6 +183,7 @@ class AnalyticsAgentService:
                 sql=None,
                 validation_errors=[],
                 validation_warnings=[],
+                validation=None,
                 clarification=ClarificationResponse(questions=self._build_clarification_questions(intent, schema)),
                 dashboard_recommendation=self.dashboard_service.recommend(intent, context),
                 status="clarification_required",
@@ -184,13 +200,20 @@ class AnalyticsAgentService:
                 sql=None,
                 validation_errors=[str(exc)],
                 validation_warnings=[],
+                validation=None,
                 clarification=None,
                 dashboard_recommendation=self.dashboard_service.recommend(intent, context),
                 status="error",
                 error=str(exc),
             )
 
-        validation = self.validation_agent.run(sql, dialect, allowed_tables=allowed_tables, schema=schema)
+        validation = self.validation_agent.run(
+            sql,
+            dialect,
+            allowed_tables=allowed_tables,
+            schema=schema,
+            semantic_catalog=semantic_catalog,
+        )
         if not validation.valid:
             return AnalyticsPlan(
                 intent=intent,
@@ -198,6 +221,7 @@ class AnalyticsAgentService:
                 sql=None,
                 validation_errors=validation.errors,
                 validation_warnings=validation.warnings,
+                validation=validation,
                 clarification=None,
                 dashboard_recommendation=self.dashboard_service.recommend(intent, context),
                 status="error",
@@ -210,6 +234,7 @@ class AnalyticsAgentService:
             sql=validation.sql,
             validation_errors=validation.errors,
             validation_warnings=validation.warnings,
+            validation=validation,
             clarification=None,
             dashboard_recommendation=self.dashboard_service.recommend(intent, context),
             status="success",
@@ -274,19 +299,88 @@ class AnalyticsAgentService:
                 logger.warning("Failed to resolve previous notebook intent.")
                 return None
 
+    def _resolve_schema_context(
+        self,
+        db: Session,
+        context: AnalyticsContext,
+    ) -> tuple[SchemaMetadataResponse, str, list[str]]:
+        database_id = context.database or settings.demo_database_id
+        schema = self.schema_provider.get_schema_for_llm(db, database_id)
+        dialect = schema.dialect
+        allowed_tables = [table.name for table in schema.tables]
+        return schema, dialect, allowed_tables
+
     def _build_chart(self, intent: IntentPayload, semantic: Any, execution: Any) -> ChartSpec:
+        semantic_intent = (
+            "delta" if intent.comparison in {"previous_year", "previous_period"} else
+            "comparison_over_time" if bool(intent.date_range or intent.dimensions) and bool(intent.comparison) else
+            "ranking" if any(token in intent.raw_prompt.lower() for token in ("top", "bottom", "топ", "луч", "худ")) else
+            "share" if any(token in intent.raw_prompt.lower() for token in ("доля", "share", "%", "процент")) else
+            "trend" if bool(intent.date_range or intent.dimensions) else
+            "comparison" if bool(intent.comparison) else
+            None
+        )
+        analysis_mode = (
+            "delta" if semantic_intent == "delta" else
+            "rank" if semantic_intent == "ranking" else
+            "compose" if semantic_intent in {"share", "composition_over_time"} else
+            "trend" if semantic_intent == "trend" else
+            "compare"
+        )
+        comparison_goal = (
+            "delta" if semantic_intent == "delta" else
+            "rank" if semantic_intent == "ranking" else
+            "composition" if semantic_intent in {"share", "composition_over_time"} else
+            "absolute"
+        )
         semantics = QuerySemantics(
-            intent="comparison" if getattr(intent, "comparison", None) else None,
+            intent=semantic_intent,
+            visual_goal=(
+                "compare_between_groups_over_time" if semantic_intent == "comparison_over_time" else
+                "compare_deltas_between_periods" if semantic_intent == "delta" else
+                "show_change_over_time" if semantic_intent == "trend" else
+                "show_composition" if semantic_intent == "share" else
+                "compare_ranked_categories" if semantic_intent == "ranking" else
+                "compare_categories"
+            ),
+            analysis_mode=analysis_mode,
+            time_role="primary" if bool(intent.date_range or intent.dimensions) else "none",
+            comparison_goal=comparison_goal,
+            preferred_mark="line" if bool(intent.date_range or intent.dimensions) else ("arc" if semantic_intent == "share" else "bar"),
             metric=SemanticMetricPayload(name=intent.metric, aggregation="sum") if intent.metric else None,
             dimensions=[{"name": dimension, "role": "category"} for dimension in intent.dimensions],
+            columns=[
+                *[
+                    SemanticColumnRolePayload(
+                        name=dimension,
+                        role="dimension_time" if dimension in {"day", "week", "month", "quarter", "year"} else "dimension_series",
+                    )
+                    for dimension in intent.dimensions
+                ],
+                *([SemanticColumnRolePayload(name=intent.metric, role="metric_primary")] if intent.metric else []),
+            ],
+            data_roles=SemanticDataRolesPayload(
+                x=intent.dimensions[0] if intent.dimensions else None,
+                y=intent.metric,
+                series_key="comparison_series" if intent.comparison in {"previous_year", "previous_period"} else None,
+                facet_key=None,
+                label=intent.dimensions[0] if intent.dimensions else None,
+                value=intent.metric,
+            ),
             time=SemanticTimePayload(column=None, granularity=None, range=intent.date_range) if intent.date_range else None,
             comparison=SemanticComparisonPayload(
                 kind="period_over_period" if intent.comparison in {"previous_year", "previous_period"} else "entity_vs_entity",
                 entities=[],
                 series_column="comparison_series" if intent.comparison in {"previous_year", "previous_period"} else None,
+                facet_column=None,
             )
             if intent.comparison
             else None,
+            assumptions=[
+                *(["Metric is aggregated using sum."] if intent.metric else []),
+                *(["Time range will follow the SQL result if the user did not specify one."] if bool(intent.date_range or intent.dimensions) and not intent.date_range else []),
+            ],
+            ambiguities=list(intent.ambiguities or []),
             flags=SemanticFlagsPayload(
                 is_time_series=bool(intent.date_range or intent.dimensions),
                 is_comparison=bool(intent.comparison),
@@ -312,8 +406,22 @@ class AnalyticsAgentService:
             data=chart_payload,
             variant=decision.variant,
             explanation=decision.explanation,
+            reason=decision.reason,
             rule_id=decision.rule_id,
             confidence=decision.confidence,
+            semantic_intent=decision.semantic_intent,
+            analysis_mode=decision.analysis_mode,
+            visual_goal=decision.visual_goal,
+            time_role=decision.time_role,
+            comparison_goal=decision.comparison_goal,
+            preferred_mark=decision.preferred_mark,
+            alternatives=list(decision.alternatives),
+            candidates=list(decision.candidates),
+            constraints_applied=list(decision.constraints_applied),
+            visual_load=decision.visual_load,
+            query_interpretation=decision.query_interpretation,
+            decision_summary=decision.decision_summary,
+            reason_codes=list(decision.reason_codes),
         )
 
     def _apply_context(self, intent: IntentPayload, context: AnalyticsContext) -> IntentPayload:

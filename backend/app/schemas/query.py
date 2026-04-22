@@ -65,6 +65,20 @@ class SemanticDimensionPayload(BaseModel):
     role: str = "category"
 
 
+class SemanticColumnRolePayload(BaseModel):
+    name: str
+    role: str
+
+
+class SemanticDataRolesPayload(BaseModel):
+    x: str | None = None
+    y: str | None = None
+    series_key: str | None = None
+    facet_key: str | None = None
+    label: str | None = None
+    value: str | None = None
+
+
 class SemanticTimePayload(BaseModel):
     column: str | None = None
     granularity: str | None = None
@@ -76,6 +90,7 @@ class SemanticComparisonPayload(BaseModel):
     entities: list[str] = Field(default_factory=list)
     baseline_period: DateRange | None = None
     series_column: str | None = None
+    facet_column: str | None = None
 
 
 class SemanticFlagsPayload(BaseModel):
@@ -89,11 +104,20 @@ class SemanticFlagsPayload(BaseModel):
 
 class QuerySemantics(BaseModel):
     intent: str | None = None
+    visual_goal: str | None = None
+    analysis_mode: str | None = None
+    time_role: Literal["primary", "secondary", "none"] | None = None
+    comparison_goal: str | None = None
+    preferred_mark: Literal["line", "bar", "area", "point", "arc", "stat"] | None = None
     metric: SemanticMetricPayload | None = None
     dimensions: list[SemanticDimensionPayload] = Field(default_factory=list)
+    columns: list[SemanticColumnRolePayload] = Field(default_factory=list)
+    data_roles: SemanticDataRolesPayload | None = None
     time: SemanticTimePayload | None = None
     comparison: SemanticComparisonPayload | None = None
     filters: list[FilterCondition] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    ambiguities: list[str] = Field(default_factory=list)
     flags: SemanticFlagsPayload = Field(default_factory=SemanticFlagsPayload)
     visualization_hint: str | None = None
     confidence_score: float = 0.0
@@ -137,12 +161,68 @@ class ValidationPayload(BaseModel):
     tables: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
+    semantic_confidence_level: Literal["low", "medium", "high"] | None = None
+    semantic_confidence_reasons: list[str] = Field(default_factory=list)
 
 
 class ChartEncoding(BaseModel):
     x_field: str | None = None
     y_field: str | None = None
     series_field: str | None = None
+    facet_field: str | None = None
+    sort: str | None = None
+    normalize: Literal["none", "percent", "index_100", "running_total"] | None = None
+    series_limit: int | None = None
+    category_limit: int | None = None
+    top_n_strategy: Literal["top_plus_other", "top_only", "none"] | None = None
+    value_format: str | None = None
+    data_roles: SemanticDataRolesPayload | None = None
+
+
+class QueryInterpretationMetric(BaseModel):
+    name: str
+    aggregation: str | None = None
+    format: str | None = None
+
+
+class QueryInterpretationDimension(BaseModel):
+    name: str
+    role: str = "category"
+
+
+class QueryInterpretation(BaseModel):
+    user_goal: str
+    intent: str | None = None
+    analysis_mode: str | None = None
+    entities: list[str] = Field(default_factory=list)
+    metrics: list[QueryInterpretationMetric] = Field(default_factory=list)
+    dimensions: list[QueryInterpretationDimension] = Field(default_factory=list)
+    time_dimension: str | None = None
+    series_dimension: str | None = None
+    requested_output: str = "chart"
+    assumptions: list[str] = Field(default_factory=list)
+    ambiguities: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    short_explanation: str | None = None
+
+
+class DecisionAlternative(BaseModel):
+    type: str
+    why_not: str
+
+
+class DecisionSummary(BaseModel):
+    selected_chart: str
+    why: str
+    reason_codes: list[str] = Field(default_factory=list)
+    alternatives: list[DecisionAlternative] = Field(default_factory=list)
+    confidence: float = 0.0
+
+
+class ChartCandidate(BaseModel):
+    type: str
+    score: float
+    why: str
 
 
 class ChartSpec(BaseModel):
@@ -153,8 +233,22 @@ class ChartSpec(BaseModel):
     data: dict[str, Any] | None = None
     variant: str | None = None
     explanation: str | None = None
+    reason: str | None = None
     rule_id: str | None = None
     confidence: float | None = None
+    semantic_intent: str | None = None
+    analysis_mode: str | None = None
+    visual_goal: str | None = None
+    time_role: str | None = None
+    comparison_goal: str | None = None
+    preferred_mark: str | None = None
+    alternatives: list[str] = Field(default_factory=list)
+    candidates: list[ChartCandidate] = Field(default_factory=list)
+    constraints_applied: list[str] = Field(default_factory=list)
+    visual_load: int | None = None
+    query_interpretation: QueryInterpretation | None = None
+    decision_summary: DecisionSummary | None = None
+    reason_codes: list[str] = Field(default_factory=list)
 
 
 class QueryExecutionResult(BaseModel):

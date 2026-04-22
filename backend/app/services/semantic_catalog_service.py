@@ -6,7 +6,7 @@ from collections import Counter, defaultdict, deque
 from statistics import mean
 from typing import Any
 
-from sqlalchemy import MetaData, Table, inspect as sa_inspect, select
+from sqlalchemy import MetaData, Table, func, inspect as sa_inspect, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -17,11 +17,13 @@ from app.schemas.semantic_catalog import (
     ColumnProfile,
     SemanticCatalog,
     SemanticColumn,
+    SemanticColumnPatch,
     SemanticJoinPath,
     SemanticRelationship,
     SemanticRetrievalContext,
     SemanticTable,
     SemanticTableEnrichment,
+    SemanticTablePatch,
     SemanticType,
     TableRole,
 )
@@ -267,6 +269,107 @@ class SemanticCatalogService:
             join_paths=join_paths,
             relationship_graph=relationship_graph,
         )
+
+    def delete_active_catalog(self, db: Session, database_id: str) -> bool:
+        deleted = (
+            db.query(SemanticCatalogModel)
+            .filter(
+                SemanticCatalogModel.database_id == database_id,
+                SemanticCatalogModel.active.is_(True),
+            )
+            .first()
+        )
+        if deleted is None:
+            return False
+        deleted.active = False
+        db.commit()
+        return True
+
+    def patch_catalog_table(
+        self,
+        db: Session,
+        database_id: str,
+        table_name: str,
+        patch: SemanticTablePatch,
+    ) -> SemanticTable | None:
+        model = (
+            db.query(SemanticCatalogTableModel)
+            .join(SemanticCatalogModel, SemanticCatalogTableModel.catalog_id == SemanticCatalogModel.id)
+            .filter(
+                SemanticCatalogTableModel.database_id == database_id,
+                SemanticCatalogTableModel.table_name == table_name,
+                SemanticCatalogModel.active.is_(True),
+            )
+            .first()
+        )
+        if model is None:
+            return None
+        if patch.label is not None:
+            model.label = patch.label
+        if patch.business_description is not None:
+            model.business_description = patch.business_description
+        if patch.table_role is not None:
+            model.table_role = patch.table_role
+        if patch.grain is not None:
+            model.grain = patch.grain
+        if patch.main_date_column is not None:
+            model.main_date_column = patch.main_date_column
+        if patch.main_entity is not None:
+            model.main_entity = patch.main_entity
+        if patch.synonyms is not None:
+            model.synonyms = patch.synonyms
+        if patch.important_metrics is not None:
+            model.important_metrics = patch.important_metrics
+        if patch.important_dimensions is not None:
+            model.important_dimensions = patch.important_dimensions
+        if model.table_role == "fact" and not str(model.grain or "").strip():
+            model.grain = self._fallback_grain(model.table_name)
+        db.commit()
+        catalog = self._load_active_catalog(db, database_id)
+        if catalog is None:
+            return None
+        return next((t for t in catalog.tables if t.table_name == table_name), None)
+
+    def patch_catalog_column(
+        self,
+        db: Session,
+        database_id: str,
+        table_name: str,
+        column_name: str,
+        patch: SemanticColumnPatch,
+    ) -> SemanticTable | None:
+        model = (
+            db.query(SemanticCatalogColumnModel)
+            .join(SemanticCatalogModel, SemanticCatalogColumnModel.catalog_id == SemanticCatalogModel.id)
+            .filter(
+                SemanticCatalogColumnModel.database_id == database_id,
+                SemanticCatalogColumnModel.table_name == table_name,
+                SemanticCatalogColumnModel.column_name == column_name,
+                SemanticCatalogModel.active.is_(True),
+            )
+            .first()
+        )
+        if model is None:
+            return None
+        if patch.label is not None:
+            model.label = patch.label
+        if patch.business_description is not None:
+            model.business_description = patch.business_description
+        if patch.semantic_types is not None:
+            model.semantic_types = list(patch.semantic_types)
+        if patch.analytics_roles is not None:
+            model.analytics_roles = list(patch.analytics_roles)
+        if patch.synonyms is not None:
+            model.synonyms = list(patch.synonyms)
+        if patch.groupable is not None:
+            model.groupable = patch.groupable
+        if patch.filterable is not None:
+            model.filterable = patch.filterable
+        db.commit()
+        catalog = self._load_active_catalog(db, database_id)
+        if catalog is None:
+            return None
+        return next((t for t in catalog.tables if t.table_name == table_name), None)
 
     def delete_database_catalog(self, db: Session, database_id: str) -> None:
         db.query(SemanticCatalogJoinPathModel).filter(SemanticCatalogJoinPathModel.database_id == database_id).delete(
@@ -576,9 +679,9 @@ class SemanticCatalogService:
                 database_description=database_description,
             )
             if enrichment is None:
-                enriched_tables.append(table)
+                enriched_tables.append(self._ensure_table_semantics(table))
                 continue
-            merged = self._merge_table_enrichment(table, enrichment)
+            merged = self._ensure_table_semantics(self._merge_table_enrichment(table, enrichment))
             enriched_tables.append(merged)
         return enriched_tables
 
@@ -623,10 +726,113 @@ class SemanticCatalogService:
         if enrichment.synonyms:
             update_payload["synonyms"] = sorted({*table.synonyms, *enrichment.synonyms})
         if enrichment.important_metrics:
-            update_payload["important_metrics"] = sorted({*table.important_metrics, *enrichment.important_metrics})
+            update_payload["important_metrics"] = self._normalize_important_metrics(
+                [*table.important_metrics, *enrichment.important_metrics],
+                table.columns,
+            )
         if enrichment.important_dimensions:
             update_payload["important_dimensions"] = sorted({*table.important_dimensions, *enrichment.important_dimensions})
         return table.model_copy(update=update_payload)
+
+    def _ensure_table_semantics(self, table: SemanticTable) -> SemanticTable:
+        update_payload: dict[str, Any] = {
+            "important_metrics": self._normalize_important_metrics(table.important_metrics, table.columns)
+        }
+        if table.table_role == "fact" and not str(table.grain or "").strip():
+            update_payload["grain"] = self._fallback_grain(table.table_name)
+        if table.main_date_column and not any(column.column_name == table.main_date_column for column in table.columns):
+            update_payload["main_date_column"] = self._pick_main_date_column(table.columns)
+        return table.model_copy(update=update_payload)
+
+    def _fallback_grain(self, table_name: str) -> str:
+        return f"one row = one {self._humanize(table_name, plural=False).lower()}"
+
+    def _normalize_important_metrics(
+        self,
+        metrics: list[str],
+        columns: list[SemanticColumn],
+    ) -> list[str]:
+        normalized: list[str] = []
+        column_map = {column.column_name.lower(): column for column in columns}
+        for raw_metric in metrics:
+            candidate = str(raw_metric or "").strip()
+            if not candidate:
+                continue
+            metric_name, expression = self._split_metric_definition(candidate)
+            if expression:
+                normalized.append(f"{metric_name}: {expression}")
+                continue
+            column = column_map.get(candidate.lower())
+            if column is None:
+                normalized.append(candidate)
+                continue
+            inferred = self._metric_definition_from_column(column)
+            if inferred:
+                normalized.append(inferred)
+        return sorted(dict.fromkeys(normalized))
+
+    def _split_metric_definition(self, value: str) -> tuple[str, str | None]:
+        if ":" not in value:
+            return value.strip(), None
+        name, expression = value.split(":", 1)
+        normalized_name = str(name or "").strip()
+        normalized_expression = str(expression or "").strip()
+        if not normalized_name or not normalized_expression:
+            return value.strip(), None
+        return normalized_name, normalized_expression
+
+    def _infer_important_metrics(
+        self,
+        table_name: str,
+        columns: list[SemanticColumn],
+        table_role: TableRole,
+    ) -> list[str]:
+        metrics: list[str] = []
+        if table_role in {"fact", "event", "snapshot"}:
+            metrics.append("row_count: COUNT(*)")
+        for column in columns:
+            if "primary_metric" not in column.analytics_roles and "metric" not in column.semantic_types:
+                continue
+            metric_definition = self._metric_definition_from_column(column)
+            if metric_definition:
+                metrics.append(metric_definition)
+        if not metrics and table_role == "fact":
+            metrics.append(f"{table_name}_count: COUNT(*)")
+        return sorted(dict.fromkeys(metrics))[:6]
+
+    def _metric_definition_from_column(self, column: SemanticColumn) -> str | None:
+        aggregation = self._metric_aggregation(column)
+        if aggregation is None:
+            return None
+        metric_name = self._metric_name(column, aggregation)
+        return f"{metric_name}: {aggregation}({column.column_name})"
+
+    def _metric_aggregation(self, column: SemanticColumn) -> str | None:
+        if not column.aggregation:
+            return None
+        if "currency" in column.semantic_types or column.value_type in {"currency", "numeric"}:
+            return "SUM"
+        if "ratio" in column.semantic_types or column.value_type == "ratio":
+            return "AVG"
+        if "duration" in column.semantic_types or column.value_type == "duration":
+            return "AVG"
+        if any(name in column.column_name.lower() for name in _COUNT_NAME_HINTS):
+            return "COUNT"
+        if "sum" in column.aggregation:
+            return "SUM"
+        if "avg" in column.aggregation:
+            return "AVG"
+        return None
+
+    def _metric_name(self, column: SemanticColumn, aggregation: str) -> str:
+        column_name = column.column_name.lower()
+        if aggregation == "SUM":
+            return f"total_{column_name}"
+        if aggregation == "AVG":
+            return f"avg_{column_name}"
+        if aggregation == "COUNT":
+            return f"{column_name}_count"
+        return column_name
 
     _GENERIC_TEXTS = {"no description", "n/a", "na", "unknown"}
 
@@ -800,7 +1006,7 @@ class SemanticCatalogService:
         table_role = self._infer_table_role(table_name, columns, relationships, row_count)
         main_date_column = self._pick_main_date_column(columns)
         main_entity = self._humanize(table_name)
-        important_metrics = [column.column_name for column in columns if "primary_metric" in column.analytics_roles or "metric" in column.semantic_types]
+        important_metrics = self._infer_important_metrics(table_name, columns, table_role)
         important_dimensions = [
             column.column_name
             for column in columns
@@ -1229,7 +1435,7 @@ class SemanticCatalogService:
         return list(unique.values())
 
     def _table_dictionary_entries(self, table: SemanticTable) -> list[DictionaryEntryRead]:
-        return [
+        entries = [
             DictionaryEntryRead.model_validate(
                 {
                     "id": f"{table.schema_name}.{table.table_name}",
@@ -1244,6 +1450,26 @@ class SemanticCatalogService:
                 }
             )
         ]
+        for index, metric in enumerate(table.important_metrics, start=1):
+            metric_name, expression = self._split_metric_definition(metric)
+            if not expression:
+                continue
+            entries.append(
+                DictionaryEntryRead.model_validate(
+                    {
+                        "id": f"{table.schema_name}.{table.table_name}.important_metric.{index}",
+                        "term": metric_name,
+                        "synonyms": [metric_name.replace("_", " "), table.label],
+                        "mapped_expression": expression,
+                        "description": table.business_description,
+                        "object_type": "metric",
+                        "table_name": table.table_name,
+                        "column_name": None,
+                        "source_database": None,
+                    }
+                )
+            )
+        return entries
 
     def _column_dictionary_entries(self, table: SemanticTable, column: SemanticColumn) -> list[DictionaryEntryRead]:
         entries: list[DictionaryEntryRead] = []
@@ -1324,7 +1550,17 @@ class SemanticCatalogService:
     def _build_notes(self, tables: list[SemanticTable], join_paths: list[SemanticJoinPath]) -> list[str]:
         notes: list[str] = []
         for table in tables:
-            notes.append(f"{table.table_name}: role={table.table_role}, rows~{table.row_count_estimate}")
+            parts = [
+                f"{table.table_name}: role={table.table_role}",
+                f"rows~{table.row_count_estimate}",
+            ]
+            if table.grain:
+                parts.append(f"grain={table.grain}")
+            if table.main_date_column:
+                parts.append(f"main_date={table.main_date_column}")
+            if table.important_metrics:
+                parts.append(f"metrics={', '.join(table.important_metrics[:2])}")
+            notes.append(", ".join(parts))
         if join_paths:
             notes.append(f"join_paths={len(join_paths)}")
         return notes

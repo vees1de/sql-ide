@@ -505,8 +505,7 @@
               <p class="eyebrow">Семантический каталог</p>
               <h2>Онтологический слой</h2>
               <p class="data-view__hint">
-                Правила плюс опциональное обогащение через LLM. Каталог хранится
-                в БД и используется слоем поиска контекста.
+                Полный семантический слой: таблицы, колонки, роли, описания. Можно редактировать вручную или удалить для пересборки.
               </p>
             </div>
             <div class="data-view__semantic-actions">
@@ -522,10 +521,25 @@
               >
                 {{ isActivatingSemantic ? "Обновляем…" : "Обновить семантику" }}
               </button>
+              <button
+                class="app-button app-button--danger"
+                type="button"
+                :disabled="isDeletingSemantic"
+                @click="deleteSemanticCatalog"
+              >
+                {{ isDeletingSemantic ? "Удаляем…" : "Удалить каталог" }}
+              </button>
             </div>
           </header>
           <p v-if="semanticFeedback" class="data-view__feedback">
             {{ semanticFeedback }}
+          </p>
+          <p
+            v-if="semanticFactGrainWarnings.length"
+            class="data-view__feedback"
+          >
+            Для {{ semanticFactGrainWarnings.length }} fact-таблиц не заполнен
+            grain: {{ semanticFactGrainWarnings.join(", ") }}.
           </p>
           <div class="data-view__semantic-compose">
             <label class="data-view__semantic-description">
@@ -535,63 +549,10 @@
                 rows="6"
                 placeholder="Опишите предметную область, ключевые сущности, что означает каждая строка, и любые важные бизнес-правила."
               ></textarea>
-              <small
-                >Это описание попадёт в семантический каталог и поможет LLM
-                разметить таблицы, колонки и роли.</small
-              >
+              <small>Это описание попадёт в семантический каталог и поможет LLM разметить таблицы, колонки и роли.</small>
             </label>
           </div>
-          <div class="data-view__semantic-source">
-            <article class="data-view__semantic-source-item">
-              <span>Выбранная база</span>
-              <strong>{{
-                selectedDatabase?.name || semanticCatalog.database_id
-              }}</strong>
-              <small>{{ semanticCatalog.database_id }}</small>
-            </article>
-            <article class="data-view__semantic-source-item">
-              <span>API-эндпоинт активации</span>
-              <strong>/api/metadata/semantic-catalog/activate</strong>
-              <small
-                >Ответ отображается ниже и сохраняется в служебной БД.</small
-              >
-            </article>
-            <article class="data-view__semantic-source-item">
-              <span>Статус семантики</span>
-              <strong>{{
-                semanticCatalog.tables.length ? "активна" : "пуста"
-              }}</strong>
-              <small
-                >{{ semanticCatalog.relationships.length }} связей ·
-                {{ semanticCatalog.join_paths.length }} маршрутов JOIN</small
-              >
-            </article>
-          </div>
-          <section class="data-view__subpanel data-view__subpanel--tight">
-            <header class="data-view__subhead">
-              <h3>Граф связей</h3>
-              <p>
-                Отдельный граф связей, который сохраняется в каталоге и
-                передаётся в LLM-контекст.
-              </p>
-            </header>
-            <div
-              v-if="semanticCatalog.relationship_graph.length"
-              class="data-view__graph-list"
-            >
-              <article
-                v-for="edge in semanticCatalog.relationship_graph"
-                :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
-                class="data-view__graph-card"
-              >
-                <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
-                <strong>{{ edge.on }}</strong>
-              </article>
-            </div>
-            <div v-else class="data-view__empty">
-              Для этой базы рёбра графа пока отсутствуют.
-            </div>
-          </section>
+
           <div class="data-view__semantic-grid">
             <article class="data-view__semantic-stat">
               <span>Таблицы</span>
@@ -610,28 +571,163 @@
               <strong>{{ semanticCatalog.dialect }}</strong>
             </article>
           </div>
-          <div
-            v-if="semanticCatalog.tables.length"
-            class="data-view__semantic-list"
-          >
+
+          <!-- Full table list with expand + edit -->
+          <div v-if="semanticCatalog.tables.length" class="data-view__sem-tables">
             <article
-              v-for="table in semanticCatalog.tables.slice(0, 8)"
+              v-for="table in semanticCatalog.tables"
               :key="`${table.schema_name}.${table.table_name}`"
-              class="data-view__semantic-card"
+              class="data-view__sem-table"
             >
-              <div>
-                <strong>{{ table.label }}</strong>
-                <p>
-                  {{ table.schema_name }}.{{ table.table_name }} ·
-                  {{ translateTableRole(table.table_role) }}
-                </p>
+              <!-- Table header row -->
+              <div class="data-view__sem-table-head">
+                <button
+                  class="data-view__sem-expand"
+                  type="button"
+                  @click="toggleTableExpand(table.table_name)"
+                >
+                  {{ expandedTables.has(table.table_name) ? "▾" : "▸" }}
+                </button>
+                <div class="data-view__sem-table-meta">
+                  <strong>{{ table.label }}</strong>
+                  <span>{{ table.schema_name }}.{{ table.table_name }} · {{ translateTableRole(table.table_role) }}</span>
+                  <small v-if="table.grain">{{ table.grain }}</small>
+                  <small v-else-if="table.table_role === 'fact'">grain обязателен для fact</small>
+                  <small v-if="table.main_date_column">date: {{ table.main_date_column }}</small>
+                  <small v-if="table.important_metrics.length">metrics: {{ table.important_metrics.join(" · ") }}</small>
+                </div>
+                <div class="data-view__sem-table-counts">
+                  <span>{{ table.columns.length }} кол.</span>
+                </div>
+                <button
+                  class="app-button app-button--ghost app-button--tiny"
+                  type="button"
+                  @click="openTableEdit(table)"
+                >
+                  Изменить
+                </button>
               </div>
-              <small>
-                {{ table.columns.length }} колонок ·
-                {{ table.join_paths.length }} маршрутов JOIN
-              </small>
+
+              <!-- Inline table edit form -->
+              <div v-if="editingTable === table.table_name" class="data-view__sem-edit-form">
+                <div class="data-view__sem-edit-row">
+                  <label>Метка</label>
+                  <input v-model="tablePatchDraft.label" type="text" />
+                </div>
+                <div class="data-view__sem-edit-row">
+                  <label>Описание</label>
+                  <textarea v-model="tablePatchDraft.business_description" rows="2"></textarea>
+                </div>
+                <div class="data-view__sem-edit-row">
+                  <label>Роль</label>
+                  <select v-model="tablePatchDraft.table_role">
+                    <option value="fact">fact</option>
+                    <option value="dimension">dimension</option>
+                    <option value="bridge">bridge</option>
+                    <option value="lookup">lookup</option>
+                    <option value="event">event</option>
+                    <option value="snapshot">snapshot</option>
+                  </select>
+                </div>
+                <div class="data-view__sem-edit-row">
+                  <label>Grain</label>
+                  <input v-model="tablePatchDraft.grain" type="text" />
+                </div>
+                <div class="data-view__sem-edit-row">
+                  <label>Главная дата</label>
+                  <input v-model="tablePatchDraft.main_date_column" type="text" />
+                </div>
+                <div class="data-view__sem-edit-row">
+                  <label>Синонимы</label>
+                  <input v-model="tablePatchDraft.synonyms_raw" type="text" placeholder="через запятую" />
+                </div>
+                <div class="data-view__sem-edit-row">
+                  <label>Important metrics</label>
+                  <textarea
+                    v-model="tablePatchDraft.important_metrics_raw"
+                    rows="3"
+                    placeholder="total_revenue: SUM(fare_amount)&#10;completed_revenue: SUM(fare_amount) FILTER (WHERE status = 'completed')"
+                  ></textarea>
+                </div>
+                <p
+                  v-if="tablePatchDraft.table_role === 'fact' && !tablePatchDraft.grain.trim()"
+                  class="data-view__feedback"
+                >
+                  Для fact-таблицы grain должен быть заполнен.
+                </p>
+                <div class="data-view__sem-edit-actions">
+                  <button class="app-button app-button--tiny" type="button" :disabled="isSavingSemanticTable" @click="saveTablePatch(table.table_name)">
+                    {{ isSavingSemanticTable ? "Сохраняем…" : "Сохранить" }}
+                  </button>
+                  <button class="app-button app-button--ghost app-button--tiny" type="button" @click="editingTable = null">Отмена</button>
+                </div>
+              </div>
+
+              <!-- Columns list (expanded) -->
+              <div v-if="expandedTables.has(table.table_name)" class="data-view__sem-columns">
+                <div
+                  v-for="col in table.columns"
+                  :key="col.column_name"
+                  class="data-view__sem-col"
+                >
+                  <div class="data-view__sem-col-head">
+                    <span class="data-view__sem-col-name">{{ col.column_name }}</span>
+                    <span class="data-view__sem-col-label">{{ col.label }}</span>
+                    <span class="data-view__sem-col-type">{{ col.data_type }}</span>
+                    <span v-if="col.is_pk" class="data-view__sem-badge data-view__sem-badge--pk">PK</span>
+                    <span v-if="col.is_fk" class="data-view__sem-badge data-view__sem-badge--fk">FK</span>
+                    <span v-for="st in col.semantic_types" :key="st" class="data-view__sem-badge">{{ st }}</span>
+                    <button
+                      class="app-button app-button--link app-button--tiny"
+                      type="button"
+                      @click="openColumnEdit(table.table_name, col.column_name)"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                  <!-- Inline column edit -->
+                  <div v-if="editingColumn === `${table.table_name}.${col.column_name}`" class="data-view__sem-edit-form">
+                    <div class="data-view__sem-edit-row">
+                      <label>Метка</label>
+                      <input v-model="columnPatchDraft.label" type="text" />
+                    </div>
+                    <div class="data-view__sem-edit-row">
+                      <label>Описание</label>
+                      <textarea v-model="columnPatchDraft.business_description" rows="2"></textarea>
+                    </div>
+                    <div class="data-view__sem-edit-row">
+                      <label>Синонимы</label>
+                      <input v-model="columnPatchDraft.synonyms_raw" type="text" placeholder="через запятую" />
+                    </div>
+                    <div class="data-view__sem-edit-actions">
+                      <button class="app-button app-button--tiny" type="button" :disabled="isSavingSemanticColumn" @click="saveColumnPatch(table.table_name, col.column_name)">
+                        {{ isSavingSemanticColumn ? "Сохраняем…" : "Сохранить" }}
+                      </button>
+                      <button class="app-button app-button--ghost app-button--tiny" type="button" @click="editingColumn = null">Отмена</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </article>
           </div>
+
+          <!-- Relationship graph -->
+          <section class="data-view__subpanel data-view__subpanel--tight" style="margin-top:1rem">
+            <header class="data-view__subhead">
+              <h3>Граф связей</h3>
+            </header>
+            <div v-if="semanticCatalog.relationship_graph.length" class="data-view__graph-list">
+              <article
+                v-for="edge in semanticCatalog.relationship_graph"
+                :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
+                class="data-view__graph-card"
+              >
+                <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
+                <strong>{{ edge.on }}</strong>
+              </article>
+            </div>
+            <div v-else class="data-view__empty">Рёбра графа отсутствуют.</div>
+          </section>
         </section>
 
         <section class="data-view__panel">
@@ -674,7 +770,7 @@
           </p>
 
           <div
-            v-if="!store.workspace.dictionary.length"
+            v-if="!databaseDictionary.length"
             class="data-view__empty"
           >
             Словарь пуст. После сканирования он может автоматически наполняться
@@ -690,7 +786,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="term in store.workspace.dictionary" :key="term.id">
+              <tr v-for="term in databaseDictionary" :key="term.id">
                 <td>
                   <strong>{{ term.term }}</strong>
                   <p v-if="term.synonyms.length" class="data-view__syn">
@@ -733,6 +829,7 @@ import { api } from "@/api/client";
 import AddDatabaseModal from "@/components/layout/AddDatabaseModal.vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
 import type {
+  ApiDictionaryEntryRead,
   ApiERDGraph,
   ApiKnowledgeColumn,
   ApiKnowledgeRelationship,
@@ -770,6 +867,30 @@ const isSavingTable = ref(false);
 const loadingTable = ref(false);
 const isActivatingSemantic = ref(false);
 const isDeletingDatabase = ref(false);
+const isDeletingSemantic = ref(false);
+const isSavingSemanticTable = ref(false);
+const isSavingSemanticColumn = ref(false);
+
+const expandedTables = ref<Set<string>>(new Set());
+const editingTable = ref<string | null>(null);
+const editingColumn = ref<string | null>(null);
+const databaseDictionary = ref<ApiDictionaryEntryRead[]>([]);
+
+const tablePatchDraft = reactive({
+  label: "",
+  business_description: "",
+  table_role: "fact",
+  grain: "",
+  main_date_column: "",
+  synonyms_raw: "",
+  important_metrics_raw: "",
+});
+
+const columnPatchDraft = reactive({
+  label: "",
+  business_description: "",
+  synonyms_raw: "",
+});
 const showAddDatabase = ref(false);
 const semanticDescription = ref("");
 const showGraphColumns = ref(true);
@@ -836,6 +957,12 @@ const semanticTableLookup = computed(() => {
   }
   return map;
 });
+
+const semanticFactGrainWarnings = computed(() =>
+  (semanticCatalog.value?.tables ?? [])
+    .filter((table) => table.table_role === "fact" && !table.grain?.trim())
+    .map((table) => table.table_name),
+);
 
 function truncateText(value: string, limit = 88) {
   const compact = value.replace(/\s+/g, " ").trim();
@@ -1678,12 +1805,13 @@ async function createTerm() {
       mapped_expression: draft.mappedExpression.trim(),
       description: "Добавлено вручную из раздела «Данные».",
       object_type: "manual",
+      source_database: selectedDatabaseId.value || undefined,
     });
     draft.term = "";
     draft.mappedExpression = "";
     draft.synonyms = "";
     dictionaryFeedback.value = "Термин добавлен.";
-    await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
+    await loadDatabaseDictionary();
   } finally {
     isCreatingTerm.value = false;
   }
@@ -1691,7 +1819,110 @@ async function createTerm() {
 
 async function removeTerm(id: string) {
   await api.deleteDictionaryEntry(id);
-  await store.refreshWorkspace(store.selectedNotebookId || undefined, "keep");
+  await loadDatabaseDictionary();
+}
+
+function toggleTableExpand(tableName: string) {
+  const next = new Set(expandedTables.value);
+  if (next.has(tableName)) {
+    next.delete(tableName);
+  } else {
+    next.add(tableName);
+  }
+  expandedTables.value = next;
+}
+
+function openTableEdit(table: ApiSemanticCatalog["tables"][number]) {
+  editingTable.value = table.table_name;
+  tablePatchDraft.label = table.label ?? "";
+  tablePatchDraft.business_description = table.business_description ?? "";
+  tablePatchDraft.table_role = table.table_role ?? "fact";
+  tablePatchDraft.grain = table.grain ?? "";
+  tablePatchDraft.main_date_column = table.main_date_column ?? "";
+  tablePatchDraft.synonyms_raw = (table.synonyms ?? []).join(", ");
+  tablePatchDraft.important_metrics_raw = (table.important_metrics ?? []).join("\n");
+}
+
+async function saveTablePatch(tableName: string) {
+  if (!selectedDatabaseId.value) return;
+  isSavingSemanticTable.value = true;
+  try {
+    await api.patchSemanticTable(selectedDatabaseId.value, tableName, {
+      label: tablePatchDraft.label || null,
+      business_description: tablePatchDraft.business_description || null,
+      table_role: (tablePatchDraft.table_role as "fact" | "dimension" | "bridge" | "lookup" | "event" | "snapshot") || null,
+      grain: tablePatchDraft.grain || null,
+      main_date_column: tablePatchDraft.main_date_column || null,
+      synonyms: splitCsv(tablePatchDraft.synonyms_raw),
+      important_metrics: tablePatchDraft.important_metrics_raw
+        .split("\n")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+    semanticCatalog.value = await api.getSemanticCatalog(selectedDatabaseId.value);
+    editingTable.value = null;
+    semanticFeedback.value = `Таблица «${tableName}» обновлена.`;
+  } catch (error) {
+    semanticFeedback.value = error instanceof Error ? error.message : "Не удалось сохранить таблицу.";
+  } finally {
+    isSavingSemanticTable.value = false;
+  }
+}
+
+function openColumnEdit(tableName: string, columnName: string) {
+  const table = semanticCatalog.value?.tables.find((t) => t.table_name === tableName);
+  const col = table?.columns.find((c) => c.column_name === columnName);
+  editingColumn.value = `${tableName}.${columnName}`;
+  columnPatchDraft.label = col?.label ?? "";
+  columnPatchDraft.business_description = col?.business_description ?? "";
+  columnPatchDraft.synonyms_raw = (col?.synonyms ?? []).join(", ");
+}
+
+async function saveColumnPatch(tableName: string, columnName: string) {
+  if (!selectedDatabaseId.value) return;
+  isSavingSemanticColumn.value = true;
+  try {
+    await api.patchSemanticColumn(selectedDatabaseId.value, tableName, columnName, {
+      label: columnPatchDraft.label || null,
+      business_description: columnPatchDraft.business_description || null,
+      synonyms: splitCsv(columnPatchDraft.synonyms_raw),
+    });
+    semanticCatalog.value = await api.getSemanticCatalog(selectedDatabaseId.value);
+    editingColumn.value = null;
+    semanticFeedback.value = `Колонка «${tableName}.${columnName}» обновлена.`;
+  } catch (error) {
+    semanticFeedback.value = error instanceof Error ? error.message : "Не удалось сохранить колонку.";
+  } finally {
+    isSavingSemanticColumn.value = false;
+  }
+}
+
+async function deleteSemanticCatalog() {
+  if (!selectedDatabaseId.value) return;
+  const confirmed = window.confirm("Удалить активный семантический каталог? Его можно будет пересоздать.");
+  if (!confirmed) return;
+  isDeletingSemantic.value = true;
+  try {
+    await api.deleteSemanticCatalog(selectedDatabaseId.value);
+    semanticCatalog.value = null;
+    semanticFeedback.value = "Семантический каталог удалён.";
+  } catch (error) {
+    semanticFeedback.value = error instanceof Error ? error.message : "Не удалось удалить каталог.";
+  } finally {
+    isDeletingSemantic.value = false;
+  }
+}
+
+async function loadDatabaseDictionary() {
+  if (!selectedDatabaseId.value) {
+    databaseDictionary.value = [];
+    return;
+  }
+  try {
+    databaseDictionary.value = await api.getDictionary(selectedDatabaseId.value);
+  } catch {
+    databaseDictionary.value = [];
+  }
 }
 
 watch(selectedDatabaseId, async (value, previousValue) => {
@@ -1701,7 +1932,7 @@ watch(selectedDatabaseId, async (value, previousValue) => {
   if (!semanticDescription.value.trim()) {
     semanticDescription.value = selectedDatabase.value?.description ?? "";
   }
-  await loadKnowledge();
+  await Promise.all([loadKnowledge(), loadDatabaseDictionary()]);
 });
 
 watch(selectedTableId, async (value, previousValue) => {
@@ -1728,6 +1959,9 @@ onMounted(async () => {
     chat.activeDbId !== selectedDatabaseId.value
   ) {
     await chat.selectDatabase(selectedDatabaseId.value);
+  }
+  if (selectedDatabaseId.value) {
+    await loadDatabaseDictionary();
   }
 });
 
@@ -2320,6 +2554,169 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   border: 1px dashed rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   background: rgba(21, 24, 34, 0.72);
+}
+
+.data-view__sem-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.data-view__sem-table {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(18, 20, 27, 0.92);
+  overflow: hidden;
+}
+
+.data-view__sem-table-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.data-view__sem-expand {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 20px;
+}
+
+.data-view__sem-table-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.data-view__sem-table-meta strong {
+  color: var(--ink-strong);
+  font-size: 0.9rem;
+}
+
+.data-view__sem-table-meta span,
+.data-view__sem-table-meta small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.data-view__sem-table-counts {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.data-view__sem-columns {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 0.45rem 0.75rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.data-view__sem-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.data-view__sem-col-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  flex-wrap: wrap;
+}
+
+.data-view__sem-col-name {
+  font-size: 0.82rem;
+  color: var(--ink-strong);
+  font-family: var(--mono, monospace);
+  min-width: 120px;
+}
+
+.data-view__sem-col-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.data-view__sem-col-type {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: var(--mono, monospace);
+}
+
+.data-view__sem-badge {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(138, 180, 248, 0.15);
+  color: #8aa4ff;
+  border: 1px solid rgba(138, 180, 248, 0.25);
+  white-space: nowrap;
+}
+
+.data-view__sem-badge--pk {
+  background: rgba(244, 194, 107, 0.15);
+  color: #f4c26b;
+  border-color: rgba(244, 194, 107, 0.3);
+}
+
+.data-view__sem-badge--fk {
+  background: rgba(129, 201, 149, 0.15);
+  color: #81c995;
+  border-color: rgba(129, 201, 149, 0.3);
+}
+
+.data-view__sem-edit-form {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 0.75rem;
+  background: rgba(21, 24, 34, 0.7);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.data-view__sem-edit-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.data-view__sem-edit-row label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding-top: 0.45rem;
+}
+
+.data-view__sem-edit-row input,
+.data-view__sem-edit-row textarea,
+.data-view__sem-edit-row select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  background: rgba(18, 20, 27, 0.92);
+  color: var(--ink);
+  font-size: 0.82rem;
+  width: 100%;
+}
+
+.data-view__sem-edit-row textarea {
+  resize: vertical;
+}
+
+.data-view__sem-edit-actions {
+  display: flex;
+  gap: 0.45rem;
+  padding-left: 130px;
 }
 
 @media (max-width: 1100px) {

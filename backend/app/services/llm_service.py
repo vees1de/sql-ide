@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import IntentPayload, QuerySemantics
-from app.schemas.semantic_catalog import SemanticTable, SemanticTableEnrichment
+from app.schemas.semantic_catalog import SemanticCatalog, SemanticTable, SemanticTableEnrichment
 
 if TYPE_CHECKING:
     from app.services.llm_schema_recon_service import LLMSchemaReconToolbox
@@ -65,6 +65,8 @@ class LLMService:
         self,
         prompt: str,
         schema: SchemaMetadataResponse,
+        semantic_catalog: SemanticCatalog | None = None,
+        semantic_notes: list[str] | None = None,
         previous_intent: IntentPayload | None = None,
         history_text: str | None = None,
         temperature: float = 0.1,
@@ -143,20 +145,38 @@ class LLMService:
             "17. SEMANTIC OUTPUT — return structured visualization semantics. Do NOT choose chart_type as "
             "the final answer; chart_type is decided by the backend rule engine. If you can infer a useful "
             "visualization hint, set visualization_hint, but treat it as a hint only.\n"
-            "18. SEMANTIC FLAGS — set semantics.flags.is_time_series when the request is about a temporal "
+            "18. ANALYTICAL CONTRACT — separate semantic intent from visual strategy. Populate semantics.intent "
+            "with the analytical task, preferring: trend, comparison, comparison_over_time, share, "
+            "composition_over_time, distribution, correlation, ranking, kpi, delta. Populate "
+            "semantics.analysis_mode with one of compare, trend, compose, rank, correlate, distribute, delta. "
+            "Populate semantics.visual_goal with a short machine-readable goal such as compare_between_groups, "
+            "compare_between_groups_over_time, compare_ranked_categories, show_composition, "
+            "compare_structure_over_time, show_change_over_time.\n"
+            "19. SEMANTIC FLAGS — set semantics.flags.is_time_series when the request is about a temporal "
             "trend or the chosen time column should drive the x-axis. Set is_comparison when the request "
             "compares entities or periods. Set is_ranking=true when the request asks for top-N / bottom-N / "
             "«топ» / «худшие» / ordering of entities by a metric (even if the result also has a rate column). "
             "Set is_share=true when the metric is a ratio, share or conversion rate. Set top_n to the "
             "requested number when the user asks for a specific N. Set explicit_chart_request only when the "
-            "user explicitly names a chart type. Populate semantics.metric.name with the SQL alias of the "
-            "primary metric column (e.g. 'share_not_completed', 'completion_rate'), so the chart engine can "
-            "pick the correct Y axis.\n"
-            "19. COMPARISON SEMANTICS — when comparing periods or entities, fill semantics.comparison.kind "
-            "with 'period_over_period' or 'entity_vs_entity' and populate semantics.comparison.entities "
-            "when concrete entities are mentioned.\n"
+            "user explicitly names a chart type.\n"
+            "20. ROLE ANNOTATION — populate semantics.time_role as primary, secondary, or none. Populate "
+            "semantics.comparison_goal as absolute, composition, delta, or rank. Populate semantics.preferred_mark "
+            "as line, bar, area, point, arc, or stat only when it is strongly implied by the analytical task.\n"
+            "21. DATA ROLES — populate semantics.data_roles with x, y, series_key, facet_key, label, value "
+            "using SQL aliases where possible. Also populate semantics.columns with semantic roles such as "
+            "dimension_time, dimension_series, dimension_category, metric_primary. Populate semantics.metric.name "
+            "with the SQL alias of the primary metric column (e.g. 'share_not_completed', 'completion_rate'), "
+            "so the chart engine can pick the correct Y axis.\n"
+            "22. ASSUMPTIONS AND AMBIGUITIES — populate semantics.assumptions with explicit defaults you had to "
+            "adopt (aggregation, default time range, top-N fallback, etc.). Populate semantics.ambiguities with "
+            "remaining uncertainty instead of hiding it. Keep both concise.\n"
+            "23. COMPARISON SEMANTICS — when comparing periods or entities, fill semantics.comparison.kind "
+            "with 'period_over_period' or 'entity_vs_entity', populate semantics.comparison.entities when "
+            "concrete entities are mentioned, and set semantics.comparison.facet_column when the user explicitly "
+            "asks for separate small multiples per category.\n"
             f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
             f"{self._alias_contract_guidance()}"
+            f"{self._semantic_catalog_guidance(enabled=semantic_catalog is not None)}"
             "{"
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
             '"filters":[{"field":"string","operator":"string","value":"any"}],'
@@ -166,10 +186,11 @@ class LLMService:
             '"clarification_question":"string|null",'
             '"clarification_options":[{"id":"string","label":"string","detail":"string|null","reason":"string|null"}],'
             '"confidence":"number","follow_up":"boolean"},'
-            '"semantics":{"intent":"string|null","metric":{"name":"string|null","aggregation":"string|null","unit":"string|null"}|null,'
-            '"dimensions":[{"name":"string","role":"category"}],"time":{"column":"string|null","granularity":"day|week|month|quarter|year|null","range":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null}|null,'
-            '"comparison":{"kind":"period_over_period|entity_vs_entity|none","entities":["string"],"baseline_period":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null,"series_column":"string|null"}|null,'
+            '"semantics":{"intent":"string|null","visual_goal":"string|null","analysis_mode":"compare|trend|compose|rank|correlate|distribute|delta|null","time_role":"primary|secondary|none|null","comparison_goal":"absolute|composition|delta|rank|null","preferred_mark":"line|bar|area|point|arc|stat|null","metric":{"name":"string|null","aggregation":"string|null","unit":"string|null"}|null,'
+            '"dimensions":[{"name":"string","role":"category"}],"columns":[{"name":"string","role":"string"}],"data_roles":{"x":"string|null","y":"string|null","series_key":"string|null","facet_key":"string|null","label":"string|null","value":"string|null"}|null,"time":{"column":"string|null","granularity":"day|week|month|quarter|year|null","range":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null}|null,'
+            '"comparison":{"kind":"period_over_period|entity_vs_entity|none","entities":["string"],"baseline_period":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null,"series_column":"string|null","facet_column":"string|null"}|null,'
             '"filters":[{"field":"string","operator":"string","value":"any"}],'
+            '"assumptions":["string"],"ambiguities":["string"],'
             '"flags":{"is_time_series":"boolean","is_comparison":"boolean","is_ranking":"boolean","is_share":"boolean","top_n":"number|null","explicit_chart_request":"boolean"},'
             '"visualization_hint":"line|bar|pie|table|metric_card|null","confidence_score":"number","clarification_needed":"string|null"},'
             '"sql":"string|null","chart_type":"line|bar|pie|table|metric_card|null","chart_x_field":"string|null",'
@@ -180,6 +201,8 @@ class LLMService:
                 "today": date.today().isoformat(),
                 "dialect": schema.dialect,
                 "schema": schema_summary,
+                "semantic_catalog": self._format_semantic_catalog(semantic_catalog),
+                "semantic_notes": list(semantic_notes or []),
                 "previous_intent": previous_intent_payload,
                 "history_text": history_text,
                 "alias_contract": self._alias_contract_reference(),
@@ -239,6 +262,8 @@ class LLMService:
         schema: SchemaMetadataResponse,
         failed_sql: str,
         failure_reason: str,
+        semantic_catalog: SemanticCatalog | None = None,
+        semantic_notes: list[str] | None = None,
         previous_intent: IntentPayload | None = None,
         history_text: str | None = None,
         row_count: int | None = None,
@@ -267,6 +292,7 @@ class LLMService:
             "6. If you truly cannot repair this safely, return sql=null and retryable=false.\n"
             f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
             f"{self._alias_contract_guidance()}"
+            f"{self._semantic_catalog_guidance(enabled=semantic_catalog is not None)}"
             '{'
             '"sql":"string|null",'
             '"reason":"string|null",'
@@ -279,6 +305,8 @@ class LLMService:
                 "today": date.today().isoformat(),
                 "dialect": schema.dialect,
                 "schema": self._format_schema(schema),
+                "semantic_catalog": self._format_semantic_catalog(semantic_catalog),
+                "semantic_notes": list(semantic_notes or []),
                 "previous_intent": previous_intent_payload,
                 "history_text": history_text,
                 "alias_contract": self._alias_contract_reference(),
@@ -417,7 +445,10 @@ class LLMService:
                             "Используй database_description как главный контекст предметной области. "
                             "Анализируй example_values и имена колонок для вывода семантики. "
                             "Выбирай table_role строго из: fact, dimension, bridge, lookup, event, snapshot. "
+                            "Если table_role = fact, grain обязателен и не может быть пустым. "
                             "grain описывай одной короткой фразой (e.g. 'одна строка = один тендер на заказ'). "
+                            "important_metrics возвращай как готовые SQL-метрики в формате 'metric_name: SQL_EXPRESSION', а не как простые названия колонок. "
+                            "Если у таблицы есть главная дата, main_date_column должен быть физическим именем колонки. "
                             f"{language_rule}"
                         ),
                     },
@@ -617,6 +648,37 @@ class LLMService:
             ],
         }
 
+    def _format_semantic_catalog(self, catalog: SemanticCatalog | None) -> dict[str, Any] | None:
+        if catalog is None:
+            return None
+        return {
+            "tables": [
+                {
+                    "table_name": table.table_name,
+                    "label": table.label,
+                    "business_description": table.business_description,
+                    "table_role": table.table_role,
+                    "grain": table.grain,
+                    "main_date_column": table.main_date_column,
+                    "main_entity": table.main_entity,
+                    "synonyms": list(table.synonyms[:10]),
+                    "important_metrics": list(table.important_metrics[:6]),
+                    "important_dimensions": list(table.important_dimensions[:8]),
+                }
+                for table in catalog.tables
+            ],
+            "join_paths": [
+                {
+                    "from_table": path.from_table,
+                    "to_table": path.to_table,
+                    "tables": list(path.tables),
+                    "joins": list(path.joins),
+                    "business_use_case": path.business_use_case,
+                }
+                for path in catalog.join_paths
+            ],
+        }
+
     def _schema_tool_guidance(self, *, enabled: bool) -> str:
         if not enabled:
             return ""
@@ -640,6 +702,17 @@ class LLMService:
             "Example A: daily revenue and payment count by store -> columns day, store_id, total_revenue, payment_count. "
             "Example B: top categories by revenue -> columns category, total_revenue. "
             "Example C: weekly average rental days and late return rate -> columns week, avg_rental_days, late_return_rate.\n"
+        )
+
+    def _semantic_catalog_guidance(self, *, enabled: bool) -> str:
+        if not enabled:
+            return ""
+        return (
+            "23. SEMANTIC CATALOG — when semantic_catalog is provided, treat it as authoritative business context.\n"
+            "24. READY-MADE METRICS — prefer important_metrics when they match the request; they already encode business-ready SQL definitions.\n"
+            "25. TIME ANCHOR — for temporal filters and time bucketing, prefer each table's main_date_column over guessing another timestamp.\n"
+            "26. TABLE ROLES — lookup and bridge tables are helper tables, not the main FROM source for aggregate analytics.\n"
+            "27. JOIN PATHS — when semantic_catalog exposes join_paths for the selected tables, follow them instead of inventing a shorter join.\n"
         )
 
     def _alias_contract_reference(self) -> dict[str, Any]:

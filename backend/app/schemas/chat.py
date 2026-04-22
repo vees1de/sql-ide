@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.query import DateRange, FilterCondition, QueryMode
+from app.schemas.query import ChartCandidate, DateRange, DecisionSummary, FilterCondition, QueryInterpretation, QueryMode
 
 
 class Interpretation(BaseModel):
@@ -63,6 +63,8 @@ class StructuredPayload(BaseModel):
     tables_used: list[TableUsage] = Field(default_factory=list)
     sql: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    confidence_level: Literal["low", "medium", "high"] = "medium"
+    confidence_reasons: list[str] = Field(default_factory=list)
     message_kind: MessageKind = "answer"
     clarification: ClarificationBlock | None = None
     error: ErrorBlock | None = None
@@ -109,12 +111,31 @@ class ChartRecommendation(BaseModel):
     x: str | None = None
     y: str | None = None
     series: str | None = None
+    facet: str | None = None
     variant: str | None = None
     explanation: str | None = None
     rule_id: str | None = None
     confidence: float | None = None
     data: dict[str, Any] | None = None
     reason: str
+    semantic_intent: str | None = None
+    analysis_mode: str | None = None
+    visual_goal: str | None = None
+    time_role: str | None = None
+    comparison_goal: str | None = None
+    preferred_mark: str | None = None
+    normalize: str | None = None
+    value_format: str | None = None
+    series_limit: int | None = None
+    category_limit: int | None = None
+    top_n_strategy: str | None = None
+    alternatives: list[str] = Field(default_factory=list)
+    candidates: list[ChartCandidate] = Field(default_factory=list)
+    constraints_applied: list[str] = Field(default_factory=list)
+    visual_load: int | None = None
+    query_interpretation: QueryInterpretation | None = None
+    decision_summary: DecisionSummary | None = None
+    reason_codes: list[str] = Field(default_factory=list)
 
 
 class ChatMessageRead(BaseModel):

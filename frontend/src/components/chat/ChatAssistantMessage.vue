@@ -112,6 +112,17 @@ const warnings = computed(() => [
   ...(payload.value?.interpretation.ambiguities ?? []).map((item) => `Неоднозначность: ${item.replaceAll('_', ' ')}`)
 ]);
 
+const confidenceLabel = computed(() => {
+  switch (payload.value?.confidence_level) {
+    case 'high':
+      return 'Высокая';
+    case 'low':
+      return 'Низкая';
+    default:
+      return 'Средняя';
+  }
+});
+
 const reasoningLines = computed(() => {
   const lines: string[] = [];
   const interpretation = payload.value?.interpretation;
@@ -147,6 +158,14 @@ const reasoningLines = computed(() => {
 
   if (typeof interpretation?.confidence === 'number') {
     lines.push(`Уверенность: ${Math.round(interpretation.confidence * 100)}%`);
+  }
+
+  if (payload.value?.confidence_level) {
+    lines.push(`Уверенность SQL: ${confidenceLabel.value}`);
+  }
+
+  if (payload.value?.confidence_reasons?.length) {
+    lines.push(`Сигналы confidence: ${payload.value.confidence_reasons.join('; ')}`);
   }
 
   if (payload.value?.tables_used?.length) {

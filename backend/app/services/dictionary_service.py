@@ -9,8 +9,11 @@ from app.schemas.dictionary import DictionaryEntryCreate, DictionaryEntryUpdate
 
 
 class DictionaryService:
-    def list_entries(self, db: Session) -> list[SemanticDictionaryModel]:
-        return db.query(SemanticDictionaryModel).order_by(SemanticDictionaryModel.term.asc()).all()
+    def list_entries(self, db: Session, database_id: str | None = None) -> list[SemanticDictionaryModel]:
+        q = db.query(SemanticDictionaryModel)
+        if database_id:
+            q = q.filter(SemanticDictionaryModel.source_database == database_id)
+        return q.order_by(SemanticDictionaryModel.term.asc()).all()
 
     def create_entry(self, db: Session, payload: DictionaryEntryCreate) -> SemanticDictionaryModel:
         entry = SemanticDictionaryModel(
