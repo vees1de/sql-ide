@@ -273,8 +273,8 @@ class ChatSqlAdapter:
         first_question = clarification.questions[0] if getattr(clarification, "questions", None) else None
         options = [
             ClarificationOption(
-                id=option.label,
-                label=option.label,
+                id=option if isinstance(option, str) else option.label,
+                label=option if isinstance(option, str) else option.label,
                 detail=None,
             )
             for option in getattr(first_question, "options", [])[:6]
@@ -284,6 +284,7 @@ class ChatSqlAdapter:
             tables_used=[],
             sql=None,
             warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            message_kind="clarification",
             needs_clarification=True,
             clarification_question=getattr(first_question, "text", None) or intent.clarification_question,
             clarification_options=options or None,
@@ -326,6 +327,7 @@ class ChatSqlAdapter:
             tables_used=[],
             sql=None,
             warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            message_kind="clarification",
             needs_clarification=True,
             clarification_question=question,
             clarification_options=options or None,

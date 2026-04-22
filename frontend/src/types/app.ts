@@ -32,9 +32,13 @@ export interface TableCellContent {
 }
 
 export interface ChartCellContent {
-  chartType: 'line' | 'bar' | 'pie';
+  chartType: 'line' | 'bar' | 'pie' | 'metric_card';
   title: string;
   subtitle?: string;
+  explanation?: string;
+  ruleId?: string;
+  confidence?: number;
+  variant?: string;
   xAxis?: string[];
   series?: Array<{
     name: string;
@@ -47,6 +51,13 @@ export interface ChartCellContent {
   unit?: string;
   palette?: string[];
   stacked?: boolean;
+  value?: number | string;
+  metricLabel?: string;
+  delta?: {
+    value: number;
+    direction: 'up' | 'down';
+    baselineLabel?: string;
+  };
 }
 
 export interface InsightCellContent {

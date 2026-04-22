@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse
-from app.schemas.query import IntentPayload
+from app.schemas.query import IntentPayload, QuerySemantics
 from app.schemas.semantic_catalog import SemanticTable, SemanticTableEnrichment
 
 try:
@@ -24,10 +24,12 @@ logger = logging.getLogger(__name__)
 
 class LLMQueryPlan(BaseModel):
     intent: IntentPayload
+    semantics: QuerySemantics | None = None
     sql: str | None = None
     chart_type: str | None = None
     chart_x_field: str | None = None
     chart_y_field: str | None = None
+    visualization_hint: str | None = None
     chart_title: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
@@ -115,24 +117,16 @@ class LLMService:
             "is not correlated to it. If you find yourself writing `FROM league CROSS JOIN (SELECT "
             "COUNT(*) FROM player_attributes ...)`, you are computing the same number for every row. "
             "Use a correlated subquery or a proper join path through a real relationship.\n"
-            "17. CHART TYPE SELECTION — always set chart_type to the most useful visualization, even "
-            "when the user did not explicitly request one. Rules for proactive chart selection:\n"
-            "  (a) EXPLICIT REQUEST — if the user explicitly names a chart type in any language, honor it: "
-            "'столбчатую диаграмму'/'bar chart'/'bar' → 'bar'; "
-            "'круговую'/'pie'/'распределение' → 'pie'; "
-            "'линейный'/'line'/'график'/'trend' → 'line'.\n"
-            "  (b) DISTRIBUTION / CATEGORICAL BREAKDOWN — when the query groups by a low-cardinality "
-            "categorical column (foot, position, country, status) and the user asks for 'распределение', "
-            "'доля', 'breakdown', 'proportion', or similar → use 'pie'.\n"
-            "  (c) TIME SERIES / TREND — when the result is grouped by a date/time column or the user "
-            "asks 'по годам', 'по месяцам', 'динамика', 'менялся', 'со временем', 'trend', 'over time' "
-            "→ use 'line'.\n"
-            "  (d) RANKING / TOP-N / COMPARISON — when the query ranks entities, finds top/best/worst, "
-            "or compares named items across a numeric metric → use 'bar'.\n"
-            "  (e) SCALAR — when the result is a single number (no GROUP BY) → use 'metric_card'.\n"
-            "  (f) FALLBACK — use 'table' only when none of the above apply or the result is inherently "
-            "multi-dimensional. Never leave chart_type null unless you truly cannot determine a useful type.\n"
-            "  Set chart_x_field and chart_y_field accordingly: x = the dimension column, y = the numeric metric column.\n"
+            "17. SEMANTIC OUTPUT — return structured visualization semantics. Do NOT choose chart_type as "
+            "the final answer; chart_type is decided by the backend rule engine. If you can infer a useful "
+            "visualization hint, set visualization_hint, but treat it as a hint only.\n"
+            "18. SEMANTIC FLAGS — set semantics.flags.is_time_series when the request is about a temporal "
+            "trend or the chosen time column should drive the x-axis. Set is_comparison when the request "
+            "compares entities or periods. Set explicit_chart_request only when the user explicitly names "
+            "a chart type.\n"
+            "19. COMPARISON SEMANTICS — when comparing periods or entities, fill semantics.comparison.kind "
+            "with 'period_over_period' or 'entity_vs_entity' and populate semantics.comparison.entities "
+            "when concrete entities are mentioned.\n"
             "{"
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
             '"filters":[{"field":"string","operator":"string","value":"any"}],'
@@ -142,8 +136,14 @@ class LLMService:
             '"clarification_question":"string|null",'
             '"clarification_options":[{"id":"string","label":"string","detail":"string|null","reason":"string|null"}],'
             '"confidence":"number","follow_up":"boolean"},'
+            '"semantics":{"intent":"string|null","metric":{"name":"string|null","aggregation":"string|null","unit":"string|null"}|null,'
+            '"dimensions":[{"name":"string","role":"category"}],"time":{"column":"string|null","granularity":"day|week|month|quarter|year|null","range":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null}|null,'
+            '"comparison":{"kind":"period_over_period|entity_vs_entity|none","entities":["string"],"baseline_period":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null,"series_column":"string|null"}|null,'
+            '"filters":[{"field":"string","operator":"string","value":"any"}],'
+            '"flags":{"is_time_series":"boolean","is_comparison":"boolean","is_ranking":"boolean","is_share":"boolean","top_n":"number|null","explicit_chart_request":"boolean"},'
+            '"visualization_hint":"line|bar|pie|table|metric_card|null","confidence_score":"number","clarification_needed":"string|null"},'
             '"sql":"string|null","chart_type":"line|bar|pie|table|metric_card|null","chart_x_field":"string|null",'
-            '"chart_y_field":"string|null","chart_title":"string|null","warnings":["string"]}'
+            '"chart_y_field":"string|null","visualization_hint":"line|bar|pie|table|metric_card|null","chart_title":"string|null","warnings":["string"]}'
         )
         user_prompt = json.dumps(
             {
@@ -171,6 +171,7 @@ class LLMService:
             payload = json.loads(self._extract_json_object(content))
             payload.setdefault("intent", {})
             payload["intent"].setdefault("raw_prompt", prompt)
+            payload.setdefault("semantics", {})
             return LLMQueryPlan.model_validate(payload)
         except (ValidationError, ValueError, json.JSONDecodeError) as exc:
             logger.warning("Failed to parse LLM query plan: %s", exc)

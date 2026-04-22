@@ -1170,7 +1170,7 @@ class SemanticCatalogService:
                 TableMetadata(
                     name=table.table_name,
                     columns=[
-                        ColumnMetadata(name=column.column_name, type=column.data_type)
+                        ColumnMetadata(name=column.column_name, type=self._resolve_column_type(column))
                         for column in table.columns
                     ],
                 )
@@ -1179,6 +1179,26 @@ class SemanticCatalogService:
             relationships=relationships,
             relationship_graph=relationship_graph,
         )
+
+    _VALUE_TYPE_TO_SQL: dict[str, str] = {
+        "datetime": "timestamp",
+        "date": "date",
+        "currency": "numeric",
+        "numeric": "numeric",
+        "ratio": "float",
+        "duration": "integer",
+        "identifier": "varchar",
+        "status": "varchar",
+        "boolean": "boolean",
+        "text": "text",
+    }
+
+    def _resolve_column_type(self, column: "SemanticColumn") -> str:
+        if column.data_type:
+            return column.data_type
+        if column.value_type:
+            return self._VALUE_TYPE_TO_SQL.get(column.value_type, column.value_type)
+        return ""
 
     def _catalog_to_dictionary_entries(
         self,

@@ -34,7 +34,14 @@ class VisualizationAgent:
             chart_type = "table"
 
         x_field = semantic.dimension_mappings[0].alias if semantic.dimension_mappings else None
-        series_field = "period_label" if "period_label" in execution.columns else None
+        series_field = next(
+            (
+                column
+                for column in execution.columns
+                if column == "comparison_series" or column.endswith("_series") or column == "series"
+            ),
+            None,
+        )
 
         return ChartSpec(
             chart_type=chart_type,

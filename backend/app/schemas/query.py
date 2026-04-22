@@ -54,6 +54,52 @@ class IntentPayload(BaseModel):
     follow_up: bool = False
 
 
+class SemanticMetricPayload(BaseModel):
+    name: str | None = None
+    aggregation: str | None = None
+    unit: str | None = None
+
+
+class SemanticDimensionPayload(BaseModel):
+    name: str
+    role: str = "category"
+
+
+class SemanticTimePayload(BaseModel):
+    column: str | None = None
+    granularity: str | None = None
+    range: DateRange | None = None
+
+
+class SemanticComparisonPayload(BaseModel):
+    kind: str = "none"
+    entities: list[str] = Field(default_factory=list)
+    baseline_period: DateRange | None = None
+    series_column: str | None = None
+
+
+class SemanticFlagsPayload(BaseModel):
+    is_time_series: bool = False
+    is_comparison: bool = False
+    is_ranking: bool = False
+    is_share: bool = False
+    top_n: int | None = None
+    explicit_chart_request: bool = False
+
+
+class QuerySemantics(BaseModel):
+    intent: str | None = None
+    metric: SemanticMetricPayload | None = None
+    dimensions: list[SemanticDimensionPayload] = Field(default_factory=list)
+    time: SemanticTimePayload | None = None
+    comparison: SemanticComparisonPayload | None = None
+    filters: list[FilterCondition] = Field(default_factory=list)
+    flags: SemanticFlagsPayload = Field(default_factory=SemanticFlagsPayload)
+    visualization_hint: str | None = None
+    confidence_score: float = 0.0
+    clarification_needed: str | None = None
+
+
 class DimensionMapping(BaseModel):
     key: str
     label: str
@@ -104,6 +150,11 @@ class ChartSpec(BaseModel):
     title: str
     encoding: ChartEncoding
     options: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] | None = None
+    variant: str | None = None
+    explanation: str | None = None
+    rule_id: str | None = None
+    confidence: float | None = None
 
 
 class QueryExecutionResult(BaseModel):

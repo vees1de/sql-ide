@@ -875,16 +875,19 @@ class SemanticMappingAgent:
         return normalized or "value"
 
     def _is_numeric_type(self, type_name: str) -> bool:
+        lower = type_name.lower()
         return any(
-            marker in type_name
+            marker in lower
             for marker in ("int", "numeric", "decimal", "float", "double", "real", "money", "number")
         )
 
     def _is_date_type(self, type_name: str) -> bool:
-        return any(marker in type_name for marker in ("date", "time", "timestamp", "datetime"))
+        lower = type_name.lower()
+        return any(marker in lower for marker in ("date", "time", "timestamp", "datetime"))
 
     def _is_text_type(self, type_name: str) -> bool:
-        return any(marker in type_name for marker in ("char", "text", "clob", "string", "uuid"))
+        lower = type_name.lower()
+        return any(marker in lower for marker in ("char", "text", "clob", "string", "uuid"))
 
     def _date_bucket(self, dialect: str, grain: str, expression: str) -> str:
         if dialect == "postgresql":

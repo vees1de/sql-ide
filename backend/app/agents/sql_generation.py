@@ -11,9 +11,14 @@ class SQLGenerationAgent:
         if intent.metric is None or semantic.metric_expression is None or semantic.metric_alias is None:
             raise ValueError("Metric mapping is required to generate SQL.")
 
-        if intent.comparison == "previous_year":
+        if intent.comparison in {"previous_year", "previous_period"}:
             effective_range = intent.date_range or self._default_comparison_range()
-            return self._build_previous_year_comparison_query(intent, semantic, effective_range)
+            return self._build_comparison_query(
+                intent=intent,
+                semantic=semantic,
+                date_range=effective_range,
+                comparison_label="previous_year" if intent.comparison == "previous_year" else "previous_period",
+            )
 
         return self._build_aggregate_query(intent, semantic, intent.date_range)
 
@@ -51,11 +56,12 @@ class SQLGenerationAgent:
             if part
         )
 
-    def _build_previous_year_comparison_query(
+    def _build_comparison_query(
         self,
         intent: IntentPayload,
         semantic: SemanticMappingPayload,
         date_range: DateRange,
+        comparison_label: str,
     ) -> str:
         previous_range = DateRange(
             kind="absolute",
@@ -70,7 +76,7 @@ class SQLGenerationAgent:
         )
         previous_sql = self._build_period_query(
             semantic=semantic,
-            label="previous_year",
+            label=comparison_label,
             date_range=previous_range,
             align_previous_year=True,
         )
@@ -102,7 +108,7 @@ class SQLGenerationAgent:
             select_parts.append(f"{expression} AS {mapping.alias}")
             group_indices.append(str(index))
 
-        select_parts.append(f"'{label}' AS period_label")
+        select_parts.append(f"'{label}' AS comparison_series")
         label_index = len(select_parts)
         select_parts.append(f"{semantic.metric_expression} AS {semantic.metric_alias}")
 

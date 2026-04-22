@@ -33,7 +33,7 @@ class IntentAgent:
             "fee",
         ),
         "order_count": (
-            "количеств заказ",
+            "количеств",
             "число заказ",
             "orders count",
             "number of orders",
@@ -43,6 +43,8 @@ class IntentAgent:
             "records",
             "rows",
             "запис",
+            "топ",
+            "top",
         ),
         "avg_order_value": ("средний чек", "average order value", "aov", "average", "avg", "mean", "средн"),
     }
@@ -51,7 +53,7 @@ class IntentAgent:
         "week": ("по недел", "weekly", "by week"),
         "day": ("по дням", "ежеднев", "daily", "by day"),
         "region": ("по регион", "by region", "regions"),
-        "city": ("по город", "by city", "cities"),
+        "city": ("по город", "город", "by city", "cities"),
         "segment": ("по сегмент", "by segment", "segments"),
         "channel": ("по канал", "by channel", "channels", "источник"),
         "campaign": ("по кампан", "by campaign", "campaigns"),
@@ -264,6 +266,22 @@ class IntentAgent:
             return DateRange(kind="absolute", start=start_of_current_quarter(today), end=today)
         if "last quarter" in prompt or "в прошлом квартале" in prompt:
             return DateRange(kind="absolute", start=start_of_previous_quarter(today), end=end_of_previous_quarter(today))
+
+        if "вчера" in prompt or "yesterday" in prompt:
+            yesterday = today - timedelta(days=1)
+            return DateRange(kind="absolute", start=yesterday, end=yesterday, lookback_value=1, lookback_unit="days")
+        if "сегодня" in prompt or "today" in prompt:
+            return DateRange(kind="absolute", start=today, end=today, lookback_value=1, lookback_unit="days")
+        if any(p in prompt for p in ("последнюю неделю", "прошлую неделю", "за неделю", "last week")):
+            return DateRange(kind="relative", start=today - timedelta(weeks=1), end=today, lookback_value=1, lookback_unit="weeks")
+        if any(p in prompt for p in ("последний месяц", "прошлый месяц", "за месяц", "last month")):
+            return DateRange(kind="relative", start=subtract_months(today, 1), end=today, lookback_value=1, lookback_unit="months")
+        if any(p in prompt for p in ("2 недели", "две недели", "two weeks")):
+            return DateRange(kind="relative", start=today - timedelta(weeks=2), end=today, lookback_value=2, lookback_unit="weeks")
+        if any(p in prompt for p in ("30 дней", "тридцать дней", "30 days")):
+            return DateRange(kind="relative", start=today - timedelta(days=30), end=today, lookback_value=30, lookback_unit="days")
+        if any(p in prompt for p in ("7 дней", "семь дней", "7 days")):
+            return DateRange(kind="relative", start=today - timedelta(days=7), end=today, lookback_value=7, lookback_unit="days")
 
         return None
 

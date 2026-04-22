@@ -94,10 +94,15 @@ export interface ApiChatMessageRead {
 
 export interface ApiChatExecutionRecommendation {
   recommended_view: 'table' | 'chart';
-  chart_type?: 'line' | 'bar' | 'stacked_bar' | 'pie' | null;
+  chart_type?: 'line' | 'bar' | 'stacked_bar' | 'pie' | 'metric_card' | null;
   x?: string | null;
   y?: string | null;
   series?: string | null;
+  variant?: string | null;
+  explanation?: string | null;
+  rule_id?: string | null;
+  confidence?: number | null;
+  data?: Record<string, unknown> | null;
   reason: string;
 }
 

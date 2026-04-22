@@ -18,52 +18,65 @@
       <div class="chat-view__panels" ref="panelsEl">
         <template v-if="!panelSwapped">
           <div class="chat-view__center-area" ref="centerPanelEl">
-            <section
-              class="chat-view__panel chat-view__panel--center-top"
-              :style="{ height: centerTopHeightPx }"
-            >
-              <ChatSqlEditor
-                :busy="chat.generating || chat.executing"
-                :model-value="chat.sqlDraft"
-                :status="editorStatus"
-                @run="runSql"
-                @update:modelValue="updateSqlDraft"
-              />
-            </section>
+            <template v-if="!centerPanelSwapped">
+              <section class="chat-view__panel chat-view__panel--center-top" :style="{ height: centerTopHeightPx }">
+                <ChatSqlEditor
+                  :busy="chat.generating || chat.executing"
+                  :model-value="chat.sqlDraft"
+                  :status="editorStatus"
+                  @run="runSql"
+                  @update:modelValue="updateSqlDraft"
+                />
+              </section>
 
-            <div
-              class="chat-view__resizer chat-view__resizer--horizontal"
-              @mousedown="startCenterResize"
-            >
-              <!-- <button
-                class="chat-view__swap-btn"
-                @click.stop="swapPanels"
-                title="Поменять панели 1111"
-              >
-                <svg
-                  viewBox="0 0 16 16"
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2" />
-                </svg>
-              </button> -->
-            </div>
+              <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
+                <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/>
+                  </svg>
+                </button>
+              </div>
 
-            <section class="chat-view__panel chat-view__panel--center-bottom">
-              <ChatResultPanel
-                :execution="chat.executionResult"
-                :view="chat.resultView"
-                :sql-text="chat.sqlDraft"
-                :database-connection-id="chat.activeDbId"
-                @change-view="chat.setResultMode"
-              />
-            </section>
+              <section class="chat-view__panel chat-view__panel--center-bottom">
+                <ChatResultPanel
+                  :execution="chat.executionResult"
+                  :view="chat.resultView"
+                  :sql-text="chat.sqlDraft"
+                  :database-connection-id="chat.activeDbId"
+                  @change-view="chat.setResultMode"
+                />
+              </section>
+            </template>
+
+            <template v-else>
+              <section class="chat-view__panel chat-view__panel--center-top" :style="{ height: centerTopHeightPx }">
+                <ChatResultPanel
+                  :execution="chat.executionResult"
+                  :view="chat.resultView"
+                  :sql-text="chat.sqlDraft"
+                  :database-connection-id="chat.activeDbId"
+                  @change-view="chat.setResultMode"
+                />
+              </section>
+
+              <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
+                <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/>
+                  </svg>
+                </button>
+              </div>
+
+              <section class="chat-view__panel chat-view__panel--center-bottom">
+                <ChatSqlEditor
+                  :busy="chat.generating || chat.executing"
+                  :model-value="chat.sqlDraft"
+                  :status="editorStatus"
+                  @run="runSql"
+                  @update:modelValue="updateSqlDraft"
+                />
+              </section>
+            </template>
           </div>
 
           <div class="chat-view__resizer" @mousedown="startResize">
@@ -153,33 +166,65 @@
           </div>
 
           <div class="chat-view__center-area" ref="centerPanelEl">
-            <section
-              class="chat-view__panel chat-view__panel--center-top"
-              :style="{ height: centerTopHeightPx }"
-            >
-              <ChatSqlEditor
-                :busy="chat.generating || chat.executing"
-                :model-value="chat.sqlDraft"
-                :status="editorStatus"
-                @run="runSql"
-                @update:modelValue="updateSqlDraft"
-              />
-            </section>
+            <template v-if="!centerPanelSwapped">
+              <section class="chat-view__panel chat-view__panel--center-top" :style="{ height: centerTopHeightPx }">
+                <ChatSqlEditor
+                  :busy="chat.generating || chat.executing"
+                  :model-value="chat.sqlDraft"
+                  :status="editorStatus"
+                  @run="runSql"
+                  @update:modelValue="updateSqlDraft"
+                />
+              </section>
 
-            <div
-              class="chat-view__resizer chat-view__resizer--horizontal"
-              @mousedown="startCenterResize"
-            ></div>
+              <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
+                <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/>
+                  </svg>
+                </button>
+              </div>
 
-            <section class="chat-view__panel chat-view__panel--center-bottom">
-              <ChatResultPanel
-                :execution="chat.executionResult"
-                :view="chat.resultView"
-                :sql-text="chat.sqlDraft"
-                :database-connection-id="chat.activeDbId"
-                @change-view="chat.setResultMode"
-              />
-            </section>
+              <section class="chat-view__panel chat-view__panel--center-bottom">
+                <ChatResultPanel
+                  :execution="chat.executionResult"
+                  :view="chat.resultView"
+                  :sql-text="chat.sqlDraft"
+                  :database-connection-id="chat.activeDbId"
+                  @change-view="chat.setResultMode"
+                />
+              </section>
+            </template>
+
+            <template v-else>
+              <section class="chat-view__panel chat-view__panel--center-top" :style="{ height: centerTopHeightPx }">
+                <ChatResultPanel
+                  :execution="chat.executionResult"
+                  :view="chat.resultView"
+                  :sql-text="chat.sqlDraft"
+                  :database-connection-id="chat.activeDbId"
+                  @change-view="chat.setResultMode"
+                />
+              </section>
+
+              <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
+                <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/>
+                  </svg>
+                </button>
+              </div>
+
+              <section class="chat-view__panel chat-view__panel--center-bottom">
+                <ChatSqlEditor
+                  :busy="chat.generating || chat.executing"
+                  :model-value="chat.sqlDraft"
+                  :status="editorStatus"
+                  @run="runSql"
+                  @update:modelValue="updateSqlDraft"
+                />
+              </section>
+            </template>
           </div>
         </template>
       </div>
@@ -206,6 +251,7 @@ const CENTER_TOP_MAX = 900;
 const chatWidth = ref(360);
 const centerTopHeight = ref(420);
 const panelSwapped = ref(false);
+const centerPanelSwapped = ref(false);
 const panelsEl = ref<HTMLElement | null>(null);
 const centerPanelEl = ref<HTMLElement | null>(null);
 
@@ -231,6 +277,8 @@ function loadLayout() {
         centerTopHeight.value = d.centerTopHeight;
       if (typeof d.panelSwapped === "boolean")
         panelSwapped.value = d.panelSwapped;
+      if (typeof d.centerPanelSwapped === "boolean")
+        centerPanelSwapped.value = d.centerPanelSwapped;
     }
   } catch {
     // ignore malformed storage
@@ -244,12 +292,18 @@ function saveLayout() {
       chatWidth: chatWidth.value,
       centerTopHeight: centerTopHeight.value,
       panelSwapped: panelSwapped.value,
+      centerPanelSwapped: centerPanelSwapped.value,
     }),
   );
 }
 
 function swapPanels() {
   panelSwapped.value = !panelSwapped.value;
+  saveLayout();
+}
+
+function swapCenterPanels() {
+  centerPanelSwapped.value = !centerPanelSwapped.value;
   saveLayout();
 }
 

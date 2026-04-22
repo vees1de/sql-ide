@@ -59,6 +59,18 @@ function titleCase(input: string) {
   return input.charAt(0).toUpperCase() + input.slice(1);
 }
 
+function firstNumericValue(rows: Array<Record<string, unknown>>) {
+  for (const row of rows) {
+    for (const value of Object.values(row)) {
+      const numeric = Number(String(value).replace(',', '.'));
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+  }
+  return undefined;
+}
+
 function normalizeQueryMode(value: unknown): QueryMode {
   return typeof value === 'string' && value.toLowerCase() === 'thinking' ? 'thinking' : 'fast';
 }
@@ -227,38 +239,125 @@ function buildChartContent(cell: ApiCellRead): ChartCellContent {
   const chartSpec = (cell.content.chartSpec ?? {}) as {
     chart_type?: string;
     title?: string;
+    explanation?: string;
+    rule_id?: string;
+    confidence?: number;
+    variant?: string;
+    data?: {
+      kind?: string;
+      x?: { field?: string | null; values?: unknown[]; type?: string | null };
+      y?: { field?: string | null; values?: unknown[]; unit?: string | null };
+      series?: Array<{ name?: string; data?: unknown[] }>;
+      slices?: Array<{ name?: string; value?: unknown }>;
+      value?: unknown;
+      metricLabel?: string | null;
+      stacked?: boolean;
+      stackable?: boolean;
+    };
     encoding?: {
       x_field?: string | null;
       y_field?: string | null;
       series_field?: string | null;
     };
+    options?: {
+      metricValue?: number | string | null;
+    };
   };
   const rows = Array.isArray(cell.content.data)
     ? (cell.content.data as Array<Record<string, unknown>>)
     : [];
-  const xField = chartSpec.encoding?.x_field ?? null;
-  const yField = chartSpec.encoding?.y_field ?? null;
-  const seriesField = chartSpec.encoding?.series_field ?? null;
   const supportedType =
-    chartSpec.chart_type === 'line' || chartSpec.chart_type === 'bar' || chartSpec.chart_type === 'pie'
+    chartSpec.chart_type === 'line' ||
+    chartSpec.chart_type === 'bar' ||
+    chartSpec.chart_type === 'pie' ||
+    chartSpec.chart_type === 'metric_card'
       ? chartSpec.chart_type
       : 'bar';
+  const subtitle = chartSpec.explanation ?? 'Сгенерировано агентом визуализации';
+  const chartData = chartSpec.data;
 
-  if (supportedType === 'pie') {
+  if (chartData?.kind === 'kpi' || supportedType === 'metric_card') {
+    return {
+      chartType: 'metric_card',
+      title: chartSpec.title ?? 'Chart',
+      subtitle,
+      explanation: chartSpec.explanation,
+      ruleId: chartSpec.rule_id,
+      confidence: chartSpec.confidence,
+      variant: chartSpec.variant,
+      value: chartData?.value ?? chartSpec.options?.metricValue ?? firstNumericValue(rows) ?? '—',
+      metricLabel: chartData?.metricLabel ?? chartSpec.encoding?.y_field ?? 'Value'
+    };
+  }
+
+  if (chartData?.kind === 'pie' || supportedType === 'pie') {
     return {
       chartType: 'pie',
       title: chartSpec.title ?? 'Chart',
-      subtitle: 'Сгенерировано агентом визуализации',
-      pieData: rows.map((row, index) => ({
-        name: String(
-          row[xField ?? 'label'] ??
-            row[Object.keys(row)[0] ?? 'label'] ??
-            `Segment ${index + 1}`
-        ),
-        value: Number(row[yField ?? 'value'] ?? 0)
-      }))
+      subtitle,
+      explanation: chartSpec.explanation,
+      ruleId: chartSpec.rule_id,
+      confidence: chartSpec.confidence,
+      variant: chartSpec.variant,
+      pieData: chartData?.slices
+        ? chartData.slices.map((slice, index) => ({
+            name: String(slice.name ?? `Segment ${index + 1}`),
+            value: Number(slice.value ?? 0)
+          }))
+        : rows.map((row, index) => ({
+            name: String(row[Object.keys(row)[0] ?? 'label'] ?? `Segment ${index + 1}`),
+            value: Number(row[Object.keys(row)[1] ?? 'value'] ?? 0)
+          }))
     };
   }
+
+  if (chartData?.kind === 'multi_series') {
+    return {
+      chartType: supportedType === 'bar' ? 'bar' : 'line',
+      title: chartSpec.title ?? 'Chart',
+      subtitle,
+      explanation: chartSpec.explanation,
+      ruleId: chartSpec.rule_id,
+      confidence: chartSpec.confidence,
+      variant: chartSpec.variant,
+      xAxis: Array.isArray(chartData.x?.values)
+        ? chartData.x?.values.map((value) => String(value ?? '—'))
+        : [],
+      series: (chartData.series ?? []).map((series) => ({
+        name: String(series.name ?? 'Series'),
+        data: (series.data ?? []).map((value) => Number(value ?? 0))
+      })),
+      stacked: Boolean(chartData.stacked || chartData.stackable)
+    };
+  }
+
+  if (chartData?.kind === 'single_series' || (supportedType === 'line' || supportedType === 'bar')) {
+    return {
+      chartType: supportedType,
+      title: chartSpec.title ?? 'Chart',
+      subtitle,
+      explanation: chartSpec.explanation,
+      ruleId: chartSpec.rule_id,
+      confidence: chartSpec.confidence,
+      variant: chartSpec.variant,
+      xAxis: Array.isArray(chartData?.x?.values)
+        ? chartData.x?.values.map((value) => String(value ?? '—'))
+        : rows.map((row) => String(row[chartSpec.encoding?.x_field ?? ''] ?? '—')),
+      series: [
+        {
+          name: titleCase(String(chartData?.y?.field ?? chartSpec.encoding?.y_field ?? 'value').replace(/_/g, ' ')),
+          data: Array.isArray(chartData?.y?.values)
+            ? chartData.y?.values.map((value) => Number(value ?? 0))
+            : rows.map((row) => Number(row[chartSpec.encoding?.y_field ?? ''] ?? 0))
+        }
+      ],
+      unit: chartData?.y?.unit ?? undefined
+    };
+  }
+
+  const xField = chartSpec.encoding?.x_field ?? null;
+  const yField = chartSpec.encoding?.y_field ?? null;
+  const seriesField = chartSpec.encoding?.series_field ?? null;
 
   if (seriesField && xField && yField) {
     const xAxis = [...new Set(rows.map((row) => String(row[xField] ?? '—')))];
@@ -267,7 +366,11 @@ function buildChartContent(cell: ApiCellRead): ChartCellContent {
     return {
       chartType: supportedType,
       title: chartSpec.title ?? 'Chart',
-      subtitle: 'Сгенерировано агентом визуализации',
+      subtitle,
+      explanation: chartSpec.explanation,
+      ruleId: chartSpec.rule_id,
+      confidence: chartSpec.confidence,
+      variant: chartSpec.variant,
       xAxis,
       series: groups.map((group) => ({
         name: group,
@@ -287,7 +390,11 @@ function buildChartContent(cell: ApiCellRead): ChartCellContent {
     return {
       chartType: supportedType,
       title: chartSpec.title ?? 'Chart',
-      subtitle: 'Сгенерировано агентом визуализации',
+      subtitle,
+      explanation: chartSpec.explanation,
+      ruleId: chartSpec.rule_id,
+      confidence: chartSpec.confidence,
+      variant: chartSpec.variant,
       xAxis: rows.map((row) => String(row[xField] ?? '—')),
       series: [
         {
@@ -298,11 +405,15 @@ function buildChartContent(cell: ApiCellRead): ChartCellContent {
     };
   }
 
-  const value = rows[0] && yField ? Number(rows[0][yField] ?? 0) : rows.length;
+  const value = rows[0] && chartSpec.encoding?.y_field ? Number(rows[0][chartSpec.encoding.y_field] ?? 0) : rows.length;
   return {
-    chartType: 'bar',
+    chartType: supportedType === 'metric_card' ? 'metric_card' : 'bar',
     title: chartSpec.title ?? 'Chart',
-    subtitle: 'Сгенерировано агентом визуализации',
+    subtitle,
+    explanation: chartSpec.explanation,
+    ruleId: chartSpec.rule_id,
+    confidence: chartSpec.confidence,
+    variant: chartSpec.variant,
     xAxis: ['Result'],
     series: [
       {
@@ -363,6 +474,10 @@ function buildTrace(run: ApiQueryRunRead | undefined, notebookTitle: string, ins
   };
   const chartSpec = (run.agent_trace.chart_spec ?? {}) as {
     chart_type?: string;
+    explanation?: string;
+    rule_id?: string;
+    confidence?: number;
+    variant?: string;
     encoding?: {
       x_field?: string | null;
       y_field?: string | null;
@@ -422,10 +537,12 @@ function buildTrace(run: ApiQueryRunRead | undefined, notebookTitle: string, ins
 
   if (chartSpec.chart_type) {
     steps.push({
-      agent: 'Visualization Agent',
-      purpose: 'Выбрать подходящий график для результата.',
-      output: `${chartSpec.chart_type} chart on ${chartSpec.encoding?.x_field ?? 'result'} / ${chartSpec.encoding?.y_field ?? 'metric'}`,
-      confidence: Math.max(run.confidence - 0.01, 0.7),
+      agent: 'Chart Decision Engine',
+      purpose: 'Выбрать тип визуализации по семантике и shape результата.',
+      output: chartSpec.rule_id
+        ? `${chartSpec.rule_id} · ${chartSpec.chart_type} (${chartSpec.variant ?? 'default'})`
+        : `${chartSpec.chart_type} chart on ${chartSpec.encoding?.x_field ?? 'result'} / ${chartSpec.encoding?.y_field ?? 'metric'}`,
+      confidence: typeof chartSpec.confidence === 'number' ? chartSpec.confidence : Math.max(run.confidence - 0.01, 0.7),
       latencyMs: 52
     });
   }

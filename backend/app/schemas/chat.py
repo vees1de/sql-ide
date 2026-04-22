@@ -109,6 +109,11 @@ class ChartRecommendation(BaseModel):
     x: str | None = None
     y: str | None = None
     series: str | None = None
+    variant: str | None = None
+    explanation: str | None = None
+    rule_id: str | None = None
+    confidence: float | None = None
+    data: dict[str, Any] | None = None
     reason: str
 
 

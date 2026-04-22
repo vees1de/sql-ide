@@ -12,7 +12,8 @@ from app.agents.validation import SQLValidationAgent
 from app.core.config import settings
 from app.db.models import ChatSessionModel, QueryExecutionModel
 from app.schemas.chat import ChartRecommendation
-from app.services.chart_recommendation_service import ChartRecommendationService
+from app.services.chart_data_adapter import ChartDataAdapter
+from app.services.chart_decision_service import ChartDecisionService
 from app.services.database_resolution import resolve_dialect, resolve_engine
 from app.services.schema_context_provider import SchemaContextProvider
 
@@ -23,7 +24,8 @@ class ChatExecutionService:
 
     def __init__(self) -> None:
         self.validation_agent = SQLValidationAgent()
-        self.chart_service = ChartRecommendationService()
+        self.chart_service = ChartDecisionService()
+        self.chart_data_adapter = ChartDataAdapter()
         self.schema_provider = SchemaContextProvider()
 
     def execute(self, db: Session, session_id: str, sql: str) -> QueryExecutionModel:
@@ -46,7 +48,22 @@ class ChatExecutionService:
             rows_full = json.loads(dataframe.to_json(orient="records", date_format="iso"))
             rows_preview, truncated = self._serialize_preview(rows_full)
             row_count = int(len(dataframe.index))
-            chart_recommendation = self.chart_service.recommend(columns, rows_preview, row_count)
+            execution_result = self._build_execution_result(validation.sql, rows_preview, columns, row_count, execution_time_ms)
+            decision = self.chart_service.decide(None, execution_result)
+            chart_payload = self.chart_data_adapter.build(execution_result, decision)
+            chart_recommendation = ChartRecommendation(
+                recommended_view="chart" if decision.chart_type != "table" else "table",
+                chart_type=decision.chart_type if decision.chart_type != "table" else None,
+                x=decision.encoding.x_field,
+                y=decision.encoding.y_field,
+                series=decision.encoding.series_field,
+                variant=decision.variant,
+                explanation=decision.explanation,
+                rule_id=decision.rule_id,
+                confidence=decision.confidence,
+                data=chart_payload,
+                reason=decision.explanation,
+            )
 
             execution = QueryExecutionModel(
                 session_id=session.id,
@@ -134,3 +151,21 @@ class ChatExecutionService:
         if len(preview) < len(rows_full):
             truncated = True
         return preview, truncated
+
+    def _build_execution_result(
+        self,
+        sql: str,
+        rows: list[dict[str, Any]],
+        columns: list[dict[str, str]],
+        row_count: int,
+        execution_time_ms: int,
+    ):
+        from app.schemas.query import QueryExecutionResult
+
+        return QueryExecutionResult(
+            sql=sql,
+            rows=rows,
+            columns=[str(column.get("name")) for column in columns],
+            row_count=row_count,
+            execution_time_ms=execution_time_ms,
+        )

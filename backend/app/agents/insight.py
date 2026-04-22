@@ -17,20 +17,26 @@ class InsightAgent:
         if metric_alias is None or not execution.rows:
             return "Запрос выполнен, но данных для текстового вывода недостаточно."
 
-        if "period_label" in execution.columns:
+        comparison_series = self._detect_series_column(execution)
+        if comparison_series is not None:
             totals = defaultdict(float)
             for row in execution.rows:
-                totals[str(row.get("period_label"))] += float(row.get(metric_alias) or 0)
-            current_total = totals.get("current_period", 0.0)
-            previous_total = totals.get("previous_year", 0.0)
-            if previous_total == 0:
-                return f"За текущий период показатель составил {self._fmt(current_total)}."
-            delta = ((current_total - previous_total) / previous_total) * 100
-            trend = "выше" if delta >= 0 else "ниже"
-            return (
-                f"Текущий период {trend} аналогичного периода прошлого года на "
-                f"{self._fmt(abs(delta))}% ({self._fmt(current_total)} против {self._fmt(previous_total)})."
-            )
+                totals[str(row.get(comparison_series))] += float(row.get(metric_alias) or 0)
+
+            labels = list(totals.keys())
+            if len(labels) >= 2:
+                current_label = self._preferred_current_label(labels)
+                comparison_label = next((label for label in labels if label != current_label), labels[1])
+                current_total = totals.get(current_label, 0.0)
+                comparison_total = totals.get(comparison_label, 0.0)
+                if comparison_total == 0:
+                    return f"За текущий период показатель составил {self._fmt(current_total)}."
+                delta = ((current_total - comparison_total) / comparison_total) * 100
+                trend = "выше" if delta >= 0 else "ниже"
+                return (
+                    f"Текущий период {trend} сравнительного периода на "
+                    f"{self._fmt(abs(delta))}% ({self._fmt(current_total)} против {self._fmt(comparison_total)})."
+                )
 
         if not semantic.dimension_mappings:
             value = float(execution.rows[0].get(metric_alias) or 0)
@@ -62,6 +68,31 @@ class InsightAgent:
             if column.startswith("total_") or column.endswith("_value"):
                 return column
         return None
+
+    def _detect_series_column(self, execution: QueryExecutionResult) -> str | None:
+        preferred = next(
+            (
+                column
+                for column in execution.columns
+                if column == "comparison_series" or column.endswith("_series") or column == "series"
+            ),
+            None,
+        )
+        if preferred is not None:
+            return preferred
+
+        for column in execution.columns:
+            values = [row.get(column) for row in execution.rows if row.get(column) is not None]
+            distinct = list(dict.fromkeys(str(value) for value in values))
+            if 2 <= len(distinct) <= 6:
+                return column
+        return None
+
+    def _preferred_current_label(self, labels: list[str]) -> str:
+        for candidate in ("current_period", "current", "this_period", "actual"):
+            if candidate in labels:
+                return candidate
+        return labels[0]
 
     def _fmt(self, value: float | int | Any) -> str:
         if isinstance(value, (float, int)):

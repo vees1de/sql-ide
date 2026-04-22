@@ -13,7 +13,6 @@ from app.agents.intent import IntentAgent
 from app.agents.semantic import SemanticMappingAgent
 from app.agents.sql_generation import SQLGenerationAgent
 from app.agents.validation import SQLValidationAgent
-from app.agents.visualization import VisualizationAgent
 from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_alias, settings
 from app.db.models import (
     CellModel,
@@ -23,13 +22,19 @@ from app.db.models import (
     SemanticDictionaryModel,
 )
 from app.db.session import analytics_engine
+from app.services.chart_data_adapter import ChartDataAdapter
+from app.services.chart_decision_service import ChartDecisionService
 from app.schemas.query import (
-    ChartEncoding,
     ChartSpec,
     IntentPayload,
     PromptRunResponse,
     QueryMode,
     QueryExecutionResult,
+    QuerySemantics,
+    SemanticComparisonPayload,
+    SemanticFlagsPayload,
+    SemanticMetricPayload,
+    SemanticTimePayload,
     normalize_query_mode,
 )
 from app.services.analytics import AnalyticsExecutionService
@@ -44,7 +49,8 @@ class QueryOrchestrationService:
         self.semantic_agent = SemanticMappingAgent()
         self.sql_generation_agent = SQLGenerationAgent()
         self.validation_agent = SQLValidationAgent()
-        self.visualization_agent = VisualizationAgent()
+        self.chart_decision_service = ChartDecisionService()
+        self.chart_data_adapter = ChartDataAdapter()
         self.insight_agent = InsightAgent()
         self.clarification_agent = ClarificationAgent()
         self.analytics_service = AnalyticsExecutionService()
@@ -885,45 +891,20 @@ class QueryOrchestrationService:
         plan: LLMQueryPlan,
         execution: QueryExecutionResult,
     ) -> ChartSpec:
-        numeric_columns = self._detect_numeric_columns(execution)
-        dimension_columns = [column for column in execution.columns if column not in numeric_columns]
-
-        x_field = plan.chart_x_field if plan.chart_x_field in execution.columns else None
-        y_field = plan.chart_y_field if plan.chart_y_field in execution.columns else None
-
-        if x_field is None and dimension_columns:
-            x_field = dimension_columns[0]
-        if y_field is None and numeric_columns:
-            y_field = numeric_columns[0]
-
-        chart_type = plan.chart_type or plan.intent.visualization_preference
-        if chart_type not in {"line", "bar", "pie", "table", "metric_card"}:
-            chart_type = self._infer_chart_type_from_prompt(prompt, x_field, y_field)
-
-        if chart_type in {"line", "bar", "pie"} and (x_field is None or y_field is None):
-            chart_type = "table"
-
-        return ChartSpec(
-            chart_type=chart_type,
+        semantics = plan.semantics or self._semantics_from_plan(plan, prompt)
+        decision = self.chart_decision_service.decide(semantics, execution)
+        return self._chart_spec_from_decision(
             title=plan.chart_title or prompt.strip()[:80] or "Query Result",
-            encoding=ChartEncoding(x_field=x_field, y_field=y_field),
-            options={"rowCount": execution.row_count},
+            decision=decision,
+            execution=execution,
         )
 
     def _build_manual_chart_spec(self, execution: QueryExecutionResult) -> ChartSpec:
-        numeric_columns = self._detect_numeric_columns(execution)
-        dimension_columns = [column for column in execution.columns if column not in numeric_columns]
-        x_field = dimension_columns[0] if dimension_columns else None
-        y_field = numeric_columns[0] if numeric_columns else None
-        chart_type = self._infer_chart_type(x_field, y_field)
-        if chart_type in {"line", "bar", "pie"} and (x_field is None or y_field is None):
-            chart_type = "table"
-
-        return ChartSpec(
-            chart_type=chart_type,
+        decision = self.chart_decision_service.decide(None, execution)
+        return self._chart_spec_from_decision(
             title="Manual SQL Result",
-            encoding=ChartEncoding(x_field=x_field, y_field=y_field),
-            options={"rowCount": execution.row_count},
+            decision=decision,
+            execution=execution,
         )
 
     def _resolve_dialect(self, db: Session, notebook: NotebookModel) -> str:
@@ -957,22 +938,151 @@ class QueryOrchestrationService:
             return metadata_tables
         return list(settings.allowed_tables)
 
-    def _infer_chart_type(self, x_field: str | None, y_field: str | None) -> str:
-        if x_field is None or y_field is None:
-            return "table"
-        if self._looks_temporal(x_field):
-            return "line"
-        return "bar"
+    def _semantics_from_plan(self, plan: LLMQueryPlan, prompt: str) -> Any:
+        intent = plan.intent
+        visualization_hint = plan.visualization_hint or intent.visualization_preference
+        flags = {
+            "is_time_series": bool(
+                intent.date_range
+                or self._has_temporal_dimension(intent)
+                or self._looks_temporal_prompt(prompt)
+                or intent.comparison in {"previous_year", "previous_period"}
+            ),
+            "is_comparison": bool(intent.comparison),
+            "is_ranking": bool(self._looks_ranking(prompt)),
+            "is_share": bool(self._looks_share(prompt)),
+            "top_n": self._extract_top_n(prompt),
+            "explicit_chart_request": bool(visualization_hint),
+        }
+        comparison_kind = "none"
+        if intent.comparison in {"previous_year", "previous_period"}:
+            comparison_kind = "period_over_period"
+        elif intent.comparison:
+            comparison_kind = "entity_vs_entity"
+        comparison = {
+            "kind": comparison_kind,
+            "entities": self._extract_comparison_entities(prompt) if intent.comparison else [],
+            "series_column": "comparison_series" if intent.comparison in {"previous_year", "previous_period"} else None,
+        }
+        time = None
+        if intent.date_range:
+            time = {
+                "column": None,
+                "granularity": self._infer_granularity(intent),
+                "range": intent.date_range.model_dump(mode="json"),
+            }
+        dimensions = [{"name": dimension, "role": "category"} for dimension in intent.dimensions]
+        metric = {"name": intent.metric, "aggregation": "sum", "unit": None} if intent.metric else None
+        return QuerySemantics(
+            intent="comparison" if flags["is_comparison"] else ("trend" if flags["is_time_series"] else None),
+            metric=SemanticMetricPayload(**metric) if metric else None,
+            dimensions=dimensions,
+            time=SemanticTimePayload(**time) if time else None,
+            comparison=SemanticComparisonPayload(**comparison) if comparison else None,
+            flags=SemanticFlagsPayload(**flags),
+            visualization_hint=visualization_hint,
+            confidence_score=float(intent.confidence or 0.0),
+        )
 
-    def _infer_chart_type_from_prompt(self, prompt: str, x_field: str | None, y_field: str | None) -> str:
+    def _chart_spec_from_decision(self, title: str, decision: Any, execution: QueryExecutionResult) -> ChartSpec:
+        chart_data = self.chart_data_adapter.build(execution, decision)
+        options = {
+            "rowCount": execution.row_count,
+            "ruleId": decision.rule_id,
+            "variant": decision.variant,
+            "confidence": decision.confidence,
+        }
+        if decision.chart_type == "metric_card":
+            metric_value = self._extract_metric_card_value(execution, decision.encoding.y_field)
+            options["metricValue"] = metric_value
+        return ChartSpec(
+            chart_type=decision.chart_type,
+            title=title,
+            encoding=decision.encoding,
+            options=options,
+            data=chart_data,
+            variant=decision.variant,
+            explanation=decision.explanation,
+            rule_id=decision.rule_id,
+            confidence=decision.confidence,
+        )
+
+    def _extract_metric_card_value(self, execution: QueryExecutionResult, field: str | None) -> float | int | None:
+        if field and execution.rows:
+            first_value = execution.rows[0].get(field)
+            numeric_value = self._to_number(first_value)
+            return numeric_value if numeric_value is not None else first_value
+        for row in execution.rows:
+            for value in row.values():
+                numeric_value = self._to_number(value)
+                if numeric_value is not None:
+                    return numeric_value
+        return None
+
+    def _has_temporal_dimension(self, intent: IntentPayload) -> bool:
+        temporal_dimensions = {"day", "week", "month", "quarter", "year"}
+        return any(dimension in temporal_dimensions for dimension in intent.dimensions)
+
+    def _looks_temporal_prompt(self, prompt: str) -> bool:
         lowered = prompt.lower()
-        distribution_keywords = ("распределен", "distribution", "долю", "доля", "breakdown", "proportion")
-        temporal_keywords = ("по годам", "по месяцам", "по неделям", "по дням", "динамик", "менялся", "менялос", "со временем", "trend", "over time")
-        if any(kw in lowered for kw in distribution_keywords):
-            return "pie"
-        if any(kw in lowered for kw in temporal_keywords):
-            return "line"
-        return self._infer_chart_type(x_field, y_field)
+        temporal_keywords = (
+            "по годам",
+            "по месяцам",
+            "по неделям",
+            "по дням",
+            "динамик",
+            "менялся",
+            "менялос",
+            "со временем",
+            "trend",
+            "over time",
+        )
+        return any(keyword in lowered for keyword in temporal_keywords)
+
+    def _looks_ranking(self, prompt: str) -> bool:
+        lowered = prompt.lower()
+        ranking_keywords = ("top", "best", "worst", "рейтинг", "rank", "топ")
+        return any(keyword in lowered for keyword in ranking_keywords)
+
+    def _looks_share(self, prompt: str) -> bool:
+        lowered = prompt.lower()
+        share_keywords = ("распределен", "distribution", "долю", "доля", "breakdown", "proportion", "share")
+        return any(keyword in lowered for keyword in share_keywords)
+
+    def _extract_top_n(self, prompt: str) -> int | None:
+        match = re.search(r"\btop\s*(\d+)\b", prompt, flags=re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        match = re.search(r"\bтоп\s*(\d+)\b", prompt, flags=re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        return None
+
+    def _extract_comparison_entities(self, prompt: str) -> list[str]:
+        entities: list[str] = []
+        for part in re.split(r"\b(?:vs|versus|против|и|and)\b", prompt, flags=re.IGNORECASE):
+            cleaned = part.strip(" ,.;:()[]{}\"'")
+            if cleaned and len(cleaned.split()) <= 4:
+                entities.append(cleaned)
+        return entities[:4]
+
+    def _infer_granularity(self, intent: IntentPayload) -> str | None:
+        for dimension in intent.dimensions:
+            if dimension in {"day", "week", "month", "quarter", "year"}:
+                return dimension
+        if intent.date_range and intent.date_range.lookback_unit:
+            unit = intent.date_range.lookback_unit.lower()
+            if unit.startswith("day"):
+                return "day"
+            if unit.startswith("week"):
+                return "week"
+            if unit.startswith("month"):
+                return "month"
+            if unit.startswith("quarter"):
+                return "quarter"
+            if unit.startswith("year"):
+                return "year"
+        return None
 
     def _build_generic_insight(self, execution: QueryExecutionResult, chart_spec: ChartSpec) -> str:
         if not execution.rows:

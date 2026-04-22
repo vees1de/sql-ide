@@ -49,5 +49,5 @@ class DictionaryEntryRead(BaseModel):
     table_name: str | None = None
     column_name: str | None = None
     source_database: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime = datetime.min
+    updated_at: datetime = datetime.min

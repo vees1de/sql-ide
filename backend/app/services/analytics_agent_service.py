@@ -13,7 +13,6 @@ from app.agents.intent import IntentAgent
 from app.agents.semantic import SemanticMappingAgent
 from app.agents.sql_generation import SQLGenerationAgent
 from app.agents.validation import SQLValidationAgent
-from app.agents.visualization import VisualizationAgent
 from app.core.config import settings
 from app.schemas.analytics import (
     AnalyticsContext,
@@ -28,10 +27,19 @@ from app.schemas.dictionary import DictionaryEntryRead
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import (
     ClarificationAnswerRecord,
+    ChartSpec,
     IntentPayload,
+    QueryExecutionResult,
+    QuerySemantics,
+    SemanticComparisonPayload,
+    SemanticFlagsPayload,
+    SemanticMetricPayload,
+    SemanticTimePayload,
 )
 from app.services.analytics import AnalyticsExecutionService
 from app.services.clarification_resolver import apply_answers
+from app.services.chart_data_adapter import ChartDataAdapter
+from app.services.chart_decision_service import ChartDecisionService
 from app.services.dashboard_recommendation_service import DashboardRecommendationService
 from app.services.database_resolution import resolve_allowed_tables, resolve_dialect
 from app.services.dictionary_service import DictionaryService
@@ -66,7 +74,8 @@ class AnalyticsAgentService:
         self.semantic_agent = SemanticMappingAgent()
         self.sql_generation_agent = SQLGenerationAgent()
         self.validation_agent = SQLValidationAgent()
-        self.visualization_agent = VisualizationAgent()
+        self.chart_decision_service = ChartDecisionService()
+        self.chart_data_adapter = ChartDataAdapter()
         self.insight_agent = InsightAgent()
         self.execution_service = AnalyticsExecutionService()
         self.metadata_service = MetadataService()
@@ -108,7 +117,7 @@ class AnalyticsAgentService:
                 error=str(exc),
             )
 
-        chart = self.visualization_agent.run(plan.intent, plan.semantic, execution)
+        chart = self._build_chart(plan.intent, plan.semantic, execution)
         insight = self.insight_agent.run(plan.intent, plan.semantic, execution)
         return AnalyticsResponse(
             intent=plan.intent,
@@ -263,7 +272,49 @@ class AnalyticsAgentService:
                     return IntentPayload.model_validate(raw)
             except Exception:  # noqa: BLE001
                 logger.warning("Failed to resolve previous notebook intent.")
-        return None
+                return None
+
+    def _build_chart(self, intent: IntentPayload, semantic: Any, execution: Any) -> ChartSpec:
+        semantics = QuerySemantics(
+            intent="comparison" if getattr(intent, "comparison", None) else None,
+            metric=SemanticMetricPayload(name=intent.metric, aggregation="sum") if intent.metric else None,
+            dimensions=[{"name": dimension, "role": "category"} for dimension in intent.dimensions],
+            time=SemanticTimePayload(column=None, granularity=None, range=intent.date_range) if intent.date_range else None,
+            comparison=SemanticComparisonPayload(
+                kind="period_over_period" if intent.comparison in {"previous_year", "previous_period"} else "entity_vs_entity",
+                entities=[],
+                series_column="comparison_series" if intent.comparison in {"previous_year", "previous_period"} else None,
+            )
+            if intent.comparison
+            else None,
+            flags=SemanticFlagsPayload(
+                is_time_series=bool(intent.date_range or intent.dimensions),
+                is_comparison=bool(intent.comparison),
+                explicit_chart_request=bool(intent.visualization_preference),
+            ),
+            visualization_hint=intent.visualization_preference,
+            confidence_score=float(intent.confidence or 0.0),
+        )
+        execution_result = QueryExecutionResult(
+            sql=execution.sql,
+            rows=execution.rows,
+            columns=execution.columns,
+            row_count=execution.row_count,
+            execution_time_ms=execution.execution_time_ms,
+        )
+        decision = self.chart_decision_service.decide(semantics, execution_result)
+        chart_payload = self.chart_data_adapter.build(execution_result, decision)
+        return ChartSpec(
+            chart_type=decision.chart_type,
+            title="Analytics Result",
+            encoding=decision.encoding,
+            options={"rowCount": execution.row_count},
+            data=chart_payload,
+            variant=decision.variant,
+            explanation=decision.explanation,
+            rule_id=decision.rule_id,
+            confidence=decision.confidence,
+        )
 
     def _apply_context(self, intent: IntentPayload, context: AnalyticsContext) -> IntentPayload:
         patched = intent.model_copy(deep=True)

@@ -30,66 +30,123 @@ const content = computed<ChartCellContent | null>(() => {
     return null;
   }
 
-  const rows = execution.rows_preview ?? [];
-  if (!rows.length || !recommendation.x || !recommendation.y) {
-    return null;
+  const chartData = recommendation.data as
+    | {
+        kind?: string;
+        x?: { field?: string | null; values?: unknown[]; type?: string | null };
+        y?: { field?: string | null; values?: unknown[]; unit?: string | null };
+        series?: Array<{ name?: string; data?: unknown[] }>;
+        slices?: Array<{ name?: string; value?: unknown }>;
+        value?: unknown;
+        metricLabel?: string | null;
+        stacked?: boolean;
+        stackable?: boolean;
+      }
+    | undefined;
+
+  if (chartData?.kind === 'kpi' || recommendation.chart_type === 'metric_card') {
+    return {
+      chartType: 'metric_card',
+      title: recommendation.reason,
+      subtitle: recommendation.explanation ?? recommendation.reason,
+      explanation: recommendation.explanation ?? recommendation.reason,
+      ruleId: recommendation.rule_id ?? undefined,
+      confidence: recommendation.confidence ?? undefined,
+      variant: recommendation.variant ?? undefined,
+      value: chartData?.value ?? '—',
+      metricLabel: chartData?.metricLabel ?? recommendation.y ?? 'Value'
+    };
   }
 
-  const title = recommendation.chart_type === 'pie'
-    ? 'Структура результата'
-    : 'Рекомендованная визуализация';
-
-  if (recommendation.chart_type === 'pie') {
+  if (chartData?.kind === 'pie' || recommendation.chart_type === 'pie') {
     return {
       chartType: 'pie',
-      title,
+      title: 'Структура результата',
       subtitle: recommendation.reason,
-      pieData: rows.map((row, index) => ({
-        name: String(row[recommendation.x ?? Object.keys(row)[0] ?? `label-${index}`] ?? `Сегмент ${index + 1}`),
-        value: toNumber(row[recommendation.y ?? 'value'])
-      }))
+      explanation: recommendation.explanation ?? recommendation.reason,
+      ruleId: recommendation.rule_id ?? undefined,
+      confidence: recommendation.confidence ?? undefined,
+      variant: recommendation.variant ?? undefined,
+      pieData: chartData?.slices?.map((slice, index) => ({
+        name: String(slice.name ?? `Segment ${index + 1}`),
+        value: Number(slice.value ?? 0)
+      })) ?? fallbackPieData(execution.rows_preview ?? [])
     };
   }
 
-  const xValues = uniqueValues(rows, recommendation.x);
-  if (recommendation.chart_type === 'stacked_bar' && recommendation.series) {
-    const seriesValues = uniqueValues(rows, recommendation.series);
+  if (chartData?.kind === 'multi_series') {
     return {
-      chartType: 'bar',
-      stacked: true,
-      title,
+      chartType: recommendation.chart_type === 'bar' ? 'bar' : 'line',
+      title: 'Рекомендованная визуализация',
       subtitle: recommendation.reason,
-      xAxis: xValues,
-      series: seriesValues.map((seriesName) => ({
-        name: seriesName,
-        data: xValues.map((xValue) => sumMatchingRows(rows, recommendation.x!, recommendation.series!, xValue, seriesName, recommendation.y!))
-      }))
+      explanation: recommendation.explanation ?? recommendation.reason,
+      ruleId: recommendation.rule_id ?? undefined,
+      confidence: recommendation.confidence ?? undefined,
+      variant: recommendation.variant ?? undefined,
+      xAxis: (chartData.x?.values ?? []).map((value) => String(value ?? '—')),
+      series: (chartData.series ?? []).map((series) => ({
+        name: String(series.name ?? 'Series'),
+        data: (series.data ?? []).map((value) => Number(value ?? 0))
+      })),
+      stacked: Boolean(chartData.stacked || chartData.stackable)
     };
   }
+
+  if (chartData?.kind === 'single_series') {
+    return {
+      chartType: recommendation.chart_type === 'bar' ? 'bar' : 'line',
+      title: 'Рекомендованная визуализация',
+      subtitle: recommendation.reason,
+      explanation: recommendation.explanation ?? recommendation.reason,
+      ruleId: recommendation.rule_id ?? undefined,
+      confidence: recommendation.confidence ?? undefined,
+      variant: recommendation.variant ?? undefined,
+      xAxis: (chartData.x?.values ?? []).map((value) => String(value ?? '—')),
+      series: [
+        {
+          name: String(chartData.y?.field ?? recommendation.y ?? 'Value'),
+          data: (chartData.y?.values ?? []).map((value) => Number(value ?? 0))
+        }
+      ]
+    };
+  }
+
+  const rows = execution.rows_preview ?? [];
+  const xField = recommendation.x ?? Object.keys(rows[0] ?? {})[0] ?? '';
+  const yField = recommendation.y ?? Object.keys(rows[0] ?? {})[1] ?? '';
 
   if (recommendation.series) {
-    const seriesValues = uniqueValues(rows, recommendation.series);
+    const xValues = [...new Set(rows.map((row) => String(row[xField] ?? '—')))];
+    const seriesValues = [...new Set(rows.map((row) => String(row[recommendation.series!] ?? 'Series')))];
     return {
       chartType: recommendation.chart_type === 'line' ? 'line' : 'bar',
-      title,
+      title: 'Рекомендованная визуализация',
       subtitle: recommendation.reason,
+      explanation: recommendation.explanation ?? recommendation.reason,
+      ruleId: recommendation.rule_id ?? undefined,
+      confidence: recommendation.confidence ?? undefined,
+      variant: recommendation.variant ?? undefined,
       xAxis: xValues,
       series: seriesValues.map((seriesName) => ({
         name: seriesName,
-        data: xValues.map((xValue) => sumMatchingRows(rows, recommendation.x!, recommendation.series!, xValue, seriesName, recommendation.y!))
+        data: xValues.map((xValue) => sumMatchingRows(rows, xField, recommendation.series!, xValue, seriesName, yField))
       }))
     };
   }
 
   return {
     chartType: recommendation.chart_type === 'line' ? 'line' : 'bar',
-    title,
+    title: 'Рекомендованная визуализация',
     subtitle: recommendation.reason,
-    xAxis: xValues,
+    explanation: recommendation.explanation ?? recommendation.reason,
+    ruleId: recommendation.rule_id ?? undefined,
+    confidence: recommendation.confidence ?? undefined,
+    variant: recommendation.variant ?? undefined,
+    xAxis: rows.map((row) => String(row[xField] ?? '—')),
     series: [
       {
-        name: recommendation.y,
-        data: xValues.map((xValue) => sumRowValue(rows, recommendation.x!, xValue, recommendation.y!))
+        name: String(yField),
+        data: rows.map((row) => Number(row[yField] ?? 0))
       }
     ]
   };
@@ -117,8 +174,11 @@ const emptyMessage = computed(() => {
   return 'Для этого результата график не рекомендован.';
 });
 
-function uniqueValues(rows: Array<Record<string, unknown>>, field: string) {
-  return [...new Set(rows.map((row) => String(row[field] ?? '—')))];
+function fallbackPieData(rows: Array<Record<string, unknown>>) {
+  return rows.map((row, index) => ({
+    name: String(row[Object.keys(row)[0] ?? `label-${index}`] ?? `Segment ${index + 1}`),
+    value: Number(row[Object.keys(row)[1] ?? 'value'] ?? 0)
+  }));
 }
 
 function sumMatchingRows(
@@ -135,12 +195,6 @@ function sumMatchingRows(
         String(row[xField] ?? '—') === xValue &&
         String(row[seriesField] ?? '—') === seriesValue
     )
-    .reduce((sum, row) => sum + toNumber(row[yField]), 0);
-}
-
-function sumRowValue(rows: Array<Record<string, unknown>>, xField: string, xValue: string, yField: string) {
-  return rows
-    .filter((row) => String(row[xField] ?? '—') === xValue)
     .reduce((sum, row) => sum + toNumber(row[yField]), 0);
 }
 
