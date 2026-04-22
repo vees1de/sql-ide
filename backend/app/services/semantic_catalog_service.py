@@ -36,11 +36,6 @@ from app.services.database_resolution import resolve_allowed_tables, resolve_dia
 from app.services.knowledge_service import KnowledgeService
 from app.services.llm_service import LLMService
 from app.services.relationship_graph import build_relationship_graph
-from app.services.semantic_seed_notes import (
-    SemanticSeedBundle,
-    apply_table_semantic_seed,
-    resolve_database_semantic_seed,
-)
 
 
 _METRIC_NAME_HINTS = ("amount", "revenue", "sales", "price", "cost", "fee", "profit", "balance", "value")
@@ -71,19 +66,15 @@ class SemanticCatalogService:
             if cached is not None:
                 return cached
 
-        semantic_seed = resolve_database_semantic_seed(db, database_id)
-        resolved_description = database_description or (semantic_seed.database_description if semantic_seed else None)
         catalog = self.build_catalog(
             db,
             database_id,
-            database_description=resolved_description,
-            semantic_seed=semantic_seed,
+            database_description=database_description,
         )
         return self.save_catalog(
             db,
             catalog,
-            database_description=resolved_description,
-            semantic_seed=semantic_seed,
+            database_description=database_description,
         )
 
     def activate_catalog(
@@ -106,7 +97,6 @@ class SemanticCatalogService:
         db: Session,
         catalog: SemanticCatalog,
         database_description: str | None = None,
-        semantic_seed: SemanticSeedBundle | None = None,
     ) -> SemanticCatalog:
         source_scan_run_id = self._latest_scan_run_id(db, catalog.database_id)
         self._deactivate_catalogs(db, catalog.database_id)
@@ -126,7 +116,6 @@ class SemanticCatalogService:
             notes=self._catalog_notes(
                 catalog,
                 database_description=database_description,
-                semantic_seed=semantic_seed,
             ),
         )
         db.add(catalog_model)
@@ -237,13 +226,10 @@ class SemanticCatalogService:
         db: Session,
         database_id: str,
         database_description: str | None = None,
-        semantic_seed: SemanticSeedBundle | None = None,
     ) -> SemanticCatalog:
-        semantic_seed = semantic_seed or resolve_database_semantic_seed(db, database_id)
-        resolved_description = database_description or (semantic_seed.database_description if semantic_seed else None)
         target = self._resolve_target(db, database_id)
         inspector = sa_inspect(target["engine"])
-        language_hint = self._detect_language(resolved_description)
+        language_hint = self._detect_language(database_description)
         schema_map = self._load_knowledge_tables(db, database_id)
 
         tables: list[SemanticTable] = []
@@ -260,10 +246,6 @@ class SemanticCatalogService:
                 physical=physical,
                 language_hint=language_hint,
             )
-            if semantic_seed is not None:
-                table_seed = semantic_seed.tables.get(table_name)
-                if table_seed is not None:
-                    table = apply_table_semantic_seed(table, table_seed)
             tables.append(table)
             relationships.extend(table.relationships)
 
@@ -274,8 +256,7 @@ class SemanticCatalogService:
         tables = self._apply_llm_enrichment(
             tables,
             relationship_graph,
-            database_description=resolved_description,
-            semantic_seed=semantic_seed,
+            database_description=database_description,
         )
 
         return SemanticCatalog(
@@ -556,7 +537,6 @@ class SemanticCatalogService:
         self,
         catalog: SemanticCatalog,
         database_description: str | None = None,
-        semantic_seed: SemanticSeedBundle | None = None,
     ) -> list[str]:
         notes = [
             f"tables={len(catalog.tables)}",
@@ -566,8 +546,6 @@ class SemanticCatalogService:
         ]
         if database_description and database_description.strip():
             notes.append(f"database_description={database_description.strip()}")
-        if semantic_seed and semantic_seed.source_path:
-            notes.append(f"semantic_seed={semantic_seed.source_path}")
         if self.llm_service.configured:
             notes.append("enriched_with_llm")
         return notes
@@ -577,7 +555,6 @@ class SemanticCatalogService:
         tables: list[SemanticTable],
         relationship_graph: list[RelationshipGraphEdge],
         database_description: str | None = None,
-        semantic_seed: SemanticSeedBundle | None = None,
     ) -> list[SemanticTable]:
         if not self.llm_service.configured:
             return tables
@@ -602,10 +579,6 @@ class SemanticCatalogService:
                 enriched_tables.append(table)
                 continue
             merged = self._merge_table_enrichment(table, enrichment)
-            if semantic_seed is not None:
-                table_seed = semantic_seed.tables.get(table.table_name)
-                if table_seed is not None:
-                    merged = apply_table_semantic_seed(merged, table_seed)
             enriched_tables.append(merged)
         return enriched_tables
 

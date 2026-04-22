@@ -10,6 +10,7 @@ from app.evals.chat_text_to_sql_eval import (
     ChartExpectation,
     ClarificationExpectation,
     _build_repair_targets,
+    _matches_column_reference,
     _resolve_clarification_answer,
     evaluate_step,
 )
@@ -248,3 +249,9 @@ def test_resolve_clarification_answer_prefers_explicit_or_hour() -> None:
 
     assert _resolve_clarification_answer(payload, preferred_reply="driver_id") == "driver_id"
     assert _resolve_clarification_answer(payload) == "Hour"
+
+
+def test_matches_column_reference_uses_semantic_alias_matching() -> None:
+    assert _matches_column_reference("avg_accept_to_arrival_min", ["avg_pickup_minutes", "avg_time_to_arrival"])
+    assert _matches_column_reference("share_not_completed", ["non_completion_rate", "not_completed_rate"])
+    assert _matches_column_reference("hour_of_day", ["hour", "hour_bucket", "order_hour"])

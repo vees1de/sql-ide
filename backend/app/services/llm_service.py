@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from datetime import date
+from typing import TYPE_CHECKING
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
@@ -12,6 +13,9 @@ from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import IntentPayload, QuerySemantics
 from app.schemas.semantic_catalog import SemanticTable, SemanticTableEnrichment
+
+if TYPE_CHECKING:
+    from app.services.llm_schema_recon_service import LLMSchemaReconToolbox
 
 try:
     from openai import OpenAI
@@ -31,6 +35,13 @@ class LLMQueryPlan(BaseModel):
     chart_y_field: str | None = None
     visualization_hint: str | None = None
     chart_title: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class LLMSqlRepairPayload(BaseModel):
+    sql: str | None = None
+    reason: str | None = None
+    retryable: bool = True
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -58,6 +69,7 @@ class LLMService:
         history_text: str | None = None,
         temperature: float = 0.1,
         model: str | None = None,
+        schema_toolbox: "LLMSchemaReconToolbox | None" = None,
     ) -> LLMQueryPlan | None:
         target_model = model or settings.llm_model
         if not self._configured_for_model(target_model):
@@ -75,14 +87,16 @@ class LLMService:
             "2. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, GRANT or transaction statements.\n"
             "3. Prefer explicit JOINs and explicit aliases.\n"
             "4. Keep SQL compatible with the provided SQL dialect.\n"
-            "5. Ask for clarification only when the request is TRULY ambiguous — i.e. a choice between "
-            "different tables, metrics, or join paths meaningfully changes the SQL. Do NOT clarify when "
-            "the user already specified the grouping (e.g. 'по часам', 'by hour', 'по водителям', "
-            "'по driver_id'), the metric (e.g. 'конверсия', 'completion rate', 'доля ...'), the filter "
-            "(e.g. 'за 14 апреля 2026', 'только завершённые заказы'), or the chart type — in those cases "
-            "proceed directly with SQL. If the user listed multiple metrics in one request (e.g. "
-            "'количество созданных, количество завершённых и конверсию'), return a single SQL that "
-            "produces all of them as separate columns; do NOT ask which metric to pick. Set "
+            "5. Clarifications are welcome when they genuinely help pin down user intent — e.g. "
+            "choosing between plausible metric definitions (what counts as 'completed'?), join paths, "
+            "status value semantics, or a missing time window. A well-grounded clarification beats a "
+            "wrong SQL. That said, do NOT ask when the user already specified the relevant detail: "
+            "grouping (e.g. 'по часам', 'by hour', 'по водителям', 'по driver_id'), the metric "
+            "(e.g. 'конверсия', 'completion rate', 'доля ...'), the filter "
+            "(e.g. 'за 14 апреля 2026', 'только завершённые заказы'), or the chart type — in those "
+            "cases proceed directly with SQL. If the user listed multiple metrics in one request "
+            "(e.g. 'количество созданных, количество завершённых и конверсию'), return a single SQL "
+            "that produces all of them as separate columns; do NOT ask which metric to pick. Set "
             "clarification_question to null and populate sql whenever the request is specific enough "
             "to write a safe SELECT.\n"
             "6. Keep warnings concise.\n"
@@ -141,6 +155,8 @@ class LLMService:
             "19. COMPARISON SEMANTICS — when comparing periods or entities, fill semantics.comparison.kind "
             "with 'period_over_period' or 'entity_vs_entity' and populate semantics.comparison.entities "
             "when concrete entities are mentioned.\n"
+            f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
+            f"{self._alias_contract_guidance()}"
             "{"
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
             '"filters":[{"field":"string","operator":"string","value":"any"}],'
@@ -166,6 +182,8 @@ class LLMService:
                 "schema": schema_summary,
                 "previous_intent": previous_intent_payload,
                 "history_text": history_text,
+                "alias_contract": self._alias_contract_reference(),
+                "available_tools": self._tool_names(schema_toolbox),
                 "user_prompt": prompt,
             },
             ensure_ascii=False,
@@ -173,15 +191,36 @@ class LLMService:
         )
 
         try:
-            content = self._chat_json(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=2200,
-                temperature=temperature,
-                model=target_model,
-            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            if schema_toolbox is not None:
+                try:
+                    content = self._chat_json_with_tools(
+                        messages=messages,
+                        tools=schema_toolbox.tool_specs(),
+                        tool_executor=schema_toolbox.execute_tool,
+                        max_rounds=4,
+                        max_tokens=2200,
+                        temperature=temperature,
+                        model=target_model,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("LLM planning tool-call loop failed, falling back to plain planning: %s", exc)
+                    content = self._chat_json(
+                        messages=messages,
+                        max_tokens=2200,
+                        temperature=temperature,
+                        model=target_model,
+                    )
+            else:
+                content = self._chat_json(
+                    messages=messages,
+                    max_tokens=2200,
+                    temperature=temperature,
+                    model=target_model,
+                )
             payload = json.loads(self._extract_json_object(content))
             payload.setdefault("intent", {})
             payload["intent"].setdefault("raw_prompt", prompt)
@@ -192,6 +231,108 @@ class LLMService:
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM planning request failed: %s", exc)
         return None
+
+    def repair_sql(
+        self,
+        *,
+        prompt: str,
+        schema: SchemaMetadataResponse,
+        failed_sql: str,
+        failure_reason: str,
+        previous_intent: IntentPayload | None = None,
+        history_text: str | None = None,
+        row_count: int | None = None,
+        execution_columns: list[str] | None = None,
+        execution_rows: list[dict[str, Any]] | None = None,
+        attempt_index: int = 0,
+        model: str | None = None,
+        schema_toolbox: "LLMSchemaReconToolbox | None" = None,
+    ) -> LLMSqlRepairPayload | None:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model):
+            return None
+
+        previous_intent_payload = previous_intent.model_dump(mode="json") if previous_intent else None
+        system_prompt = (
+            "You are repairing a failed text-to-SQL attempt. "
+            "Return exactly one JSON object and no markdown. "
+            "Preserve the original business intent. Only fix SQL mistakes, wrong enum values, wrong join paths, "
+            "empty-result filters, or alias contract violations.\n"
+            "Rules:\n"
+            "1. Return a single safe read-only SELECT.\n"
+            "2. Keep aliases stable and analytics-friendly.\n"
+            "3. If the previous SQL used a likely-wrong enum value, date filter, or join path, correct it.\n"
+            "4. If the previous SQL returned zero rows, prefer fixing the wrong predicate over broadening the user intent.\n"
+            "5. Before guessing enum values, low-cardinality labels, or real event semantics, use the tools.\n"
+            "6. If you truly cannot repair this safely, return sql=null and retryable=false.\n"
+            f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
+            f"{self._alias_contract_guidance()}"
+            '{'
+            '"sql":"string|null",'
+            '"reason":"string|null",'
+            '"retryable":"boolean",'
+            '"warnings":["string"]'
+            '}'
+        )
+        user_prompt = json.dumps(
+            {
+                "today": date.today().isoformat(),
+                "dialect": schema.dialect,
+                "schema": self._format_schema(schema),
+                "previous_intent": previous_intent_payload,
+                "history_text": history_text,
+                "alias_contract": self._alias_contract_reference(),
+                "available_tools": self._tool_names(schema_toolbox),
+                "repair_context": {
+                    "user_prompt": prompt,
+                    "failed_sql": failed_sql,
+                    "failure_reason": failure_reason,
+                    "row_count": row_count,
+                    "execution_columns": execution_columns or [],
+                    "execution_rows_preview": list(execution_rows or [])[:10],
+                    "attempt_index": attempt_index,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            if schema_toolbox is not None:
+                try:
+                    content = self._chat_json_with_tools(
+                        messages=messages,
+                        tools=schema_toolbox.tool_specs(),
+                        tool_executor=schema_toolbox.execute_tool,
+                        max_rounds=4,
+                        max_tokens=1800,
+                        temperature=0.0,
+                        model=target_model,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("LLM repair tool-call loop failed, falling back to plain repair: %s", exc)
+                    content = self._chat_json(
+                        messages=messages,
+                        max_tokens=1800,
+                        temperature=0.0,
+                        model=target_model,
+                    )
+            else:
+                content = self._chat_json(
+                    messages=messages,
+                    max_tokens=1800,
+                    temperature=0.0,
+                    model=target_model,
+                )
+            payload = json.loads(self._extract_json_object(content))
+            return LLMSqlRepairPayload.model_validate(payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("LLM SQL repair failed: %s", exc)
+            return None
 
     def summarize_result(
         self,
@@ -330,7 +471,7 @@ class LLMService:
 
     def _chat_json(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         max_tokens: int,
         temperature: float,
         model: str,
@@ -345,7 +486,7 @@ class LLMService:
 
     def _chat_text(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         max_tokens: int,
         temperature: float,
         model: str,
@@ -357,6 +498,76 @@ class LLMService:
             temperature=temperature,
         )
         return self._extract_text(response.choices[0].message.content)
+
+    def _chat_json_with_tools(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_executor,
+        max_rounds: int,
+        max_tokens: int,
+        temperature: float,
+        model: str,
+    ) -> str:
+        conversation = [dict(message) for message in messages]
+        for _ in range(max_rounds):
+            response = self._get_client().chat.completions.create(
+                model=str(model),
+                messages=conversation,
+                tools=tools,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            message = response.choices[0].message
+            tool_calls = list(getattr(message, "tool_calls", None) or [])
+            assistant_message: dict[str, Any] = {
+                "role": "assistant",
+                "content": self._extract_text(message.content),
+            }
+            if tool_calls:
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": getattr(getattr(call, "function", None), "name", ""),
+                            "arguments": getattr(getattr(call, "function", None), "arguments", "{}"),
+                        },
+                    }
+                    for call in tool_calls
+                ]
+            conversation.append(assistant_message)
+
+            if not tool_calls:
+                return assistant_message["content"]
+
+            for call in tool_calls:
+                function = getattr(call, "function", None)
+                result = tool_executor(
+                    getattr(function, "name", ""),
+                    getattr(function, "arguments", "{}"),
+                )
+                conversation.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": json.dumps(result, ensure_ascii=False, indent=2),
+                    }
+                )
+
+        return self._chat_json(
+            messages=[
+                *conversation,
+                {
+                    "role": "system",
+                    "content": "Stop using tools. Return the final JSON object now.",
+                },
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            model=model,
+        )
 
     def _get_client(self) -> OpenAI:
         if OpenAI is None:
@@ -405,6 +616,56 @@ class LLMService:
                 for edge in schema.relationship_graph
             ],
         }
+
+    def _schema_tool_guidance(self, *, enabled: bool) -> str:
+        if not enabled:
+            return ""
+        return (
+            "20. READ-ONLY TOOLING — you may use list_tables, describe_table, sample_rows, and distinct_values. "
+            "Use them sparingly when you need real enum values, representative rows, or a clearer join path. "
+            "Before asking clarification about status semantics, low-cardinality categories, or concrete labels, "
+            "inspect the schema or values via tools. Prefer at most 1–3 tool calls total.\n"
+        )
+
+    def _alias_contract_guidance(self) -> str:
+        return (
+            "21. OUTPUT ALIAS CONTRACT — use stable snake_case aliases. "
+            "Time buckets must use the grain as the alias: hour, day, week, month, quarter, year. "
+            "Counts must use *_count or total_* (e.g. payment_count, rental_count, total_orders). "
+            "Monetary sums must use total_* (e.g. total_revenue). "
+            "Ratios, shares, conversion metrics, and late/return percentages must use *_rate. "
+            "Average durations must use avg_*_minutes or avg_*_days depending on the unit. "
+            "When the request asks for multiple metrics, expose each as its own aliased column.\n"
+            "22. FEW-SHOT ALIAS EXAMPLES — "
+            "Example A: daily revenue and payment count by store -> columns day, store_id, total_revenue, payment_count. "
+            "Example B: top categories by revenue -> columns category, total_revenue. "
+            "Example C: weekly average rental days and late return rate -> columns week, avg_rental_days, late_return_rate.\n"
+        )
+
+    def _alias_contract_reference(self) -> dict[str, Any]:
+        return {
+            "time_buckets": {
+                "hour": "hour",
+                "day": "day",
+                "week": "week",
+                "month": "month",
+                "quarter": "quarter",
+                "year": "year",
+            },
+            "count_examples": ["payment_count", "rental_count", "total_orders"],
+            "sum_examples": ["total_revenue", "total_amount"],
+            "rate_examples": ["completion_rate", "conversion_rate", "late_return_rate"],
+            "duration_examples": ["avg_pickup_minutes", "avg_rental_days", "avg_ride_minutes"],
+        }
+
+    def _tool_names(self, schema_toolbox: "LLMSchemaReconToolbox | None") -> list[str]:
+        if schema_toolbox is None:
+            return []
+        return [
+            tool.get("function", {}).get("name")
+            for tool in schema_toolbox.tool_specs()
+            if tool.get("function", {}).get("name")
+        ]
 
     def _detect_language(self, *texts: str | None) -> str:
         joined = " ".join(text for text in texts if text)

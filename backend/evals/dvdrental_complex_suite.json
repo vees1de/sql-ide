@@ -1,0 +1,130 @@
+{
+  "suite_name": "dvdrental_complex_chat_text_to_sql",
+  "database_id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+  "query_mode": "thinking",
+  "llm_model_alias": "gpt120",
+  "cases": [
+    {
+      "id": "daily_store_revenue_march_2007",
+      "title": "Daily revenue and payment count by store",
+      "tags": ["complex", "timeseries", "comparison", "aliases"],
+      "steps": [
+        {
+          "user": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": [
+                "2007-03",
+                "payment",
+                "payment_date",
+                "group by",
+                "sum("
+              ],
+              "required_tables": [
+                "payment"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["day"],
+                ["store_id"],
+                ["total_revenue"],
+                ["payment_count"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["day"],
+                "y_any_of": ["total_revenue"],
+                "series_any_of": ["store_id"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "top_categories_revenue_april_2007",
+      "title": "Top categories by revenue",
+      "tags": ["complex", "ranking", "aliases"],
+      "steps": [
+        {
+          "user": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": [
+                "2007-04",
+                "payment",
+                "category",
+                "limit 10",
+                "sum("
+              ],
+              "required_tables": [
+                "payment"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_column_groups": [
+                ["category"],
+                ["total_revenue"],
+                ["payment_count"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["category"],
+                "y_any_of": ["total_revenue"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "weekly_late_return_rate_august_2005",
+      "title": "Weekly actual rental days and late return rate",
+      "tags": ["complex", "rate", "duration", "repair"],
+      "steps": [
+        {
+          "user": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": [
+                "2005-08",
+                "rental",
+                "return_date",
+                "rental_duration",
+                "group by"
+              ],
+              "required_tables": [
+                "rental",
+                "film",
+                "inventory"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["week"],
+                ["avg_rental_days"],
+                ["late_return_rate"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["week"],
+                "y_any_of": ["late_return_rate", "avg_rental_days"]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

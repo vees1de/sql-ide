@@ -1,0 +1,136 @@
+{
+  "suite_name": "sakila_complex_chat_text_to_sql",
+  "database_id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+  "query_mode": "thinking",
+  "llm_model_alias": "gpt120",
+  "cases": [
+    {
+      "id": "monthly_revenue_timeseries",
+      "title": "Monthly revenue and payment count by month",
+      "tags": ["timeseries", "revenue", "line"],
+      "steps": [
+        {
+          "user": "Покажи помесячно общую выручку и количество платежей за весь период данных. Нужен line chart.",
+          "clarification_reply": "Month",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": ["payment", "group by", "amount"],
+              "required_tables": ["payment"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["month", "month_bucket", "payment_month", "period"],
+                ["total_revenue", "revenue", "total_amount", "sum_amount"],
+                ["payment_count", "total_payments", "count_payments", "payments"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["month", "month_bucket", "payment_month", "period"],
+                "y_any_of": ["total_revenue", "revenue", "total_amount", "payment_count"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "top_customers_by_spending",
+      "title": "Top 10 customers by total payment amount",
+      "tags": ["ranking", "customer", "bar"],
+      "steps": [
+        {
+          "user": "Найди топ-10 клиентов по суммарным платежам. Покажи имя, фамилию и сумму. Нужен bar chart.",
+          "clarification_reply": "Группируй по customer_id, выводи full name и total_revenue",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": ["payment", "customer", "limit 10"],
+              "required_tables": ["payment", "customer"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_column_groups": [
+                ["customer_id", "customer", "first_name", "full_name", "name"],
+                ["total_revenue", "total_amount", "total_paid", "revenue", "sum_amount"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["customer_id", "full_name", "name", "first_name", "customer"],
+                "y_any_of": ["total_revenue", "total_amount", "revenue", "sum_amount", "total_paid"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "film_late_return_rate_by_rating",
+      "title": "Late return rate by film rating",
+      "tags": ["share", "rating", "bar"],
+      "steps": [
+        {
+          "user": "По каждому рейтингу фильма (G, PG, PG-13, R, NC-17) посчитай долю прокатов, возвращённых позже срока (return_date > rental_date + rental_duration дней). Нужен bar chart.",
+          "clarification_reply": "Считай просроченным: return_date > rental_date + rental_duration * INTERVAL '1 day'. Группируй по rating.",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": ["rental", "film", "rating", "group by"],
+              "required_tables": ["rental", "film"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_column_groups": [
+                ["rating"],
+                ["late_return_rate", "overdue_rate", "late_rate", "return_rate", "late_share"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["rating"],
+                "y_any_of": ["late_return_rate", "overdue_rate", "late_rate", "return_rate", "late_share"]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "weekly_rentals_and_revenue",
+      "title": "Weekly rentals and revenue comparison",
+      "tags": ["timeseries", "weekly", "line"],
+      "steps": [
+        {
+          "user": "Покажи понедельно количество аренд и выручку за февраль–май 2007 года. Нужен line chart.",
+          "clarification_reply": "Week",
+          "expectations": {
+            "should_clarify": false,
+            "sql": {
+              "required_substrings": ["payment", "group by", "2007"],
+              "required_tables": ["payment"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["week", "week_bucket", "payment_week", "period"],
+                ["total_revenue", "revenue", "total_amount", "sum_amount"],
+                ["payment_count", "rental_count", "total_payments", "count"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["week", "week_bucket", "payment_week", "period"],
+                "y_any_of": ["total_revenue", "revenue", "total_amount", "payment_count", "rental_count"]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

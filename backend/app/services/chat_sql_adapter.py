@@ -29,6 +29,7 @@ from app.schemas.query import (
 from app.services.chat_service import ChatService
 from app.services.clarification_resolver import apply_answers
 from app.services.llm_service import LLMQueryPlan, LLMService
+from app.services.llm_schema_recon_service import LLMSchemaReconService
 from app.services.dictionary_service import DictionaryService
 from app.services.analytics_agent_service import AnalyticsAgentService
 
@@ -50,6 +51,7 @@ class ChatSqlAdapter:
         self.analytics_agent = AnalyticsAgentService()
         self.clarification_agent = self.analytics_agent.clarification_agent
         self.llm_service = LLMService()
+        self.schema_recon_service = LLMSchemaReconService()
 
     def generate_response(
         self,
@@ -76,6 +78,8 @@ class ChatSqlAdapter:
         if query_mode == "thinking":
             schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
             plan = self._try_llm_plan(
+                db,
+                session.database_connection_id,
                 user_text,
                 schema,
                 previous_intent,
@@ -183,6 +187,8 @@ class ChatSqlAdapter:
 
     def _try_llm_plan(
         self,
+        db: Session,
+        database_connection_id: str,
         user_text: str,
         schema,
         previous_intent: IntentPayload | None,
@@ -196,6 +202,7 @@ class ChatSqlAdapter:
             history_text=history_text,
             temperature=0.0,
             model=llm_model,
+            schema_toolbox=self.schema_recon_service.build_toolbox(db, database_connection_id),
         )
 
     def _from_plan(

@@ -1,0 +1,1325 @@
+[
+  {
+    "case_id": "film_late_return_rate_by_rating",
+    "step_index": 1,
+    "step_ref": "film_late_return_rate_by_rating#step1",
+    "user_prompt": "По каждому рейтингу фильма (G, PG, PG-13, R, NC-17) посчитай долю прокатов, возвращённых позже срока (return_date > rental_date + rental_duration дней). Нужен bar chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "rental",
+          "film",
+          "rating",
+          "group by"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "rental",
+          "film"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": 10,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "rating"
+          ],
+          [
+            "late_return_rate",
+            "overdue_rate",
+            "late_rate",
+            "return_rate",
+            "late_share"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "bar"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "rating"
+          ],
+          "y_any_of": [
+            "late_return_rate",
+            "overdue_rate",
+            "late_rate",
+            "return_rate",
+            "late_share"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "Не удалось понять метрику. Уточните, что считать: выручку, количество заказов или средний чек?",
+      "clarification_options": [
+        {
+          "id": "film.film_id",
+          "label": "film.film_id",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "film.language_id",
+          "label": "film.language_id",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "film.rental_duration",
+          "label": "film.rental_duration",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "film.rental_rate",
+          "label": "film.rental_rate",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "inventory.inventory_id",
+          "label": "inventory.inventory_id",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "inventory.film_id",
+          "label": "inventory.film_id",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "answer",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "Не удалось понять метрику. Уточните, что считать: выручку, количество заказов или средний чек?",
+          "answer": "Считай просроченным: return_date > rental_date + rental_duration * INTERVAL '1 day'. Группируй по rating.",
+          "options": [
+            {
+              "id": "film.film_id",
+              "label": "film.film_id",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "film.language_id",
+              "label": "film.language_id",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "film.rental_duration",
+              "label": "film.rental_duration",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "film.rental_rate",
+              "label": "film.rental_rate",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "inventory.inventory_id",
+              "label": "inventory.inventory_id",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "inventory.film_id",
+              "label": "inventory.film_id",
+              "detail": null,
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "Считай просроченным: return_date > rental_date + rental_duration * INTERVAL '1 day'. Группируй по rating.",
+        "metric": "late_return_rate",
+        "dimensions": [
+          "rating"
+        ],
+        "filters": [
+          {
+            "field": "rental.return_date",
+            "operator": "IS NOT NULL",
+            "value": null
+          }
+        ],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": "bar",
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.98,
+        "follow_up": false
+      },
+      "sql": "SELECT\n  f.rating,\n  COUNT(*) FILTER (WHERE r.return_date > r.rental_date + f.rental_duration * INTERVAL '1 day') AS late_rental_count,\n  COUNT(*) AS total_rental_count,\n  COUNT(*) FILTER (WHERE r.return_date > r.rental_date + f.rental_duration * INTERVAL '1 day') * 1.0 / NULLIF(COUNT(*), 0) AS late_return_rate\nFROM rental r\nJOIN inventory i ON r.inventory_id = i.inventory_id\nJOIN film f ON i.film_id = f.film_id\nWHERE r.return_date IS NOT NULL\nGROUP BY f.rating\nORDER BY f.rating;",
+      "execution": {
+        "id": "41905d12ec3243638978d46caf078b1f",
+        "session_id": "a971a30000db4cab86007ce6a0262dc7",
+        "sql_text": "SELECT\n  f.rating,\n  COUNT(*) FILTER(WHERE\n    r.return_date > r.rental_date + f.rental_duration * INTERVAL '1 DAY') AS late_rental_count,\n  COUNT(*) AS total_rental_count,\n  COUNT(*) FILTER(WHERE\n    r.return_date > r.rental_date + f.rental_duration * INTERVAL '1 DAY') * 1.0 / NULLIF(COUNT(*), 0) AS late_return_rate\nFROM rental AS r\nJOIN inventory AS i\n  ON r.inventory_id = i.inventory_id\nJOIN film AS f\n  ON i.film_id = f.film_id\nWHERE\n  NOT r.return_date IS NULL\nGROUP BY\n  f.rating\nORDER BY\n  f.rating\nLIMIT 50",
+        "columns": [
+          {
+            "name": "rating",
+            "type": "object"
+          },
+          {
+            "name": "late_rental_count",
+            "type": "int64"
+          },
+          {
+            "name": "total_rental_count",
+            "type": "int64"
+          },
+          {
+            "name": "late_return_rate",
+            "type": "float64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "rating": "G",
+            "late_rental_count": 1442,
+            "total_rental_count": 2740,
+            "late_return_rate": 0.5262773723
+          },
+          {
+            "rating": "PG",
+            "late_rental_count": 1600,
+            "total_rental_count": 3177,
+            "late_return_rate": 0.5036197671
+          },
+          {
+            "rating": "PG-13",
+            "late_rental_count": 1814,
+            "total_rental_count": 3543,
+            "late_return_rate": 0.5119954841
+          },
+          {
+            "rating": "R",
+            "late_rental_count": 1666,
+            "total_rental_count": 3152,
+            "late_return_rate": 0.5285532995
+          },
+          {
+            "rating": "NC-17",
+            "late_rental_count": 1599,
+            "total_rental_count": 3249,
+            "late_return_rate": 0.4921514312
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 5,
+        "execution_time_ms": 34,
+        "chart_recommendation": {
+          "recommended_view": "chart",
+          "chart_type": "bar",
+          "x": "rating",
+          "y": "late_return_rate",
+          "series": "rating",
+          "variant": "grouped",
+          "explanation": "Запрос сравнивает категории без временной оси, поэтому выбран grouped bar chart.",
+          "rule_id": "R5",
+          "confidence": 0.86,
+          "data": {
+            "kind": "multi_series",
+            "chartType": "bar",
+            "variant": "grouped",
+            "explanation": "Запрос сравнивает категории без временной оси, поэтому выбран grouped bar chart.",
+            "ruleId": "R5",
+            "confidence": 0.86,
+            "x": {
+              "field": "rating",
+              "values": [
+                "G",
+                "PG",
+                "PG-13",
+                "R",
+                "NC-17"
+              ],
+              "type": "categorical"
+            },
+            "series": [
+              {
+                "name": "G",
+                "data": [
+                  0.5262773723,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "name": "PG",
+                "data": [
+                  0.0,
+                  0.5036197671,
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "name": "PG-13",
+                "data": [
+                  0.0,
+                  0.0,
+                  0.5119954841,
+                  0.0,
+                  0.0
+                ]
+              },
+              {
+                "name": "R",
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.5285532995,
+                  0.0
+                ]
+              },
+              {
+                "name": "NC-17",
+                "data": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.4921514312
+                ]
+              }
+            ],
+            "seriesField": "rating",
+            "stackable": false,
+            "stacked": false
+          },
+          "reason": "Запрос сравнивает категории без временной оси, поэтому выбран grouped bar chart."
+        },
+        "error_message": null,
+        "created_at": "2026-04-22T10:23:35.141600"
+      },
+      "chart": {
+        "recommended_view": "chart",
+        "chart_type": "bar",
+        "x": "rating",
+        "y": "late_return_rate",
+        "series": "rating",
+        "variant": "grouped",
+        "explanation": "Запрос сравнивает категории без временной оси, поэтому выбран grouped bar chart.",
+        "rule_id": "R5",
+        "confidence": 0.86,
+        "data": {
+          "kind": "multi_series",
+          "chartType": "bar",
+          "variant": "grouped",
+          "explanation": "Запрос сравнивает категории без временной оси, поэтому выбран grouped bar chart.",
+          "ruleId": "R5",
+          "confidence": 0.86,
+          "x": {
+            "field": "rating",
+            "values": [
+              "G",
+              "PG",
+              "PG-13",
+              "R",
+              "NC-17"
+            ],
+            "type": "categorical"
+          },
+          "series": [
+            {
+              "name": "G",
+              "data": [
+                0.5262773723,
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "name": "PG",
+              "data": [
+                0.0,
+                0.5036197671,
+                0.0,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "name": "PG-13",
+              "data": [
+                0.0,
+                0.0,
+                0.5119954841,
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "name": "R",
+              "data": [
+                0.0,
+                0.0,
+                0.0,
+                0.5285532995,
+                0.0
+              ]
+            },
+            {
+              "name": "NC-17",
+              "data": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.4921514312
+              ]
+            }
+          ],
+          "seriesField": "rating",
+          "stackable": false,
+          "stacked": false
+        },
+        "reason": "Запрос сравнивает категории без временной оси, поэтому выбран grouped bar chart."
+      }
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 1.0,
+      "chart": 1.0,
+      "overall": 0.6833,
+      "overall_rule_based": 0.6667,
+      "overall_judge": 0.7
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `rental` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `film` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `rating` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `group by` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required table `rental` found; actual tables=['film', 'inventory', 'rental']"
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required table `film` found; actual tables=['film', 'inventory', 'rental']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=5, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_max_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=5, expected at most 10"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['rating']; actual columns=['late_rental_count', 'late_return_rate', 'rating', 'total_rental_count']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['late_return_rate', 'overdue_rate', 'late_rate', 'return_rate', 'late_share']; actual columns=['late_rental_count', 'late_return_rate', 'rating', 'total_rental_count']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart type=bar, acceptable=['bar']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart x=rating, acceptable=['rating']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart y=late_return_rate, acceptable=['late_return_rate', 'overdue_rate', 'late_rate', 'return_rate', 'late_share']"
+      }
+    ],
+    "llm_judge": {
+      "understanding_score": 0.2,
+      "sql_score": 1.0,
+      "chart_score": 0.9,
+      "overall_score": 0.7,
+      "issues": [
+        "Unnecessary clarification was requested despite expectations indicating no clarification needed.",
+        "Chart generated as multi-series with each rating as its own series, leading to sparse data representation."
+      ],
+      "repair_hints": [
+        "Skip the clarification step and directly generate the SQL and chart based on the original prompt.",
+        "Produce a simple bar chart with rating on the x‑axis and late_return_rate on the y‑axis without creating separate series for each rating."
+      ]
+    }
+  },
+  {
+    "case_id": "monthly_revenue_timeseries",
+    "step_index": 1,
+    "step_ref": "monthly_revenue_timeseries#step1",
+    "user_prompt": "Покажи помесячно общую выручку и количество платежей за весь период данных. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "payment",
+          "group by",
+          "amount"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "payment"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "month",
+            "month_bucket",
+            "payment_month",
+            "period"
+          ],
+          [
+            "total_revenue",
+            "revenue",
+            "total_amount",
+            "sum_amount"
+          ],
+          [
+            "payment_count",
+            "total_payments",
+            "count_payments",
+            "payments"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "month",
+            "month_bucket",
+            "payment_month",
+            "period"
+          ],
+          "y_any_of": [
+            "total_revenue",
+            "revenue",
+            "total_amount",
+            "payment_count"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": false,
+      "clarification_question": null,
+      "clarification_options": [],
+      "message_kind": "answer",
+      "initial_message_kind": "answer",
+      "clarification_transcript": [],
+      "intent": {
+        "raw_prompt": "Покажи помесячно общую выручку и количество платежей за весь период данных. Нужен line chart.",
+        "metric": "revenue",
+        "dimensions": [
+          "month"
+        ],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": "line",
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.7499999999999999,
+        "follow_up": false
+      },
+      "sql": "SELECT\n  DATE_TRUNC('MONTH', t0.\"last_update\") AS month,\n  SUM(t0.\"replacement_cost\") AS total_revenue\nFROM \"film\" AS t0\nGROUP BY\n  1\nORDER BY\n  1\nLIMIT 50",
+      "execution": {
+        "id": "f01eeb7c18934b32b0118ec585bdda74",
+        "session_id": "b4d818879d4344a8822e2dd105b5f209",
+        "sql_text": "SELECT\n  DATE_TRUNC('MONTH', t0.\"last_update\") AS month,\n  SUM(t0.\"replacement_cost\") AS total_revenue\nFROM \"film\" AS t0\nGROUP BY\n  1\nORDER BY\n  1\nLIMIT 50",
+        "columns": [
+          {
+            "name": "month",
+            "type": "datetime64[ns]"
+          },
+          {
+            "name": "total_revenue",
+            "type": "float64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "month": "2013-05-01T00:00:00.000",
+            "total_revenue": 19984.0
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 1,
+        "execution_time_ms": 144,
+        "chart_recommendation": {
+          "recommended_view": "chart",
+          "chart_type": "line",
+          "x": "month",
+          "y": "total_revenue",
+          "series": null,
+          "variant": "single_series",
+          "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+          "rule_id": "R4",
+          "confidence": 0.88,
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+            "ruleId": "R4",
+            "confidence": 0.88,
+            "x": {
+              "field": "month",
+              "values": [
+                "2013-05-01T00:00:00.000"
+              ],
+              "type": "temporal"
+            },
+            "y": {
+              "field": "total_revenue",
+              "values": [
+                19984.0
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+        },
+        "error_message": null,
+        "created_at": "2026-04-22T10:23:11.254004"
+      },
+      "chart": {
+        "recommended_view": "chart",
+        "chart_type": "line",
+        "x": "month",
+        "y": "total_revenue",
+        "series": null,
+        "variant": "single_series",
+        "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+        "rule_id": "R4",
+        "confidence": 0.88,
+        "data": {
+          "kind": "single_series",
+          "chartType": "line",
+          "variant": "single_series",
+          "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+          "ruleId": "R4",
+          "confidence": 0.88,
+          "x": {
+            "field": "month",
+            "values": [
+              "2013-05-01T00:00:00.000"
+            ],
+            "type": "temporal"
+          },
+          "y": {
+            "field": "total_revenue",
+            "values": [
+              19984.0
+            ],
+            "unit": null
+          },
+          "stacked": false
+        },
+        "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+      }
+    },
+    "scores": {
+      "understanding": 1.0,
+      "sql": 0.6364,
+      "chart": 1.0,
+      "overall": 0.8788
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Clarification expectation matched."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `payment` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `group by` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `amount` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required table `payment` missing; actual tables=['film']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=1, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['month', 'month_bucket', 'payment_month', 'period']; actual columns=['month', 'total_revenue']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['total_revenue', 'revenue', 'total_amount', 'sum_amount']; actual columns=['month', 'total_revenue']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['payment_count', 'total_payments', 'count_payments', 'payments']; actual columns=['month', 'total_revenue']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart type=line, acceptable=['line']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart x=month, acceptable=['month', 'month_bucket', 'payment_month', 'period']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart y=total_revenue, acceptable=['total_revenue', 'revenue', 'total_amount', 'payment_count']"
+      }
+    ],
+    "llm_judge": {
+      "judge_error": "No JSON object found in LLM response."
+    }
+  },
+  {
+    "case_id": "weekly_rentals_and_revenue",
+    "step_index": 1,
+    "step_ref": "weekly_rentals_and_revenue#step1",
+    "user_prompt": "Покажи понедельно количество аренд и выручку за февраль–май 2007 года. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "payment",
+          "group by",
+          "2007"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "payment"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "week",
+            "week_bucket",
+            "payment_week",
+            "period"
+          ],
+          [
+            "total_revenue",
+            "revenue",
+            "total_amount",
+            "sum_amount"
+          ],
+          [
+            "payment_count",
+            "rental_count",
+            "total_payments",
+            "count"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "week",
+            "week_bucket",
+            "payment_week",
+            "period"
+          ],
+          "y_any_of": [
+            "total_revenue",
+            "revenue",
+            "total_amount",
+            "payment_count",
+            "rental_count"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": false,
+      "clarification_question": null,
+      "clarification_options": [],
+      "message_kind": "answer",
+      "initial_message_kind": "answer",
+      "clarification_transcript": [],
+      "intent": {
+        "raw_prompt": "SQL выполнился, но вернул 0 строк. Скорее всего, фильтр слишком строгий или содержит неверное значение. Проверь фильтры и исправь запрос.",
+        "metric": null,
+        "dimensions": [
+          "week"
+        ],
+        "filters": [
+          {
+            "field": "rental.rental_date",
+            "operator": "between",
+            "value": [
+              "2005-01-01",
+              "2006-12-31"
+            ]
+          }
+        ],
+        "comparison": null,
+        "date_range": {
+          "kind": "absolute",
+          "start": "2005-01-01",
+          "end": "2006-12-31",
+          "lookback_value": null,
+          "lookback_unit": null
+        },
+        "visualization_preference": "line",
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 1.0,
+        "follow_up": false
+      },
+      "sql": "SELECT date_trunc('week', r.rental_date) AS week,\n       COUNT(*) AS rental_count,\n       SUM(p.amount) AS total_revenue\nFROM rental r\nJOIN payment p ON p.rental_id = r.rental_id\nWHERE r.rental_date BETWEEN DATE '2005-01-01' AND DATE '2006-12-31'\nGROUP BY week\nORDER BY week;",
+      "execution": {
+        "id": "785654a734cc4cdf8cce22d65b40a3e6",
+        "session_id": "140b9dfd0e154543b140ac453d0d77e6",
+        "sql_text": "SELECT\n  DATE_TRUNC('WEEK', r.rental_date) AS week,\n  COUNT(*) AS rental_count,\n  SUM(p.amount) AS total_revenue\nFROM rental AS r\nJOIN payment AS p\n  ON p.rental_id = r.rental_id\nWHERE\n  r.rental_date BETWEEN CAST('2005-01-01' AS DATE) AND CAST('2006-12-31' AS DATE)\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50",
+        "columns": [
+          {
+            "name": "week",
+            "type": "datetime64[ns]"
+          },
+          {
+            "name": "rental_count",
+            "type": "int64"
+          },
+          {
+            "name": "total_revenue",
+            "type": "float64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "week": "2005-06-13T00:00:00.000",
+            "rental_count": 1493,
+            "total_revenue": 6140.07
+          },
+          {
+            "week": "2005-06-20T00:00:00.000",
+            "rental_count": 522,
+            "total_revenue": 2209.78
+          },
+          {
+            "week": "2005-07-04T00:00:00.000",
+            "rental_count": 2501,
+            "total_revenue": 10438.99
+          },
+          {
+            "week": "2005-07-11T00:00:00.000",
+            "rental_count": 956,
+            "total_revenue": 4043.44
+          },
+          {
+            "week": "2005-07-25T00:00:00.000",
+            "rental_count": 3256,
+            "total_revenue": 13895.44
+          },
+          {
+            "week": "2005-08-01T00:00:00.000",
+            "rental_count": 1314,
+            "total_revenue": 5543.86
+          },
+          {
+            "week": "2005-08-15T00:00:00.000",
+            "rental_count": 3148,
+            "total_revenue": 13428.52
+          },
+          {
+            "week": "2005-08-22T00:00:00.000",
+            "rental_count": 1224,
+            "total_revenue": 5097.76
+          },
+          {
+            "week": "2006-02-13T00:00:00.000",
+            "rental_count": 182,
+            "total_revenue": 514.18
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 9,
+        "execution_time_ms": 20,
+        "chart_recommendation": {
+          "recommended_view": "chart",
+          "chart_type": "line",
+          "x": "week",
+          "y": "rental_count",
+          "series": null,
+          "variant": "single_series",
+          "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+          "rule_id": "R4",
+          "confidence": 0.88,
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+            "ruleId": "R4",
+            "confidence": 0.88,
+            "x": {
+              "field": "week",
+              "values": [
+                "2005-06-13T00:00:00.000",
+                "2005-06-20T00:00:00.000",
+                "2005-07-04T00:00:00.000",
+                "2005-07-11T00:00:00.000",
+                "2005-07-25T00:00:00.000",
+                "2005-08-01T00:00:00.000",
+                "2005-08-15T00:00:00.000",
+                "2005-08-22T00:00:00.000",
+                "2006-02-13T00:00:00.000"
+              ],
+              "type": "temporal"
+            },
+            "y": {
+              "field": "rental_count",
+              "values": [
+                1493.0,
+                522.0,
+                2501.0,
+                956.0,
+                3256.0,
+                1314.0,
+                3148.0,
+                1224.0,
+                182.0
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+        },
+        "error_message": null,
+        "created_at": "2026-04-22T10:23:57.584533"
+      },
+      "chart": {
+        "recommended_view": "chart",
+        "chart_type": "line",
+        "x": "week",
+        "y": "rental_count",
+        "series": null,
+        "variant": "single_series",
+        "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+        "rule_id": "R4",
+        "confidence": 0.88,
+        "data": {
+          "kind": "single_series",
+          "chartType": "line",
+          "variant": "single_series",
+          "explanation": "В запросе есть временная ось, поэтому выбран линейный график.",
+          "ruleId": "R4",
+          "confidence": 0.88,
+          "x": {
+            "field": "week",
+            "values": [
+              "2005-06-13T00:00:00.000",
+              "2005-06-20T00:00:00.000",
+              "2005-07-04T00:00:00.000",
+              "2005-07-11T00:00:00.000",
+              "2005-07-25T00:00:00.000",
+              "2005-08-01T00:00:00.000",
+              "2005-08-15T00:00:00.000",
+              "2005-08-22T00:00:00.000",
+              "2006-02-13T00:00:00.000"
+            ],
+            "type": "temporal"
+          },
+          "y": {
+            "field": "rental_count",
+            "values": [
+              1493.0,
+              522.0,
+              2501.0,
+              956.0,
+              3256.0,
+              1314.0,
+              3148.0,
+              1224.0,
+              182.0
+            ],
+            "unit": null
+          },
+          "stacked": false
+        },
+        "reason": "В запросе есть временная ось, поэтому выбран линейный график."
+      }
+    },
+    "scores": {
+      "understanding": 1.0,
+      "sql": 0.9091,
+      "chart": 1.0,
+      "overall": 0.9697
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Clarification expectation matched."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `payment` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `group by` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `2007` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required table `payment` found; actual tables=['payment', 'rental']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=9, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['week', 'week_bucket', 'payment_week', 'period']; actual columns=['rental_count', 'total_revenue', 'week']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['total_revenue', 'revenue', 'total_amount', 'sum_amount']; actual columns=['rental_count', 'total_revenue', 'week']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['payment_count', 'rental_count', 'total_payments', 'count']; actual columns=['rental_count', 'total_revenue', 'week']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart type=line, acceptable=['line']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart x=week, acceptable=['week', 'week_bucket', 'payment_week', 'period']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart y=rental_count, acceptable=['total_revenue', 'revenue', 'total_amount', 'payment_count', 'rental_count']"
+      }
+    ],
+    "repair_transcript": [
+      {
+        "round": 1,
+        "trigger": "empty_result",
+        "repair_prompt": "SQL выполнился, но вернул 0 строк. Скорее всего, фильтр слишком строгий или содержит неверное значение. Проверь фильтры и исправь запрос.",
+        "repaired_sql": "SELECT date_trunc('week', r.rental_date) AS week,\n       COUNT(*) AS rental_count,\n       SUM(p.amount) AS total_revenue\nFROM rental r\nJOIN payment p ON p.rental_id = r.rental_id\nWHERE r.rental_date BETWEEN DATE '2005-01-01' AND DATE '2006-12-31'\nGROUP BY week\nORDER BY week;"
+      }
+    ],
+    "llm_judge": {
+      "judge_error": "No JSON object found in LLM response."
+    }
+  }
+]

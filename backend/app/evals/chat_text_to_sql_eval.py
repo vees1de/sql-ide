@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, date
@@ -581,6 +582,47 @@ class ChatTextToSqlEvaluator:
                 should_execute = True
             execution_payload = self.api.execute_sql(session["id"], actual_sql) if (should_execute and actual_sql) else None
 
+            # Item 3: SQL self-repair loop — up to 2 retries on execution error or empty result
+            repair_transcript: list[dict[str, Any]] = []
+            if resolved_query_mode == "thinking" and actual_sql and execution_payload:
+                expects_rows = (
+                    step.expectations.execution is not None
+                    and (step.expectations.execution.min_row_count or 0) > 0
+                )
+                for _repair_round in range(2):
+                    exec_result = execution_payload.get("execution") or {}
+                    error_msg = exec_result.get("error_message")
+                    row_count = int(exec_result.get("row_count") or 0)
+                    if not error_msg and not (expects_rows and row_count == 0):
+                        break
+                    if error_msg:
+                        repair_text = f"SQL вернул ошибку: {error_msg}. Пожалуйста, исправь запрос, не меняя бизнес-логику."
+                    else:
+                        repair_text = (
+                            "SQL выполнился, но вернул 0 строк. "
+                            "Скорее всего, фильтр слишком строгий или содержит неверное значение. "
+                            "Проверь фильтры и исправь запрос."
+                        )
+                    repair_send = self.api.send_message(
+                        session_id=session["id"],
+                        text=repair_text,
+                        query_mode=resolved_query_mode,
+                        llm_model_alias=resolved_model_alias,
+                    )
+                    repaired_sql = _extract_sql(repair_send)
+                    repair_transcript.append({
+                        "round": _repair_round + 1,
+                        "trigger": error_msg or "empty_result",
+                        "repair_prompt": repair_text,
+                        "repaired_sql": repaired_sql,
+                    })
+                    if repaired_sql and repaired_sql != actual_sql:
+                        send_payload = repair_send
+                        actual_sql = repaired_sql
+                        execution_payload = self.api.execute_sql(session["id"], actual_sql)
+                    else:
+                        break
+
             step_result = evaluate_step(
                 case_id=case.id,
                 step_index=index,
@@ -594,12 +636,23 @@ class ChatTextToSqlEvaluator:
                 clarification_transcript=clarification_transcript,
                 execution_payload=execution_payload,
             )
+            if repair_transcript:
+                step_result["repair_transcript"] = repair_transcript
+
+            # Item 4: blend judge score into overall when --with-judge is active
             if self.judge.enabled:
-                step_result["llm_judge"] = self.judge.judge_step(
+                judge_result = self.judge.judge_step(
                     prompt=step.user,
                     expectations=step.expectations,
                     actual=step_result["actual"],
                 )
+                step_result["llm_judge"] = judge_result
+                if judge_result and isinstance(judge_result.get("overall_score"), (int, float)):
+                    rule_score = step_result["scores"].get("overall", 0.0)
+                    judge_score = float(judge_result["overall_score"])
+                    step_result["scores"]["overall_rule_based"] = rule_score
+                    step_result["scores"]["overall_judge"] = round(judge_score, 4)
+                    step_result["scores"]["overall"] = round(0.5 * rule_score + 0.5 * judge_score, 4)
             step_results.append(step_result)
 
         scores = _aggregate_case_scores(step_results)
@@ -968,7 +1021,7 @@ def _evaluate_execution_and_chart(expectations: StepExpectations, actual: dict[s
 
         actual_columns = {_normalize_text(column.get("name")) for column in execution.get("columns") or [] if column.get("name")}
         for column in execution_expectation.required_columns_all_of:
-            passed = _normalize_text(column) in actual_columns
+            passed = any(_matches_column_reference(actual_column, [column]) for actual_column in actual_columns)
             checks.append(
                 CheckOutcome(
                     "sql",
@@ -981,7 +1034,7 @@ def _evaluate_execution_and_chart(expectations: StepExpectations, actual: dict[s
             )
 
         for group in execution_expectation.required_column_groups:
-            passed = any(_normalize_text(column) in actual_columns for column in group)
+            passed = any(_matches_column_reference(actual_column, group) for actual_column in actual_columns)
             checks.append(
                 CheckOutcome(
                     "sql",
@@ -1031,7 +1084,7 @@ def _evaluate_execution_and_chart(expectations: StepExpectations, actual: dict[s
         )
 
     if chart_expectation.x_any_of:
-        passed = _matches_any(chart.get("x"), chart_expectation.x_any_of)
+        passed = _matches_column_reference(chart.get("x"), chart_expectation.x_any_of)
         checks.append(
             CheckOutcome(
                 "chart",
@@ -1044,7 +1097,7 @@ def _evaluate_execution_and_chart(expectations: StepExpectations, actual: dict[s
         )
 
     if chart_expectation.y_any_of:
-        passed = _matches_any(chart.get("y"), chart_expectation.y_any_of)
+        passed = _matches_column_reference(chart.get("y"), chart_expectation.y_any_of)
         checks.append(
             CheckOutcome(
                 "chart",
@@ -1057,7 +1110,7 @@ def _evaluate_execution_and_chart(expectations: StepExpectations, actual: dict[s
         )
 
     if chart_expectation.series_any_of:
-        passed = _matches_any(chart.get("series"), chart_expectation.series_any_of)
+        passed = _matches_column_reference(chart.get("series"), chart_expectation.series_any_of)
         checks.append(
             CheckOutcome(
                 "chart",
@@ -1232,6 +1285,106 @@ def _matches_any(value: Any, expected_values: list[str]) -> bool:
         if normalized == normalized_candidate or normalized_candidate in normalized or normalized in normalized_candidate:
             return True
     return False
+
+
+_ALIAS_TOKEN_NORMALIZATIONS = {
+    "cnt": "count",
+    "count": "count",
+    "counts": "count",
+    "num": "count",
+    "number": "count",
+    "total": "total",
+    "sum": "total",
+    "amount": "revenue",
+    "sales": "revenue",
+    "revenue": "revenue",
+    "payment": "payment",
+    "payments": "payment",
+    "rental": "rental",
+    "rentals": "rental",
+    "order": "order",
+    "orders": "order",
+    "ride": "ride",
+    "rides": "ride",
+    "trip": "ride",
+    "trips": "ride",
+    "created": "created",
+    "create": "created",
+    "completed": "completed",
+    "complete": "completed",
+    "completion": "completed",
+    "done": "completed",
+    "accepted": "accepted",
+    "accept": "accepted",
+    "arrival": "arrival",
+    "arrived": "arrival",
+    "pickup": "pickup",
+    "return": "return",
+    "returns": "return",
+    "returned": "return",
+    "late": "late",
+    "rate": "rate",
+    "ratio": "rate",
+    "share": "rate",
+    "conversion": "rate",
+    "percent": "rate",
+    "pct": "rate",
+    "avg": "avg",
+    "average": "avg",
+    "minutes": "minutes",
+    "minute": "minutes",
+    "mins": "minutes",
+    "min": "minutes",
+    "days": "days",
+    "day": "day",
+    "week": "week",
+    "hour": "hour",
+    "bucket": "bucket",
+}
+
+
+def _matches_column_reference(value: Any, expected_values: list[str]) -> bool:
+    if _matches_any(value, expected_values):
+        return True
+    return any(_semantic_column_match(value, candidate) for candidate in expected_values)
+
+
+def _semantic_column_match(actual: Any, expected: Any) -> bool:
+    actual_signature = _alias_signature(actual)
+    expected_signature = _alias_signature(expected)
+    if not actual_signature or not expected_signature:
+        return False
+    if actual_signature == expected_signature:
+        return True
+    intersection = actual_signature & expected_signature
+    if not intersection:
+        return False
+    smaller = min(len(actual_signature), len(expected_signature))
+    if smaller >= 2 and (actual_signature <= expected_signature or expected_signature <= actual_signature):
+        return True
+    return (len(intersection) / smaller) >= 0.67
+
+
+def _alias_signature(value: Any) -> set[str]:
+    raw = _normalize_text(value)
+    if not raw:
+        return set()
+    tokens = [token for token in re.split(r"[^a-z0-9]+", raw.replace("_", " ")) if token]
+    signature = {_ALIAS_TOKEN_NORMALIZATIONS.get(token, token) for token in tokens}
+    if {"not", "completed"} <= signature:
+        signature.discard("not")
+        signature.add("not_completed")
+    if {"accepted", "arrival"} <= signature or {"pickup"} <= signature:
+        signature.add("pickup")
+    if {"time", "arrival"} <= signature:
+        signature.add("pickup")
+    if {"avg", "pickup", "minutes"} <= signature:
+        signature.add("avg_pickup_duration")
+    if {"avg", "ride", "minutes"} <= signature or {"avg", "ride", "duration"} <= signature:
+        signature.add("avg_ride_duration")
+    if {"hour", "day"} <= signature:
+        signature.add("hour")
+    return signature
 
 
 def _normalize_text(value: Any) -> str:
