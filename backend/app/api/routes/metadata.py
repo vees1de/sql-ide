@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
-from fastapi import Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.orm import Session
 
 from app.core.config import (
     YANDEX_MODEL_ALIASES,
@@ -10,9 +10,14 @@ from app.core.config import (
 )
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.metadata import LLMModelAliasItem, LLMModelAliasesResponse
-from app.schemas.semantic_catalog import SemanticCatalog, SemanticCatalogActivationRequest
+from app.schemas.semantic_catalog import (
+    SemanticCatalog,
+    SemanticCatalogActivationRequest,
+    SemanticColumnPatch,
+    SemanticTable,
+    SemanticTablePatch,
+)
 from app.api.deps import get_db
-from sqlalchemy.orm import Session
 from app.services.metadata_service import MetadataService
 from app.services.semantic_catalog_service import SemanticCatalogService
 from app.services.query_templates import get_query_templates
@@ -48,6 +53,44 @@ def activate_semantic_catalog(
         refresh=payload.refresh,
         database_description=payload.database_description,
     )
+
+
+@router.delete("/metadata/semantic-catalog", status_code=204)
+def delete_semantic_catalog(
+    database_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    deleted = semantic_catalog_service.delete_active_catalog(db, database_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="No active semantic catalog found.")
+    return Response(status_code=204)
+
+
+@router.patch("/metadata/semantic-catalog/table", response_model=SemanticTable)
+def patch_semantic_table(
+    database_id: str,
+    table_name: str,
+    payload: SemanticTablePatch,
+    db: Session = Depends(get_db),
+) -> SemanticTable:
+    result = semantic_catalog_service.patch_catalog_table(db, database_id, table_name, payload)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Table not found in active catalog.")
+    return result
+
+
+@router.patch("/metadata/semantic-catalog/column", response_model=SemanticTable)
+def patch_semantic_column(
+    database_id: str,
+    table_name: str,
+    column_name: str,
+    payload: SemanticColumnPatch,
+    db: Session = Depends(get_db),
+) -> SemanticTable:
+    result = semantic_catalog_service.patch_catalog_column(db, database_id, table_name, column_name, payload)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Column not found in active catalog.")
+    return result
 
 
 @router.get("/query-templates")

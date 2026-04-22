@@ -31,7 +31,9 @@ from app.schemas.query import (
     QueryMode,
     QueryExecutionResult,
     QuerySemantics,
+    SemanticColumnRolePayload,
     SemanticComparisonPayload,
+    SemanticDataRolesPayload,
     SemanticFlagsPayload,
     SemanticMetricPayload,
     SemanticTimePayload,
@@ -963,6 +965,7 @@ class QueryOrchestrationService:
             "kind": comparison_kind,
             "entities": self._extract_comparison_entities(prompt) if intent.comparison else [],
             "series_column": "comparison_series" if intent.comparison in {"previous_year", "previous_period"} else None,
+            "facet_column": None,
         }
         time = None
         if intent.date_range:
@@ -973,13 +976,75 @@ class QueryOrchestrationService:
             }
         dimensions = [{"name": dimension, "role": "category"} for dimension in intent.dimensions]
         metric = {"name": intent.metric, "aggregation": "sum", "unit": None} if intent.metric else None
+        semantic_intent = (
+            "delta" if intent.comparison in {"previous_year", "previous_period"} else
+            "comparison_over_time" if flags["is_time_series"] and flags["is_comparison"] else
+            "composition_over_time" if flags["is_time_series"] and flags["is_share"] else
+            "ranking" if flags["is_ranking"] else
+            "share" if flags["is_share"] else
+            "trend" if flags["is_time_series"] else
+            "comparison" if flags["is_comparison"] else
+            None
+        )
+        analysis_mode = (
+            "delta" if semantic_intent == "delta" else
+            "rank" if semantic_intent == "ranking" else
+            "compose" if semantic_intent in {"share", "composition_over_time"} else
+            "trend" if semantic_intent == "trend" else
+            "compare"
+        )
+        comparison_goal = (
+            "delta" if semantic_intent == "delta" else
+            "rank" if semantic_intent == "ranking" else
+            "composition" if semantic_intent in {"share", "composition_over_time"} else
+            "absolute"
+        )
+        visual_goal = (
+            "compare_between_groups_over_time" if semantic_intent == "comparison_over_time" else
+            "compare_deltas_between_periods" if semantic_intent == "delta" else
+            "show_change_over_time" if semantic_intent == "trend" else
+            "show_composition" if semantic_intent == "share" else
+            "compare_structure_over_time" if semantic_intent == "composition_over_time" else
+            "compare_ranked_categories" if semantic_intent == "ranking" else
+            "compare_between_groups" if flags["is_comparison"] else
+            "compare_categories"
+        )
+        data_roles = SemanticDataRolesPayload(
+            x=intent.dimensions[0] if intent.dimensions else None,
+            y=intent.metric,
+            series_key="comparison_series" if intent.comparison in {"previous_year", "previous_period"} else None,
+            facet_key=None,
+            label=intent.dimensions[0] if intent.dimensions else None,
+            value=intent.metric,
+        )
+        semantic_columns = [
+            SemanticColumnRolePayload(
+                name=dimension,
+                role="dimension_time" if dimension in {"day", "week", "month", "quarter", "year"} else "dimension_series",
+            )
+            for dimension in intent.dimensions
+        ]
+        if intent.metric:
+            semantic_columns.append(SemanticColumnRolePayload(name=intent.metric, role="metric_primary"))
         return QuerySemantics(
-            intent="comparison" if flags["is_comparison"] else ("trend" if flags["is_time_series"] else None),
+            intent=semantic_intent,
+            visual_goal=visual_goal,
+            analysis_mode=analysis_mode,
+            time_role="primary" if flags["is_time_series"] else "none",
+            comparison_goal=comparison_goal,
+            preferred_mark="line" if flags["is_time_series"] else ("arc" if flags["is_share"] else "bar"),
             metric=SemanticMetricPayload(**metric) if metric else None,
             dimensions=dimensions,
+            columns=semantic_columns,
+            data_roles=data_roles,
             time=SemanticTimePayload(**time) if time else None,
             comparison=SemanticComparisonPayload(**comparison) if comparison else None,
             flags=SemanticFlagsPayload(**flags),
+            assumptions=[
+                *(["Metric is aggregated using sum."] if intent.metric else []),
+                *(["Time range will follow the SQL result if the user did not specify one."] if flags["is_time_series"] and not intent.date_range else []),
+            ],
+            ambiguities=list(intent.ambiguities or []),
             visualization_hint=visualization_hint,
             confidence_score=float(intent.confidence or 0.0),
         )
@@ -1003,8 +1068,22 @@ class QueryOrchestrationService:
             data=chart_data,
             variant=decision.variant,
             explanation=decision.explanation,
+            reason=decision.reason,
             rule_id=decision.rule_id,
             confidence=decision.confidence,
+            semantic_intent=decision.semantic_intent,
+            analysis_mode=decision.analysis_mode,
+            visual_goal=decision.visual_goal,
+            time_role=decision.time_role,
+            comparison_goal=decision.comparison_goal,
+            preferred_mark=decision.preferred_mark,
+            alternatives=list(decision.alternatives),
+            candidates=list(decision.candidates),
+            constraints_applied=list(decision.constraints_applied),
+            visual_load=decision.visual_load,
+            query_interpretation=decision.query_interpretation,
+            decision_summary=decision.decision_summary,
+            reason_codes=list(decision.reason_codes),
         )
 
     def _extract_metric_card_value(self, execution: QueryExecutionResult, field: str | None) -> float | int | None:

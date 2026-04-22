@@ -20,6 +20,7 @@ from app.services.database_resolution import resolve_dialect, resolve_engine
 from app.services.llm_schema_recon_service import LLMSchemaReconService
 from app.services.llm_service import LLMService
 from app.services.schema_context_provider import SchemaContextProvider
+from app.services.semantic_catalog_service import SemanticCatalogService
 
 
 class ChatExecutionService:
@@ -34,6 +35,7 @@ class ChatExecutionService:
         self.schema_provider = SchemaContextProvider()
         self.llm_service = LLMService()
         self.schema_recon_service = LLMSchemaReconService()
+        self.semantic_catalog_service = SemanticCatalogService()
 
     def execute(self, db: Session, session_id: str, sql: str) -> QueryExecutionModel:
         session = self._get_session(db, session_id)
@@ -43,12 +45,21 @@ class ChatExecutionService:
             schema = self.schema_provider.get_schema_for_llm(db, session.database_connection_id)
         except Exception:  # noqa: BLE001
             schema = None
+        try:
+            semantic_catalog = self.semantic_catalog_service.load_catalog(db, session.database_connection_id)
+        except Exception:  # noqa: BLE001
+            semantic_catalog = None
         repair_context = self._build_repair_context(db, session, schema)
         attempted_sql = sql
         repair_attempt = 0
 
         while True:
-            validation = self.validation_agent.run(attempted_sql, dialect, schema=schema)
+            validation = self.validation_agent.run(
+                attempted_sql,
+                dialect,
+                schema=schema,
+                semantic_catalog=semantic_catalog,
+            )
             if not validation.valid:
                 repaired_sql = self._attempt_repair(
                     repair_context,
@@ -100,12 +111,31 @@ class ChatExecutionService:
                     x=decision.encoding.x_field,
                     y=decision.encoding.y_field,
                     series=decision.encoding.series_field,
+                    facet=decision.encoding.facet_field,
                     variant=decision.variant,
                     explanation=decision.explanation,
                     rule_id=decision.rule_id,
                     confidence=decision.confidence,
                     data=chart_payload,
-                    reason=decision.explanation,
+                    reason=decision.reason,
+                    semantic_intent=decision.semantic_intent,
+                    analysis_mode=decision.analysis_mode,
+                    visual_goal=decision.visual_goal,
+                    time_role=decision.time_role,
+                    comparison_goal=decision.comparison_goal,
+                    preferred_mark=decision.preferred_mark,
+                    normalize=decision.encoding.normalize,
+                    value_format=decision.encoding.value_format,
+                    series_limit=decision.encoding.series_limit,
+                    category_limit=decision.encoding.category_limit,
+                    top_n_strategy=decision.encoding.top_n_strategy,
+                    alternatives=list(decision.alternatives),
+                    candidates=list(decision.candidates),
+                    constraints_applied=list(decision.constraints_applied),
+                    visual_load=decision.visual_load,
+                    query_interpretation=decision.query_interpretation,
+                    decision_summary=decision.decision_summary,
+                    reason_codes=list(decision.reason_codes),
                 )
 
                 execution = QueryExecutionModel(

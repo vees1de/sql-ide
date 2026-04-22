@@ -24,6 +24,7 @@ from app.schemas.query import (
     IntentPayload,
     QueryMode,
     SemanticMappingPayload,
+    ValidationPayload,
     normalize_query_mode,
 )
 from app.services.chat_service import ChatService
@@ -32,6 +33,7 @@ from app.services.llm_service import LLMQueryPlan, LLMService
 from app.services.llm_schema_recon_service import LLMSchemaReconService
 from app.services.dictionary_service import DictionaryService
 from app.services.analytics_agent_service import AnalyticsAgentService
+from app.services.semantic_catalog_service import SemanticCatalogService
 
 
 @dataclass
@@ -52,6 +54,7 @@ class ChatSqlAdapter:
         self.clarification_agent = self.analytics_agent.clarification_agent
         self.llm_service = LLMService()
         self.schema_recon_service = LLMSchemaReconService()
+        self.semantic_catalog_service = SemanticCatalogService()
 
     def generate_response(
         self,
@@ -76,14 +79,38 @@ class ChatSqlAdapter:
         mode_warnings: list[str] = []
 
         if query_mode == "thinking":
-            schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
+            catalog_context = None
+            thinking_dictionary_entries = list(dictionary_entries)
+            try:
+                catalog_context = self.semantic_catalog_service.build_retrieval_context(
+                    db,
+                    session.database_connection_id,
+                    user_text,
+                    dictionary_entries,
+                )
+            except Exception:
+                catalog_context = None
+            if catalog_context is not None:
+                schema = catalog_context.schema
+                catalog_dictionary_entries = [
+                    DictionaryEntryRead.model_validate(entry)
+                    for entry in catalog_context.dictionary_entries
+                ]
+                thinking_dictionary_entries = self._merge_dictionary_entries(
+                    dictionary_entries,
+                    catalog_dictionary_entries,
+                )
+            else:
+                schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
             plan = self._try_llm_plan(
-                db,
-                session.database_connection_id,
-                user_text,
-                schema,
-                previous_intent,
-                history_text,
+                db=db,
+                database_connection_id=session.database_connection_id,
+                user_text=user_text,
+                schema=schema,
+                semantic_catalog=getattr(catalog_context, "catalog", None),
+                semantic_notes=getattr(catalog_context, "notes", []),
+                previous_intent=previous_intent,
+                history_text=history_text,
                 llm_model=llm_model,
             )
             if plan is not None:
@@ -92,11 +119,15 @@ class ChatSqlAdapter:
                     session=session,
                     plan=plan,
                     schema=schema,
-                    dictionary_entries=dictionary_entries,
+                    semantic_catalog=getattr(catalog_context, "catalog", None),
+                    semantic_notes=getattr(catalog_context, "notes", []),
+                    dictionary_entries=thinking_dictionary_entries,
                     user_text=user_text,
                     previous_intent=previous_intent,
+                    history_text=history_text,
                     query_mode=query_mode,
                     complexity=complexity,
+                    llm_model=llm_model,
                     llm_model_alias=normalized_model_alias,
                 )
                 if result is not None:
@@ -141,6 +172,7 @@ class ChatSqlAdapter:
                 sql=None,
                 validation_warnings=plan.validation_warnings,
                 validation_errors=plan.validation_errors,
+                validation=plan.validation,
                 dialect="postgresql",
                 query_mode=query_mode,
                 complexity=complexity,
@@ -167,6 +199,7 @@ class ChatSqlAdapter:
             sql=plan.sql,
             validation_warnings=plan.validation_warnings,
             validation_errors=plan.validation_errors,
+            validation=plan.validation,
             dialect="postgresql",
             query_mode=query_mode,
             complexity=complexity,
@@ -191,6 +224,8 @@ class ChatSqlAdapter:
         database_connection_id: str,
         user_text: str,
         schema,
+        semantic_catalog,
+        semantic_notes: list[str],
         previous_intent: IntentPayload | None,
         history_text: str,
         llm_model: str,
@@ -198,6 +233,8 @@ class ChatSqlAdapter:
         return self.llm_service.plan_query(
             prompt=user_text,
             schema=schema,
+            semantic_catalog=semantic_catalog,
+            semantic_notes=semantic_notes,
             previous_intent=previous_intent,
             history_text=history_text,
             temperature=0.0,
@@ -211,11 +248,15 @@ class ChatSqlAdapter:
         session: ChatSessionModel,
         plan: LLMQueryPlan,
         schema,
+        semantic_catalog,
+        semantic_notes: list[str],
         dictionary_entries: list[DictionaryEntryRead],
         user_text: str,
         previous_intent: IntentPayload | None,
+        history_text: str,
         query_mode: QueryMode,
         complexity: str,
+        llm_model: str,
         llm_model_alias: str,
     ) -> AdapterResult | None:
         intent = plan.intent
@@ -237,18 +278,35 @@ class ChatSqlAdapter:
                     complexity=complexity,
                     llm_model_alias=llm_model_alias,
                 )
+        if not plan.sql:
+            return None
         semantic = self.analytics_agent.semantic_agent.run(
             intent,
             dictionary_entries,
             schema.dialect,
             schema,
         )
+        validation = self._validate_llm_sql(
+            db=db,
+            session=session,
+            user_text=user_text,
+            history_text=history_text,
+            previous_intent=previous_intent,
+            sql=plan.sql,
+            schema=schema,
+            semantic_catalog=semantic_catalog,
+            semantic_notes=semantic_notes,
+            llm_model=llm_model,
+        )
+        if validation is None or not validation.valid:
+            return None
         payload = self._build_structured_payload(
             intent=intent,
             semantic=semantic,
-            sql=plan.sql,
+            sql=validation.sql,
             validation_warnings=list(dict.fromkeys([*getattr(plan, "warnings", [])])),
             validation_errors=[],
+            validation=validation,
             dialect=schema.dialect,
             query_mode=query_mode,
             complexity=complexity,
@@ -262,9 +320,58 @@ class ChatSqlAdapter:
             user_text=user_text,
             intent=intent,
             payload=payload,
-            sql_draft=plan.sql,
+            sql_draft=validation.sql,
             assistant_text=assistant_text,
             commit_updates=True,
+        )
+
+    def _validate_llm_sql(
+        self,
+        *,
+        db: Session,
+        session: ChatSessionModel,
+        user_text: str,
+        history_text: str,
+        previous_intent: IntentPayload | None,
+        sql: str,
+        schema,
+        semantic_catalog,
+        semantic_notes: list[str],
+        llm_model: str,
+    ) -> ValidationPayload | None:
+        allowed_tables = [table.name for table in schema.tables]
+        validation = self.analytics_agent.validation_agent.run(
+            sql,
+            schema.dialect,
+            allowed_tables=allowed_tables,
+            schema=schema,
+            semantic_catalog=semantic_catalog,
+        )
+        if validation.valid:
+            return validation
+
+        repaired = self.llm_service.repair_sql(
+            prompt=user_text,
+            schema=schema,
+            failed_sql=sql,
+            failure_reason="; ".join(validation.errors) or "SQL validation failed.",
+            semantic_catalog=semantic_catalog,
+            semantic_notes=semantic_notes,
+            previous_intent=previous_intent,
+            history_text=history_text,
+            attempt_index=1,
+            model=llm_model,
+            schema_toolbox=self.schema_recon_service.build_toolbox(db, session.database_connection_id),
+        )
+        if repaired is None or not repaired.retryable or not repaired.sql:
+            return None
+
+        return self.analytics_agent.validation_agent.run(
+            repaired.sql,
+            schema.dialect,
+            allowed_tables=allowed_tables,
+            schema=schema,
+            semantic_catalog=semantic_catalog,
         )
 
     def _build_llm_clarification_result(
@@ -542,21 +649,25 @@ class ChatSqlAdapter:
     def _build_structured_payload(
         self,
         intent: IntentPayload,
-        semantic: SemanticMappingPayload,
+        semantic: SemanticMappingPayload | None,
         sql: str | None,
         validation_warnings: list[str],
         validation_errors: list[str],
+        validation: ValidationPayload | None,
         dialect: str,
         query_mode: QueryMode,
         complexity: str,
         mode_warnings: list[str] | None = None,
         llm_model_alias: str | None = None,
     ) -> StructuredPayload:
-        tables_used = self._derive_table_usage(semantic)
+        semantic_warnings = list(getattr(semantic, "warnings", []) or [])
+        tables_used = self._derive_table_usage(semantic) if semantic is not None else []
         warnings = list(
             dict.fromkeys(
                 [
-                    *semantic.warnings,
+                    *semantic_warnings,
+                    *((validation.warnings if validation is not None else [])),
+                    *((validation.errors if validation is not None else [])),
                     *validation_warnings,
                     *validation_errors,
                     *(mode_warnings or []),
@@ -569,11 +680,24 @@ class ChatSqlAdapter:
             if mode_suggestion == "thinking"
             else None
         )
+        confidence_level = self._confidence_level(validation, intent.confidence)
+        confidence_reasons = list(getattr(validation, "semantic_confidence_reasons", []) or [])
+        if confidence_level == "low":
+            warnings = list(
+                dict.fromkeys(
+                    [
+                        "Низкая уверенность в семантической интерпретации. Проверьте метрику и JOIN перед запуском.",
+                        *warnings,
+                    ]
+                )
+            )
         return StructuredPayload(
             interpretation=self._build_interpretation(intent),
             tables_used=tables_used,
             sql=sql,
             warnings=warnings,
+            confidence_level=confidence_level,
+            confidence_reasons=confidence_reasons,
             needs_clarification=False,
             clarification_question=None,
             clarification_options=None,
@@ -595,6 +719,19 @@ class ChatSqlAdapter:
             ambiguities=list(intent.ambiguities or []),
             confidence=float(intent.confidence or 0.0),
         )
+
+    def _confidence_level(
+        self,
+        validation: ValidationPayload | None,
+        intent_confidence: float,
+    ) -> str:
+        if validation is not None and validation.semantic_confidence_level:
+            return validation.semantic_confidence_level
+        if intent_confidence >= 0.85:
+            return "high"
+        if intent_confidence >= 0.6:
+            return "medium"
+        return "low"
 
     def _derive_table_usage(self, semantic: SemanticMappingPayload) -> list[TableUsage]:
         reasons: "OrderedDict[str, list[str]]" = OrderedDict()
@@ -671,3 +808,13 @@ class ChatSqlAdapter:
             DictionaryEntryRead.model_validate(entry)
             for entry in self.dictionary_service.list_entries(db)
         ]
+
+    def _merge_dictionary_entries(
+        self,
+        base_entries: list[DictionaryEntryRead],
+        generated_entries: list[DictionaryEntryRead],
+    ) -> list[DictionaryEntryRead]:
+        merged: dict[str, DictionaryEntryRead] = {}
+        for entry in [*base_entries, *generated_entries]:
+            merged[entry.term.lower()] = entry
+        return list(merged.values())

@@ -159,3 +159,25 @@ class SemanticCatalogActivationRequest(BaseModel):
     database_id: str
     refresh: bool = False
     database_description: str | None = None
+
+
+class SemanticTablePatch(BaseModel):
+    label: str | None = None
+    business_description: str | None = None
+    table_role: TableRole | None = None
+    grain: str | None = None
+    main_date_column: str | None = None
+    main_entity: str | None = None
+    synonyms: list[str] | None = None
+    important_metrics: list[str] | None = None
+    important_dimensions: list[str] | None = None
+
+
+class SemanticColumnPatch(BaseModel):
+    label: str | None = None
+    business_description: str | None = None
+    semantic_types: list[SemanticType] | None = None
+    analytics_roles: list[AnalyticsRole] | None = None
+    synonyms: list[str] | None = None
+    groupable: bool | None = None
+    filterable: bool | None = None

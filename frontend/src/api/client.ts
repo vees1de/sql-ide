@@ -154,8 +154,26 @@ export const api = {
   getDatabases() {
     return request<ApiDatabaseDescriptor[]>('/api/databases');
   },
-  getDictionary() {
-    return request<ApiDictionaryEntryRead[]>('/api/semantic-dictionary');
+  deleteSemanticCatalog(databaseId: string) {
+    return request<void>(`/api/metadata/semantic-catalog?database_id=${encodeURIComponent(databaseId)}`, {
+      method: 'DELETE'
+    });
+  },
+  patchSemanticTable(databaseId: string, tableName: string, payload: import('./types').ApiSemanticTablePatch) {
+    return request<import('./types').ApiSemanticTable>(
+      `/api/metadata/semantic-catalog/table?database_id=${encodeURIComponent(databaseId)}&table_name=${encodeURIComponent(tableName)}`,
+      { method: 'PATCH', body: JSON.stringify(payload) }
+    );
+  },
+  patchSemanticColumn(databaseId: string, tableName: string, columnName: string, payload: import('./types').ApiSemanticColumnPatch) {
+    return request<import('./types').ApiSemanticTable>(
+      `/api/metadata/semantic-catalog/column?database_id=${encodeURIComponent(databaseId)}&table_name=${encodeURIComponent(tableName)}&column_name=${encodeURIComponent(columnName)}`,
+      { method: 'PATCH', body: JSON.stringify(payload) }
+    );
+  },
+  getDictionary(databaseId?: string) {
+    const qs = databaseId ? `?database_id=${encodeURIComponent(databaseId)}` : '';
+    return request<ApiDictionaryEntryRead[]>(`/api/semantic-dictionary${qs}`);
   },
   createDictionaryEntry(payload: ApiDictionaryEntryCreate) {
     return request<ApiDictionaryEntryRead>('/api/semantic-dictionary', {

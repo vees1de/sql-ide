@@ -59,6 +59,8 @@ export interface ApiChatStructuredPayload {
   tables_used: ApiChatTableUsage[];
   sql: string | null;
   warnings: string[];
+  confidence_level?: 'low' | 'medium' | 'high';
+  confidence_reasons?: string[];
   needs_clarification: boolean;
   clarification_question: string | null;
   clarification_options: ApiChatClarificationOption[] | null;
@@ -98,12 +100,51 @@ export interface ApiChatExecutionRecommendation {
   x?: string | null;
   y?: string | null;
   series?: string | null;
+  facet?: string | null;
   variant?: string | null;
   explanation?: string | null;
   rule_id?: string | null;
   confidence?: number | null;
   data?: Record<string, unknown> | null;
   reason: string;
+  semantic_intent?: string | null;
+  analysis_mode?: string | null;
+  visual_goal?: string | null;
+  time_role?: string | null;
+  comparison_goal?: string | null;
+  preferred_mark?: string | null;
+  normalize?: string | null;
+  value_format?: string | null;
+  series_limit?: number | null;
+  category_limit?: number | null;
+  top_n_strategy?: string | null;
+  alternatives?: string[] | null;
+  candidates?: Array<{ type: string; score: number; why: string }> | null;
+  constraints_applied?: string[] | null;
+  visual_load?: number | null;
+  query_interpretation?: {
+    user_goal: string;
+    intent?: string | null;
+    analysis_mode?: string | null;
+    entities?: string[];
+    metrics?: Array<{ name: string; aggregation?: string | null; format?: string | null }>;
+    dimensions?: Array<{ name: string; role?: string | null }>;
+    time_dimension?: string | null;
+    series_dimension?: string | null;
+    requested_output?: 'chart' | 'table' | 'stat';
+    assumptions?: string[];
+    ambiguities?: string[];
+    confidence?: number;
+    short_explanation?: string | null;
+  } | null;
+  decision_summary?: {
+    selected_chart: string;
+    why: string;
+    reason_codes?: string[];
+    alternatives?: Array<{ type: string; why_not: string }>;
+    confidence?: number;
+  } | null;
+  reason_codes?: string[] | null;
 }
 
 export interface ApiChatExecutionRead {
@@ -249,6 +290,28 @@ export interface ApiSemanticCatalogActivationRequest {
   database_id: string;
   refresh?: boolean;
   database_description?: string | null;
+}
+
+export interface ApiSemanticTablePatch {
+  label?: string | null;
+  business_description?: string | null;
+  table_role?: 'fact' | 'dimension' | 'bridge' | 'lookup' | 'event' | 'snapshot' | null;
+  grain?: string | null;
+  main_date_column?: string | null;
+  main_entity?: string | null;
+  synonyms?: string[] | null;
+  important_metrics?: string[] | null;
+  important_dimensions?: string[] | null;
+}
+
+export interface ApiSemanticColumnPatch {
+  label?: string | null;
+  business_description?: string | null;
+  semantic_types?: string[] | null;
+  analytics_roles?: string[] | null;
+  synonyms?: string[] | null;
+  groupable?: boolean | null;
+  filterable?: boolean | null;
 }
 
 export interface ApiSemanticColumnProfile {
