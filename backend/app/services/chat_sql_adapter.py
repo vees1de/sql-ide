@@ -330,6 +330,7 @@ class ChatSqlAdapter:
             )
 
         if plan.state == "ERROR" or plan.sql is None:
+            plan_actions = list(getattr(plan, "actions", []) or [])
             payload = self._build_structured_payload(
                 state=plan.state,
                 intent=plan.intent,
@@ -373,8 +374,8 @@ class ChatSqlAdapter:
             mode_warnings=[],
             llm_model_alias=llm_model_alias,
             assistant_message=self._build_assistant_text(query_mode, complexity),
+            actions=list(getattr(plan, "actions", []) or []),
             answered_clarification_id=clarification_id,
-            actions=plan_actions,
         )
         assistant_text = payload.assistant_message or "SQL готов."
         return self._persist_result(
@@ -465,7 +466,7 @@ class ChatSqlAdapter:
                 )
         if not plan.sql:
             if plan.assistant_message or getattr(plan, "actions", None):
-                explanation_actions = plan_actions or [
+                explanation_actions = list(getattr(plan, "actions", []) or []) or [
                     CreateSqlAction(
                         label="Выгрузить таблицу",
                         primary=True,
@@ -526,7 +527,6 @@ class ChatSqlAdapter:
             intent=intent,
             semantic=semantic,
             sql=validation.sql,
-            actions=plan_actions or None,
             validation_warnings=list(dict.fromkeys([*getattr(plan, "warnings", [])])),
             validation_errors=[],
             validation=validation,
@@ -536,6 +536,7 @@ class ChatSqlAdapter:
             mode_warnings=mode_warnings,
             llm_model_alias=llm_model_alias,
             assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
+            actions=list(getattr(plan, "actions", []) or []),
         )
         assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
