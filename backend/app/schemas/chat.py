@@ -115,7 +115,7 @@ class SaveReportActionPayload(BaseModel):
 
 
 class CreateSqlAction(BaseModel):
-    type: Literal["create_sql"]
+    type: Literal["create_sql"] = "create_sql"
     label: str = "Подготовить SQL"
     primary: bool = False
     disabled: bool = False
@@ -123,7 +123,7 @@ class CreateSqlAction(BaseModel):
 
 
 class ShowRunButtonAction(BaseModel):
-    type: Literal["show_run_button"]
+    type: Literal["show_run_button"] = "show_run_button"
     label: str = "Запустить SQL"
     primary: bool = True
     disabled: bool = False
@@ -131,7 +131,7 @@ class ShowRunButtonAction(BaseModel):
 
 
 class ShowChartPreviewAction(BaseModel):
-    type: Literal["show_chart_preview"]
+    type: Literal["show_chart_preview"] = "show_chart_preview"
     label: str = "Показать график"
     primary: bool = False
     disabled: bool = False
@@ -139,7 +139,7 @@ class ShowChartPreviewAction(BaseModel):
 
 
 class ShowSqlAction(BaseModel):
-    type: Literal["show_sql"]
+    type: Literal["show_sql"] = "show_sql"
     label: str = "Показать SQL"
     primary: bool = False
     disabled: bool = False
@@ -147,7 +147,7 @@ class ShowSqlAction(BaseModel):
 
 
 class SaveReportAction(BaseModel):
-    type: Literal["save_report"]
+    type: Literal["save_report"] = "save_report"
     label: str = "Сохранить отчёт"
     primary: bool = False
     disabled: bool = False

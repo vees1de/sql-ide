@@ -1,6 +1,13 @@
 from __future__ import annotations
 
 from app.db.models import ChatMessageModel, ChatSessionModel
+from app.schemas.chat import (
+    CreateSqlAction,
+    SaveReportAction,
+    ShowChartPreviewAction,
+    ShowRunButtonAction,
+    ShowSqlAction,
+)
 from app.services.chat_service import ChatService
 
 
@@ -88,3 +95,21 @@ def test_create_session_creates_new_chat_if_existing_one_has_messages(monkeypatc
     assert len(db.added) == 1
     assert isinstance(db.added[0], ChatSessionModel)
     assert db.commits == 1
+
+
+def test_action_models_expose_default_type_discriminators() -> None:
+    actions = [
+        CreateSqlAction(),
+        ShowRunButtonAction(),
+        ShowChartPreviewAction(),
+        ShowSqlAction(),
+        SaveReportAction(),
+    ]
+
+    assert [action.type for action in actions] == [
+        "create_sql",
+        "show_run_button",
+        "show_chart_preview",
+        "show_sql",
+        "save_report",
+    ]
