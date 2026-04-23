@@ -61,6 +61,12 @@ export interface ApiChatStructuredPayload {
   warnings: string[];
   confidence_level?: 'low' | 'medium' | 'high';
   confidence_reasons?: string[];
+  debug_trace?: Array<{
+    stage: string;
+    status: 'success' | 'warning' | 'error' | 'info';
+    code?: string | null;
+    detail: string;
+  }>;
   needs_clarification: boolean;
   clarification_question: string | null;
   clarification_options: ApiChatClarificationOption[] | null;

@@ -13,7 +13,7 @@
     </div>
 
     <div v-if="content.chartType === 'metric_card'" class="chart-cell__metric">
-      <div class="chart-cell__metric-value">{{ content.value ?? '—' }}</div>
+      <div class="chart-cell__metric-value">{{ formatValue(content.value, content.valueFormat) }}</div>
       <div class="chart-cell__metric-label">{{ content.metricLabel ?? 'Value' }}</div>
       <p v-if="content.explanation" class="chart-cell__metric-note">
         {{ content.explanation }}
@@ -44,12 +44,52 @@ const confidenceLabel = computed(() => {
   return `${Math.round(props.content.confidence * 100)}%`;
 });
 
+function formatValue(value: unknown, valueFormat?: string) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  if (typeof value === 'string' && !Number.isFinite(Number(value))) {
+    return value;
+  }
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return String(value);
+  }
+  switch (valueFormat) {
+    case 'percent':
+      return new Intl.NumberFormat('ru-RU', {
+        style: 'percent',
+        maximumFractionDigits: 1
+      }).format(numericValue > 1 ? numericValue / 100 : numericValue);
+    case 'compact':
+      return new Intl.NumberFormat('ru-RU', {
+        notation: 'compact',
+        maximumFractionDigits: 1
+      }).format(numericValue);
+    case 'integer':
+      return new Intl.NumberFormat('ru-RU', {
+        maximumFractionDigits: 0
+      }).format(numericValue);
+    case 'currency':
+      return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        maximumFractionDigits: 0
+      }).format(numericValue);
+    default:
+      return new Intl.NumberFormat('ru-RU', {
+        maximumFractionDigits: Math.abs(numericValue) >= 100 ? 0 : 2
+      }).format(numericValue);
+  }
+}
+
 const chartOption = computed(() => {
   if (props.content.chartType === 'pie') {
     return {
       color: palette.value,
       tooltip: {
-        trigger: 'item'
+        trigger: 'item',
+        valueFormatter: (value: number) => formatValue(value, props.content.valueFormat)
       },
       legend: {
         bottom: 0,
@@ -65,7 +105,8 @@ const chartOption = computed(() => {
             borderWidth: 3
           },
           label: {
-            formatter: '{b}: {d}%'
+            formatter: ({ name, value }: { name: string; value: number }) =>
+              `${name}: ${formatValue(value, props.content.valueFormat)}`
           },
           data: props.content.pieData ?? []
         }
@@ -76,7 +117,8 @@ const chartOption = computed(() => {
   return {
     color: palette.value,
     tooltip: {
-      trigger: 'axis'
+      trigger: 'axis',
+      valueFormatter: (value: number) => formatValue(value, props.content.valueFormat)
     },
     legend: {
       top: 0,
@@ -105,7 +147,10 @@ const chartOption = computed(() => {
       type: 'value',
       axisLabel: {
         color: '#51607a',
-        formatter: props.content.unit ? `{value} ${props.content.unit}` : '{value}'
+        formatter: (value: number) => {
+          const formatted = formatValue(value, props.content.valueFormat);
+          return props.content.unit ? `${formatted} ${props.content.unit}` : formatted;
+        }
       },
       splitLine: {
         lineStyle: {

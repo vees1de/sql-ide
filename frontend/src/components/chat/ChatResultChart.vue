@@ -77,6 +77,7 @@ const content = computed<ChartCellContent | null>(() => {
       ruleId: recommendation.rule_id ?? undefined,
       confidence: recommendation.confidence ?? undefined,
       variant: recommendation.variant ?? undefined,
+      valueFormat: recommendation.value_format ?? undefined,
       value: chartData?.value ?? '—',
       metricLabel: chartData?.metricLabel ?? recommendation.y ?? 'Value'
     };
@@ -91,6 +92,7 @@ const content = computed<ChartCellContent | null>(() => {
       ruleId: recommendation.rule_id ?? undefined,
       confidence: recommendation.confidence ?? undefined,
       variant: recommendation.variant ?? undefined,
+      valueFormat: recommendation.value_format ?? undefined,
       pieData: chartData?.slices?.map((slice, index) => ({
         name: String(slice.name ?? `Segment ${index + 1}`),
         value: Number(slice.value ?? 0)
@@ -107,6 +109,7 @@ const content = computed<ChartCellContent | null>(() => {
       ruleId: recommendation.rule_id ?? undefined,
       confidence: recommendation.confidence ?? undefined,
       variant: recommendation.variant ?? undefined,
+      valueFormat: recommendation.value_format ?? undefined,
       xAxis: (chartData.x?.values ?? []).map((value) => String(value ?? '—')),
       series: (chartData.series ?? []).map((series) => ({
         name: String(series.name ?? 'Series'),
@@ -125,6 +128,7 @@ const content = computed<ChartCellContent | null>(() => {
       ruleId: recommendation.rule_id ?? undefined,
       confidence: recommendation.confidence ?? undefined,
       variant: recommendation.variant ?? undefined,
+      valueFormat: recommendation.value_format ?? undefined,
       xAxis: (chartData.x?.values ?? []).map((value) => String(value ?? '—')),
       series: [
         {
@@ -150,6 +154,7 @@ const content = computed<ChartCellContent | null>(() => {
       ruleId: recommendation.rule_id ?? undefined,
       confidence: recommendation.confidence ?? undefined,
       variant: recommendation.variant ?? undefined,
+      valueFormat: recommendation.value_format ?? undefined,
       xAxis: xValues,
       series: seriesValues.map((seriesName) => ({
         name: seriesName,
@@ -166,6 +171,7 @@ const content = computed<ChartCellContent | null>(() => {
     ruleId: recommendation.rule_id ?? undefined,
     confidence: recommendation.confidence ?? undefined,
     variant: recommendation.variant ?? undefined,
+    valueFormat: recommendation.value_format ?? undefined,
     xAxis: rows.map((row) => String(row[xField] ?? '—')),
     series: [
       {

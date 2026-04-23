@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import IntentPayload, QuerySemantics
 from app.schemas.semantic_catalog import SemanticCatalog, SemanticTable, SemanticTableEnrichment
+from app.schemas.semantic_contract import SemanticContract
 
 if TYPE_CHECKING:
     from app.services.llm_schema_recon_service import LLMSchemaReconToolbox
@@ -66,6 +67,7 @@ class LLMService:
         prompt: str,
         schema: SchemaMetadataResponse,
         semantic_catalog: SemanticCatalog | None = None,
+        semantic_contract: SemanticContract | None = None,
         semantic_notes: list[str] | None = None,
         previous_intent: IntentPayload | None = None,
         history_text: str | None = None,
@@ -174,6 +176,11 @@ class LLMService:
             "with 'period_over_period' or 'entity_vs_entity', populate semantics.comparison.entities when "
             "concrete entities are mentioned, and set semantics.comparison.facet_column when the user explicitly "
             "asks for separate small multiples per category.\n"
+            "24. SCHEMA TRUTH GUARD — if a table exists in schema truth but was not retrieved into the short context, "
+            "you must treat it as existing-but-not-retrieved, not missing. Never ask 'table X is absent' unless "
+            "schema truth also says it is absent.\n"
+            "25. FACTS BEFORE GUESSES — prefer semantic_contract facts and rule-derived profiles over text hints. "
+            "Use llm-style semantic guesses only as low-confidence tie-breakers.\n"
             f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
             f"{self._alias_contract_guidance()}"
             f"{self._semantic_catalog_guidance(enabled=semantic_catalog is not None)}"
@@ -202,6 +209,7 @@ class LLMService:
                 "dialect": schema.dialect,
                 "schema": schema_summary,
                 "semantic_catalog": self._format_semantic_catalog(semantic_catalog),
+                "semantic_contract": self._format_semantic_contract(semantic_contract),
                 "semantic_notes": list(semantic_notes or []),
                 "previous_intent": previous_intent_payload,
                 "history_text": history_text,
@@ -254,6 +262,61 @@ class LLMService:
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM planning request failed: %s", exc)
         return None
+
+    def _format_semantic_contract(self, contract: SemanticContract | None) -> dict[str, Any] | None:
+        if contract is None:
+            return None
+        return {
+            "table_names": sorted(contract.table_names),
+            "table_profiles": [
+                {
+                    "table": profile.table,
+                    "table_role": profile.table_role,
+                    "confidence": profile.confidence,
+                    "main_date_column": profile.main_date_column,
+                    "measure_candidates": [
+                        {
+                            "metric_name": metric.metric_name,
+                            "column": metric.column,
+                            "family": metric.semantic_family,
+                            "confidence": metric.confidence,
+                            "forbidden_proxies": list(metric.forbidden_proxies),
+                        }
+                        for metric in profile.measure_candidates[:4]
+                    ],
+                    "dimension_candidates": [
+                        {
+                            "column": dimension.column,
+                            "role": dimension.semantic_role,
+                            "family": dimension.family,
+                            "confidence": dimension.confidence,
+                        }
+                        for dimension in profile.dimension_candidates[:4]
+                    ],
+                    "semantic_tags": list(profile.semantic_tags),
+                }
+                for profile in contract.table_profiles
+            ],
+            "join_paths": [
+                {
+                    "from_table": path.from_table,
+                    "to_table": path.to_table,
+                    "path": list(path.path),
+                    "confidence": path.confidence,
+                }
+                for path in contract.join_paths[:25]
+            ],
+            "validation_issues": [
+                {
+                    "severity": issue.severity,
+                    "code": issue.code,
+                    "message": issue.message,
+                    "table": issue.table,
+                    "column": issue.column,
+                }
+                for issue in contract.validation_issues[:10]
+            ],
+        }
 
     def repair_sql(
         self,

@@ -38,6 +38,9 @@ from app.services.database_resolution import resolve_allowed_tables, resolve_dia
 from app.services.knowledge_service import KnowledgeService
 from app.services.llm_service import LLMService
 from app.services.relationship_graph import build_relationship_graph
+from app.services.schema_fact_builder import SchemaFactBuilder
+from app.services.semantic_rule_engine import SemanticRuleEngine
+from app.services.semantic_validator import SemanticValidator
 
 
 _METRIC_NAME_HINTS = ("amount", "revenue", "sales", "price", "cost", "fee", "profit", "balance", "value")
@@ -54,6 +57,9 @@ class SemanticCatalogService:
     def __init__(self) -> None:
         self.knowledge_service = KnowledgeService()
         self.llm_service = LLMService()
+        self.schema_fact_builder = SchemaFactBuilder()
+        self.semantic_rule_engine = SemanticRuleEngine()
+        self.semantic_validator = SemanticValidator()
 
     def get_catalog(
         self,
@@ -396,6 +402,11 @@ class SemanticCatalogService:
         dictionary_entries: list[DictionaryEntryRead] | None = None,
     ) -> SemanticRetrievalContext:
         catalog = self.get_catalog(db, database_id)
+        semantic_contract = self.semantic_rule_engine.build_contract(
+            database_id=database_id,
+            facts=self.schema_fact_builder.build(db, database_id),
+        )
+        semantic_contract.validation_issues = self.semantic_validator.validate(semantic_contract)
         dictionary_entries = dictionary_entries or []
         intent_tokens = self._tokenize(intent_text)
 
@@ -448,9 +459,10 @@ class SemanticCatalogService:
                 relationship_graph=selected_graph,
             ),
             schema=schema,
+            semantic_contract=semantic_contract,
             dictionary_entries=[entry.model_dump(mode="json") for entry in dictionary_entries],
             table_names=sorted(selected_table_names),
-            notes=self._build_notes(selected_tables, selected_join_paths),
+            notes=self._build_notes(selected_tables, selected_join_paths, semantic_contract=semantic_contract),
         )
 
     def build_schema_context(
@@ -1599,7 +1611,13 @@ class SemanticCatalogService:
                 ordered.append(entry)
         return ordered
 
-    def _build_notes(self, tables: list[SemanticTable], join_paths: list[SemanticJoinPath]) -> list[str]:
+    def _build_notes(
+        self,
+        tables: list[SemanticTable],
+        join_paths: list[SemanticJoinPath],
+        *,
+        semantic_contract=None,
+    ) -> list[str]:
         notes: list[str] = []
         for table in tables:
             parts = [
@@ -1615,6 +1633,13 @@ class SemanticCatalogService:
             notes.append(", ".join(parts))
         if join_paths:
             notes.append(f"join_paths={len(join_paths)}")
+        if semantic_contract is not None:
+            notes.append(
+                "schema_truth_tables=" + ", ".join(sorted(semantic_contract.table_names))
+            )
+            for issue in semantic_contract.validation_issues[:5]:
+                suffix = f" ({issue.table}.{issue.column})" if issue.table and issue.column else f" ({issue.table})" if issue.table else ""
+                notes.append(f"semantic_validation:{issue.code}{suffix}")
         return notes
 
     def _safe_get_columns(self, inspector: Any, schema_name: str, table_name: str) -> list[dict[str, Any]]:

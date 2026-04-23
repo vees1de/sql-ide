@@ -201,6 +201,15 @@ const reasoningLines = computed(() => {
     lines.push(`Подсказка режима: ${payload.value.mode_suggestion_reason}`);
   }
 
+  if (payload.value?.debug_trace?.length) {
+    lines.push(
+      ...payload.value.debug_trace.map((step) => {
+        const code = step.code ? ` [${step.code}]` : '';
+        return `${step.stage}${code}: ${step.detail}`;
+      }),
+    );
+  }
+
   if (warnings.value.length) {
     lines.push(`Предупреждения: ${warnings.value.join("; ")}`);
   }

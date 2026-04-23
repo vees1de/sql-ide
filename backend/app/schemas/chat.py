@@ -34,6 +34,7 @@ AmbiguityType = Literal["metric", "dimension", "time_range", "aggregation", "oth
 ClarificationAnswerType = Literal["single_select", "multi_select", "free_text"]
 ClarificationStatus = Literal["pending", "answered"]
 MessageKind = Literal["answer", "clarification", "error"]
+DebugTraceStatus = Literal["success", "warning", "error", "info"]
 
 
 class ClarificationBlock(BaseModel):
@@ -53,6 +54,13 @@ class ErrorBlock(BaseModel):
     suggestions: list[str] = Field(default_factory=list)
 
 
+class DebugTraceStep(BaseModel):
+    stage: str
+    status: DebugTraceStatus = "info"
+    code: str | None = None
+    detail: str
+
+
 class ClarificationAnswerRequest(BaseModel):
     selected_option_id: str | None = None
     text_answer: str | None = None
@@ -68,6 +76,7 @@ class StructuredPayload(BaseModel):
     message_kind: MessageKind = "answer"
     clarification: ClarificationBlock | None = None
     error: ErrorBlock | None = None
+    debug_trace: list[DebugTraceStep] = Field(default_factory=list)
     # Legacy fields kept for already-persisted messages. Frontend reads new fields first.
     needs_clarification: bool = False
     clarification_question: str | None = None

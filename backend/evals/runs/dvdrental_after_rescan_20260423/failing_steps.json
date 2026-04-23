@@ -1,0 +1,1856 @@
+[
+  {
+    "case_id": "weekly_late_return_rate_august_2005",
+    "step_index": 1,
+    "step_ref": "weekly_late_return_rate_august_2005#step1",
+    "user_prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2005-08",
+          "rental",
+          "return_date",
+          "rental_duration",
+          "group by"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "rental",
+          "film",
+          "inventory"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "week"
+          ],
+          [
+            "avg_rental_days"
+          ],
+          [
+            "late_return_rate"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "week"
+          ],
+          "y_any_of": [
+            "late_return_rate",
+            "avg_rental_days"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "В текущей схеме нет таблицы rental (с полями rental_date, return_date, rental_duration), необходимой для расчёта среднего числа дней аренды и доли просроченных возвратов. Как поступить?",
+      "clarification_options": [
+        {
+          "id": "add_rental_table",
+          "label": "Добавить таблицу rental",
+          "detail": "Требуется таблица rental с полями rental_date, return_date, rental_duration для расчётов.",
+          "reason": null
+        },
+        {
+          "id": "use_inventory_last_update",
+          "label": "Использовать дату last_update из inventory",
+          "detail": "Вместо аренды использовать дату последнего обновления inventory как proxy‑дату.",
+          "reason": null
+        },
+        {
+          "id": "cannot_fulfill",
+          "label": "Запрос невозможно выполнить",
+          "detail": "В текущей схеме нет нужных данных для выполнения запроса.",
+          "reason": null
+        }
+      ],
+      "message_kind": "clarification",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "В текущей схеме нет таблицы rental (с полями rental_date, return_date, rental_duration), необходимой для расчёта среднего числа дней аренды и доли просроченных возвратов. Как поступить?",
+          "answer": "Добавить таблицу rental",
+          "options": [
+            {
+              "id": "add_rental_table",
+              "label": "Добавить таблицу rental",
+              "detail": "Требуется таблица rental с полями rental_date, return_date, rental_duration для расчётов.",
+              "reason": null
+            },
+            {
+              "id": "use_inventory_last_update",
+              "label": "Использовать дату last_update из inventory",
+              "detail": "Вместо аренды использовать дату последнего обновления inventory как proxy‑дату.",
+              "reason": null
+            },
+            {
+              "id": "cannot_fulfill",
+              "label": "Запрос невозможно выполнить",
+              "detail": "В текущей схеме нет нужных данных для выполнения запроса.",
+              "reason": null
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "question": "Как поступить с расчётом доли просроченных возвратов, учитывая отсутствие таблицы inventory, необходимой для получения rental_duration?",
+          "answer": "Вычислить только среднее число дней аренды",
+          "options": [
+            {
+              "id": "compute_only_avg_days",
+              "label": "Вычислить только среднее число дней аренды",
+              "detail": "Посчитать avg_rental_days без доли просроченных возвратов.",
+              "reason": null
+            },
+            {
+              "id": "assume_default_duration",
+              "label": "Использовать фиксированную длительность аренды (например, 3 дня)",
+              "detail": "Считать аренду просроченной, если return_date > rental_date + 3 дня.",
+              "reason": null
+            },
+            {
+              "id": "cannot_fulfill",
+              "label": "Запрос невозможно выполнить полностью",
+              "detail": "Недостаточно данных для расчёта доли просроченных возвратов.",
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "Вычислить только среднее число дней аренды",
+        "metric": "avg_rental_days",
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": null,
+        "ambiguities": [
+          "В схеме отсутствует таблица rental, содержащая даты начала и окончания аренды, необходимые для расчёта среднего числа дней аренды."
+        ],
+        "clarification_question": "В схеме нет таблицы rental с датами аренды. Как поступить?",
+        "clarification_options": [
+          {
+            "id": "cannot_fulfill",
+            "label": "Запрос невозможно выполнить",
+            "detail": "Отсутствует необходимая таблица rental с полями rental_date и return_date.",
+            "reason": null
+          },
+          {
+            "id": "use_film_duration",
+            "label": "Среднее значение rental_duration из таблицы film",
+            "detail": "Вычислить AVG(rental_duration) из таблицы film как приближение среднего числа дней аренды.",
+            "reason": null
+          },
+          {
+            "id": "assume_fixed",
+            "label": "Использовать фиксированное значение (например, 3 дня)",
+            "detail": "Вернуть константу как среднее число дней аренды.",
+            "reason": null
+          }
+        ],
+        "confidence": 0.96,
+        "follow_up": false
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  },
+  {
+    "case_id": "top_categories_revenue_april_2007",
+    "step_index": 1,
+    "step_ref": "top_categories_revenue_april_2007#step1",
+    "user_prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2007-04",
+          "payment",
+          "category",
+          "limit 10",
+          "sum("
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "payment"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": 10,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "category"
+          ],
+          [
+            "total_revenue"
+          ],
+          [
+            "payment_count"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "bar"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "category"
+          ],
+          "y_any_of": [
+            "total_revenue"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "В текущей схеме нет таблицы платежей и прямого поля выручки. Какой показатель использовать вместо выручки и количества платежей?",
+      "clarification_options": [
+        {
+          "id": "use_replacement_cost",
+          "label": "Сумма replacement_cost как выручка",
+          "detail": "Суммировать поле replacement_cost из film по категориям (приблизительная выручка).",
+          "reason": null
+        },
+        {
+          "id": "use_rental_rate_inventory",
+          "label": "Сумма rental_rate * количество копий",
+          "detail": "Умножить rental_rate на количество записей в inventory для каждой категории (приблизительная выручка).",
+          "reason": null
+        },
+        {
+          "id": "only_film_count",
+          "label": "Только количество фильмов по категории",
+          "detail": "Показать количество фильмов в каждой категории без расчёта выручки.",
+          "reason": null
+        },
+        {
+          "id": "cancel",
+          "label": "Отменить запрос",
+          "detail": "Запрос нельзя выполнить без данных о платежах.",
+          "reason": null
+        }
+      ],
+      "message_kind": "answer",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "В текущей схеме нет таблицы платежей и прямого поля выручки. Какой показатель использовать вместо выручки и количества платежей?",
+          "answer": "Сумма replacement_cost как выручка",
+          "options": [
+            {
+              "id": "use_replacement_cost",
+              "label": "Сумма replacement_cost как выручка",
+              "detail": "Суммировать поле replacement_cost из film по категориям (приблизительная выручка).",
+              "reason": null
+            },
+            {
+              "id": "use_rental_rate_inventory",
+              "label": "Сумма rental_rate * количество копий",
+              "detail": "Умножить rental_rate на количество записей в inventory для каждой категории (приблизительная выручка).",
+              "reason": null
+            },
+            {
+              "id": "only_film_count",
+              "label": "Только количество фильмов по категории",
+              "detail": "Показать количество фильмов в каждой категории без расчёта выручки.",
+              "reason": null
+            },
+            {
+              "id": "cancel",
+              "label": "Отменить запрос",
+              "detail": "Запрос нельзя выполнить без данных о платежах.",
+              "reason": null
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "question": "В схеме нет таблицы category. Какой атрибут использовать вместо категории для группировки?",
+          "answer": "Группировать по полю rating (рейтинг фильма)",
+          "options": [
+            {
+              "id": "group_by_rating",
+              "label": "Группировать по полю rating (рейтинг фильма)",
+              "detail": "Использовать колонку rating из таблицы film как замену категории.",
+              "reason": null
+            },
+            {
+              "id": "group_by_language",
+              "label": "Группировать по языку фильма",
+              "detail": "Присоединить таблицу language и использовать name как замену категории.",
+              "reason": null
+            },
+            {
+              "id": "group_by_film",
+              "label": "Группировать по отдельным фильмам",
+              "detail": "Считать каждый film_id отдельной группой.",
+              "reason": null
+            },
+            {
+              "id": "cancel",
+              "label": "Отменить запрос",
+              "detail": "Запрос нельзя выполнить без категории.",
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "Группировать по полю rating (рейтинг фильма)",
+        "metric": "total_revenue",
+        "dimensions": [
+          "rating"
+        ],
+        "filters": [],
+        "comparison": null,
+        "date_range": {
+          "kind": "absolute",
+          "start": "2007-04-01",
+          "end": "2007-04-30",
+          "lookback_value": null,
+          "lookback_unit": null
+        },
+        "visualization_preference": "bar",
+        "ambiguities": [
+          "В схеме нет данных за апрель 2007 (observed_range для дат ограничен 2006 годом)."
+        ],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.93,
+        "follow_up": false
+      },
+      "sql": "SELECT\n  f.rating,\n  SUM(f.replacement_cost) AS total_revenue,\n  COUNT(*) AS film_count\nFROM film AS f\nWHERE\n  f.release_year = 2006\nGROUP BY\n  f.rating\nORDER BY\n  total_revenue DESC NULLS LAST\nLIMIT 10",
+      "execution": {
+        "id": "af9094d6ef51463c833f5edead18e5f8",
+        "session_id": "1f61020d1d7b414cbb6cfe676b6eecfc",
+        "sql_text": "SELECT\n  f.rating,\n  SUM(f.replacement_cost) AS total_revenue,\n  COUNT(*) AS film_count\nFROM film AS f\nWHERE\n  f.release_year = 2006\nGROUP BY\n  f.rating\nORDER BY\n  total_revenue DESC NULLS LAST\nLIMIT 10",
+        "columns": [
+          {
+            "name": "rating",
+            "type": "object"
+          },
+          {
+            "name": "total_revenue",
+            "type": "float64"
+          },
+          {
+            "name": "film_count",
+            "type": "int64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "rating": "PG-13",
+            "total_revenue": 4549.77,
+            "film_count": 223
+          },
+          {
+            "rating": "NC-17",
+            "total_revenue": 4228.9,
+            "film_count": 210
+          },
+          {
+            "rating": "R",
+            "total_revenue": 3945.05,
+            "film_count": 195
+          },
+          {
+            "rating": "PG",
+            "total_revenue": 3678.06,
+            "film_count": 194
+          },
+          {
+            "rating": "G",
+            "total_revenue": 3582.22,
+            "film_count": 178
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 5,
+        "execution_time_ms": 12,
+        "chart_recommendation": {
+          "recommended_view": "table",
+          "chart_type": null,
+          "x": "rating",
+          "y": "total_revenue",
+          "series": null,
+          "facet": null,
+          "variant": "default",
+          "explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+          "rule_id": "CASCADE_TABLE",
+          "confidence": 0.74,
+          "data": {
+            "kind": "table",
+            "chartType": "table",
+            "variant": "default",
+            "explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+            "reason": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+            "ruleId": "CASCADE_TABLE",
+            "confidence": 0.74,
+            "semanticIntent": "correlation",
+            "analysisMode": "correlate",
+            "visualGoal": "show_relationship_between_metrics",
+            "timeRole": "none",
+            "comparisonGoal": "absolute",
+            "preferredMark": "table",
+            "alternatives": [],
+            "candidates": [
+              {
+                "type": "table",
+                "score": 0.74,
+                "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+              }
+            ],
+            "constraintsApplied": [],
+            "visualLoad": 5,
+            "reasonCodes": [
+              "INTENT_CORRELATION"
+            ],
+            "queryInterpretation": {
+              "user_goal": "Relate total_revenue by rating",
+              "intent": "correlation",
+              "analysis_mode": "correlate",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "total_revenue",
+                  "aggregation": null,
+                  "format": "currency_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "rating",
+                  "role": "category"
+                }
+              ],
+              "time_dimension": null,
+              "series_dimension": null,
+              "requested_output": "table",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.74,
+              "short_explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+            },
+            "decisionSummary": {
+              "selected_chart": "table",
+              "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+              "reason_codes": [
+                "INTENT_CORRELATION"
+              ],
+              "alternatives": [],
+              "confidence": 0.74
+            },
+            "understanding": {
+              "user_goal": "Relate total_revenue by rating",
+              "intent": "correlation",
+              "analysis_mode": "correlate",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "total_revenue",
+                  "aggregation": null,
+                  "format": "currency_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "rating",
+                  "role": "category"
+                }
+              ],
+              "time_dimension": null,
+              "series_dimension": null,
+              "requested_output": "table",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.74,
+              "short_explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+            },
+            "decision": {
+              "chart_type": "table",
+              "x": "rating",
+              "y": "total_revenue",
+              "series_key": null,
+              "facet_key": null,
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none"
+            },
+            "explanationBlock": {
+              "summary": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+              "confidence": 0.74,
+              "alternatives_considered": [],
+              "reason_codes": [
+                "INTENT_CORRELATION"
+              ]
+            },
+            "config": {
+              "xField": "rating",
+              "yField": "total_revenue",
+              "seriesField": null,
+              "facetField": null,
+              "sort": null,
+              "normalize": "none",
+              "seriesLimit": null,
+              "categoryLimit": null,
+              "topNStrategy": "none",
+              "valueFormat": "currency_compact",
+              "dataRoles": {
+                "x": "rating",
+                "y": "total_revenue",
+                "series_key": null,
+                "facet_key": null,
+                "label": "rating",
+                "value": "total_revenue"
+              }
+            }
+          },
+          "reason": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+          "semantic_intent": "correlation",
+          "analysis_mode": "correlate",
+          "visual_goal": "show_relationship_between_metrics",
+          "time_role": "none",
+          "comparison_goal": "absolute",
+          "preferred_mark": "table",
+          "normalize": "none",
+          "value_format": "currency_compact",
+          "series_limit": null,
+          "category_limit": null,
+          "top_n_strategy": "none",
+          "alternatives": [],
+          "candidates": [
+            {
+              "type": "table",
+              "score": 0.74,
+              "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+            }
+          ],
+          "constraints_applied": [],
+          "visual_load": 5,
+          "query_interpretation": {
+            "user_goal": "Relate total_revenue by rating",
+            "intent": "correlation",
+            "analysis_mode": "correlate",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "total_revenue",
+                "aggregation": null,
+                "format": "currency_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "rating",
+                "role": "category"
+              }
+            ],
+            "time_dimension": null,
+            "series_dimension": null,
+            "requested_output": "table",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.74,
+            "short_explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+          },
+          "decision_summary": {
+            "selected_chart": "table",
+            "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+            "reason_codes": [
+              "INTENT_CORRELATION"
+            ],
+            "alternatives": [],
+            "confidence": 0.74
+          },
+          "reason_codes": [
+            "INTENT_CORRELATION"
+          ]
+        },
+        "error_message": null,
+        "created_at": "2026-04-23T02:18:09.032489"
+      },
+      "chart": {
+        "recommended_view": "table",
+        "chart_type": null,
+        "x": "rating",
+        "y": "total_revenue",
+        "series": null,
+        "facet": null,
+        "variant": "default",
+        "explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+        "rule_id": "CASCADE_TABLE",
+        "confidence": 0.74,
+        "data": {
+          "kind": "table",
+          "chartType": "table",
+          "variant": "default",
+          "explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+          "reason": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+          "ruleId": "CASCADE_TABLE",
+          "confidence": 0.74,
+          "semanticIntent": "correlation",
+          "analysisMode": "correlate",
+          "visualGoal": "show_relationship_between_metrics",
+          "timeRole": "none",
+          "comparisonGoal": "absolute",
+          "preferredMark": "table",
+          "alternatives": [],
+          "candidates": [
+            {
+              "type": "table",
+              "score": 0.74,
+              "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+            }
+          ],
+          "constraintsApplied": [],
+          "visualLoad": 5,
+          "reasonCodes": [
+            "INTENT_CORRELATION"
+          ],
+          "queryInterpretation": {
+            "user_goal": "Relate total_revenue by rating",
+            "intent": "correlation",
+            "analysis_mode": "correlate",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "total_revenue",
+                "aggregation": null,
+                "format": "currency_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "rating",
+                "role": "category"
+              }
+            ],
+            "time_dimension": null,
+            "series_dimension": null,
+            "requested_output": "table",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.74,
+            "short_explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+          },
+          "decisionSummary": {
+            "selected_chart": "table",
+            "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+            "reason_codes": [
+              "INTENT_CORRELATION"
+            ],
+            "alternatives": [],
+            "confidence": 0.74
+          },
+          "understanding": {
+            "user_goal": "Relate total_revenue by rating",
+            "intent": "correlation",
+            "analysis_mode": "correlate",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "total_revenue",
+                "aggregation": null,
+                "format": "currency_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "rating",
+                "role": "category"
+              }
+            ],
+            "time_dimension": null,
+            "series_dimension": null,
+            "requested_output": "table",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.74,
+            "short_explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+          },
+          "decision": {
+            "chart_type": "table",
+            "x": "rating",
+            "y": "total_revenue",
+            "series_key": null,
+            "facet_key": null,
+            "normalize": "none",
+            "series_limit": null,
+            "category_limit": null,
+            "top_n_strategy": "none"
+          },
+          "explanationBlock": {
+            "summary": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+            "confidence": 0.74,
+            "alternatives_considered": [],
+            "reason_codes": [
+              "INTENT_CORRELATION"
+            ]
+          },
+          "config": {
+            "xField": "rating",
+            "yField": "total_revenue",
+            "seriesField": null,
+            "facetField": null,
+            "sort": null,
+            "normalize": "none",
+            "seriesLimit": null,
+            "categoryLimit": null,
+            "topNStrategy": "none",
+            "valueFormat": "currency_compact",
+            "dataRoles": {
+              "x": "rating",
+              "y": "total_revenue",
+              "series_key": null,
+              "facet_key": null,
+              "label": "rating",
+              "value": "total_revenue"
+            }
+          }
+        },
+        "reason": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+        "semantic_intent": "correlation",
+        "analysis_mode": "correlate",
+        "visual_goal": "show_relationship_between_metrics",
+        "time_role": "none",
+        "comparison_goal": "absolute",
+        "preferred_mark": "table",
+        "normalize": "none",
+        "value_format": "currency_compact",
+        "series_limit": null,
+        "category_limit": null,
+        "top_n_strategy": "none",
+        "alternatives": [],
+        "candidates": [
+          {
+            "type": "table",
+            "score": 0.74,
+            "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+          }
+        ],
+        "constraints_applied": [],
+        "visual_load": 5,
+        "query_interpretation": {
+          "user_goal": "Relate total_revenue by rating",
+          "intent": "correlation",
+          "analysis_mode": "correlate",
+          "entities": [],
+          "metrics": [
+            {
+              "name": "total_revenue",
+              "aggregation": null,
+              "format": "currency_compact"
+            }
+          ],
+          "dimensions": [
+            {
+              "name": "rating",
+              "role": "category"
+            }
+          ],
+          "time_dimension": null,
+          "series_dimension": null,
+          "requested_output": "table",
+          "assumptions": [],
+          "ambiguities": [],
+          "confidence": 0.74,
+          "short_explanation": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer."
+        },
+        "decision_summary": {
+          "selected_chart": "table",
+          "why": "Запрос похож на корреляцию, а scatter пока не поддержан как базовый renderer.",
+          "reason_codes": [
+            "INTENT_CORRELATION"
+          ],
+          "alternatives": [],
+          "confidence": 0.74
+        },
+        "reason_codes": [
+          "INTENT_CORRELATION"
+        ]
+      }
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.5714,
+      "chart": 0.3333,
+      "overall": 0.3016
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `2007-04` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `payment` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `category` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `limit 10` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `sum(` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required table `payment` missing; actual tables=['film']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=5, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_max_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=5, expected at most 10"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['category']; actual columns=['film_count', 'rating', 'total_revenue']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['total_revenue']; actual columns=['film_count', 'rating', 'total_revenue']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['payment_count']; actual columns=['film_count', 'rating', 'total_revenue']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_mismatch",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart type=table, acceptable=['bar']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_mismatch",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart x=rating, acceptable=['category']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart y=total_revenue, acceptable=['total_revenue']"
+      }
+    ]
+  },
+  {
+    "case_id": "daily_store_revenue_march_2007",
+    "step_index": 1,
+    "step_ref": "daily_store_revenue_march_2007#step1",
+    "user_prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2007-03",
+          "payment",
+          "payment_date",
+          "group by",
+          "sum("
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "payment"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "day"
+          ],
+          [
+            "store_id"
+          ],
+          [
+            "total_revenue"
+          ],
+          [
+            "payment_count"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "day"
+          ],
+          "y_any_of": [
+            "total_revenue"
+          ],
+          "series_any_of": [
+            "store_id"
+          ]
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "clarification_question": "В схеме нет таблиц payment и store, а также столбца с датой уровня дня. Как вы хотите изменить запрос?",
+      "clarification_options": [
+        {
+          "id": "overall_yearly",
+          "label": "Показать общую выручку и количество платежей без разбивки по магазинам (по годам)",
+          "detail": "Использовать доступные таблицы (например, film.rental_rate как выручку, COUNT(*) как количество платежей) и агрегировать по release_year.",
+          "reason": null
+        },
+        {
+          "id": "monthly_2007",
+          "label": "Показать выручку и количество платежей по месяцам за 2007 год",
+          "detail": "Группировать данные по release_year и, если возможно, по месяцу (но в схеме только год).",
+          "reason": null
+        },
+        {
+          "id": "cannot_fulfill",
+          "label": "Отказаться от запроса, так как нужные таблицы отсутствуют",
+          "detail": "Таблицы payment и store не присутствуют в схеме, а также нет столбца с датой уровня дня.",
+          "reason": null
+        }
+      ],
+      "message_kind": "answer",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "В схеме нет таблиц payment и store, а также столбца с датой уровня дня. Как вы хотите изменить запрос?",
+          "answer": "Показать общую выручку и количество платежей без разбивки по магазинам (по годам)",
+          "options": [
+            {
+              "id": "overall_yearly",
+              "label": "Показать общую выручку и количество платежей без разбивки по магазинам (по годам)",
+              "detail": "Использовать доступные таблицы (например, film.rental_rate как выручку, COUNT(*) как количество платежей) и агрегировать по release_year.",
+              "reason": null
+            },
+            {
+              "id": "monthly_2007",
+              "label": "Показать выручку и количество платежей по месяцам за 2007 год",
+              "detail": "Группировать данные по release_year и, если возможно, по месяцу (но в схеме только год).",
+              "reason": null
+            },
+            {
+              "id": "cannot_fulfill",
+              "label": "Отказаться от запроса, так как нужные таблицы отсутствуют",
+              "detail": "Таблицы payment и store не присутствуют в схеме, а также нет столбца с датой уровня дня.",
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "Показать общую выручку и количество платежей без разбивки по магазинам (по годам)",
+        "metric": "total_revenue, payment_count",
+        "dimensions": [
+          "release_year"
+        ],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": null,
+        "ambiguities": [
+          "Таблицы payment и store отсутствуют в схеме, поэтому используется film.rental_rate как proxy выручки и COUNT(*) как количество платежей"
+        ],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.96,
+        "follow_up": false
+      },
+      "sql": "SELECT\n  f.release_year AS year,\n  SUM(f.rental_rate) AS total_revenue,\n  COUNT(*) AS payment_count\nFROM film AS f\nGROUP BY\n  f.release_year\nORDER BY\n  f.release_year\nLIMIT 50",
+      "execution": {
+        "id": "be90fca512b74af0b7f37b9e0e42ec1b",
+        "session_id": "aee81d670a84445e955cdf1c84717b48",
+        "sql_text": "SELECT\n  f.release_year AS year,\n  SUM(f.rental_rate) AS total_revenue,\n  COUNT(*) AS payment_count\nFROM film AS f\nGROUP BY\n  f.release_year\nORDER BY\n  f.release_year\nLIMIT 50",
+        "columns": [
+          {
+            "name": "year",
+            "type": "int64"
+          },
+          {
+            "name": "total_revenue",
+            "type": "float64"
+          },
+          {
+            "name": "payment_count",
+            "type": "int64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "year": 2006,
+            "total_revenue": 2980.0,
+            "payment_count": 1000
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 1,
+        "execution_time_ms": 10,
+        "chart_recommendation": {
+          "recommended_view": "chart",
+          "chart_type": "line",
+          "x": "year",
+          "y": "total_revenue",
+          "series": null,
+          "facet": null,
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "rule_id": "CASCADE_LINE",
+          "confidence": 0.9,
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "ruleId": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semanticIntent": "trend",
+            "analysisMode": "trend",
+            "visualGoal": "show_change_over_time",
+            "timeRole": "primary",
+            "comparisonGoal": "absolute",
+            "preferredMark": "line",
+            "alternatives": [
+              "bar"
+            ],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              {
+                "type": "bar",
+                "score": 0.66,
+                "why": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+              }
+            ],
+            "constraintsApplied": [],
+            "visualLoad": 1,
+            "reasonCodes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "FEW_TIME_BUCKETS"
+            ],
+            "queryInterpretation": {
+              "user_goal": "Track total_revenue by year",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "total_revenue",
+                  "aggregation": null,
+                  "format": "currency_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "year",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "year",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decisionSummary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "FEW_TIME_BUCKETS"
+              ],
+              "alternatives": [
+                {
+                  "type": "bar",
+                  "why_not": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+                }
+              ],
+              "confidence": 0.9
+            },
+            "understanding": {
+              "user_goal": "Track total_revenue by year",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "total_revenue",
+                  "aggregation": null,
+                  "format": "currency_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "year",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "year",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision": {
+              "chart_type": "line",
+              "x": "year",
+              "y": "total_revenue",
+              "series_key": null,
+              "facet_key": null,
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none"
+            },
+            "explanationBlock": {
+              "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "confidence": 0.9,
+              "alternatives_considered": [
+                "bar"
+              ],
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "FEW_TIME_BUCKETS"
+              ]
+            },
+            "config": {
+              "xField": "year",
+              "yField": "total_revenue",
+              "seriesField": null,
+              "facetField": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "seriesLimit": null,
+              "categoryLimit": null,
+              "topNStrategy": "none",
+              "valueFormat": "currency_compact",
+              "dataRoles": {
+                "x": "year",
+                "y": "total_revenue",
+                "series_key": null,
+                "facet_key": null,
+                "label": "year",
+                "value": "total_revenue"
+              }
+            },
+            "x": {
+              "field": "year",
+              "values": [
+                2006
+              ],
+              "type": "temporal"
+            },
+            "y": {
+              "field": "total_revenue",
+              "values": [
+                2980.0
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "semantic_intent": "trend",
+          "analysis_mode": "trend",
+          "visual_goal": "show_change_over_time",
+          "time_role": "primary",
+          "comparison_goal": "absolute",
+          "preferred_mark": "line",
+          "normalize": "none",
+          "value_format": "currency_compact",
+          "series_limit": null,
+          "category_limit": null,
+          "top_n_strategy": "none",
+          "alternatives": [
+            "bar"
+          ],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            {
+              "type": "bar",
+              "score": 0.66,
+              "why": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+            }
+          ],
+          "constraints_applied": [],
+          "visual_load": 1,
+          "query_interpretation": {
+            "user_goal": "Track total_revenue by year",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "total_revenue",
+                "aggregation": null,
+                "format": "currency_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "year",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "year",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision_summary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "FEW_TIME_BUCKETS"
+            ],
+            "alternatives": [
+              {
+                "type": "bar",
+                "why_not": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+              }
+            ],
+            "confidence": 0.9
+          },
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "FEW_TIME_BUCKETS"
+          ]
+        },
+        "error_message": null,
+        "created_at": "2026-04-23T02:17:11.582239"
+      },
+      "chart": {
+        "recommended_view": "chart",
+        "chart_type": "line",
+        "x": "year",
+        "y": "total_revenue",
+        "series": null,
+        "facet": null,
+        "variant": "single_series",
+        "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+        "rule_id": "CASCADE_LINE",
+        "confidence": 0.9,
+        "data": {
+          "kind": "single_series",
+          "chartType": "line",
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "ruleId": "CASCADE_LINE",
+          "confidence": 0.9,
+          "semanticIntent": "trend",
+          "analysisMode": "trend",
+          "visualGoal": "show_change_over_time",
+          "timeRole": "primary",
+          "comparisonGoal": "absolute",
+          "preferredMark": "line",
+          "alternatives": [
+            "bar"
+          ],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            {
+              "type": "bar",
+              "score": 0.66,
+              "why": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+            }
+          ],
+          "constraintsApplied": [],
+          "visualLoad": 1,
+          "reasonCodes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "FEW_TIME_BUCKETS"
+          ],
+          "queryInterpretation": {
+            "user_goal": "Track total_revenue by year",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "total_revenue",
+                "aggregation": null,
+                "format": "currency_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "year",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "year",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decisionSummary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "FEW_TIME_BUCKETS"
+            ],
+            "alternatives": [
+              {
+                "type": "bar",
+                "why_not": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+              }
+            ],
+            "confidence": 0.9
+          },
+          "understanding": {
+            "user_goal": "Track total_revenue by year",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "total_revenue",
+                "aggregation": null,
+                "format": "currency_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "year",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "year",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision": {
+            "chart_type": "line",
+            "x": "year",
+            "y": "total_revenue",
+            "series_key": null,
+            "facet_key": null,
+            "normalize": "none",
+            "series_limit": null,
+            "category_limit": null,
+            "top_n_strategy": "none"
+          },
+          "explanationBlock": {
+            "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "confidence": 0.9,
+            "alternatives_considered": [
+              "bar"
+            ],
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "FEW_TIME_BUCKETS"
+            ]
+          },
+          "config": {
+            "xField": "year",
+            "yField": "total_revenue",
+            "seriesField": null,
+            "facetField": null,
+            "sort": "time_asc",
+            "normalize": "none",
+            "seriesLimit": null,
+            "categoryLimit": null,
+            "topNStrategy": "none",
+            "valueFormat": "currency_compact",
+            "dataRoles": {
+              "x": "year",
+              "y": "total_revenue",
+              "series_key": null,
+              "facet_key": null,
+              "label": "year",
+              "value": "total_revenue"
+            }
+          },
+          "x": {
+            "field": "year",
+            "values": [
+              2006
+            ],
+            "type": "temporal"
+          },
+          "y": {
+            "field": "total_revenue",
+            "values": [
+              2980.0
+            ],
+            "unit": null
+          },
+          "stacked": false
+        },
+        "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+        "semantic_intent": "trend",
+        "analysis_mode": "trend",
+        "visual_goal": "show_change_over_time",
+        "time_role": "primary",
+        "comparison_goal": "absolute",
+        "preferred_mark": "line",
+        "normalize": "none",
+        "value_format": "currency_compact",
+        "series_limit": null,
+        "category_limit": null,
+        "top_n_strategy": "none",
+        "alternatives": [
+          "bar"
+        ],
+        "candidates": [
+          {
+            "type": "line",
+            "score": 0.9,
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          {
+            "type": "bar",
+            "score": 0.66,
+            "why": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+          }
+        ],
+        "constraints_applied": [],
+        "visual_load": 1,
+        "query_interpretation": {
+          "user_goal": "Track total_revenue by year",
+          "intent": "trend",
+          "analysis_mode": "trend",
+          "entities": [],
+          "metrics": [
+            {
+              "name": "total_revenue",
+              "aggregation": null,
+              "format": "currency_compact"
+            }
+          ],
+          "dimensions": [
+            {
+              "name": "year",
+              "role": "time"
+            }
+          ],
+          "time_dimension": "year",
+          "series_dimension": null,
+          "requested_output": "chart",
+          "assumptions": [],
+          "ambiguities": [],
+          "confidence": 0.9,
+          "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+        },
+        "decision_summary": {
+          "selected_chart": "line",
+          "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "FEW_TIME_BUCKETS"
+          ],
+          "alternatives": [
+            {
+              "type": "bar",
+              "why_not": "Периодов немного, поэтому bar chart еще остается читаемым для сравнения значений по времени."
+            }
+          ],
+          "confidence": 0.9
+        },
+        "reason_codes": [
+          "INTENT_TREND",
+          "HAS_TIME_AXIS",
+          "TREND_PRIMARY_GOAL",
+          "FEW_TIME_BUCKETS"
+        ]
+      }
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.7143,
+      "chart": 0.5,
+      "overall": 0.4048
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `2007-03` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `payment` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `payment_date` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `group by` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `sum(` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required table `payment` found; actual tables=['film']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=1, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['day']; actual columns=['payment_count', 'total_revenue', 'year']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['store_id']; actual columns=['payment_count', 'total_revenue', 'year']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['total_revenue']; actual columns=['payment_count', 'total_revenue', 'year']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['payment_count']; actual columns=['payment_count', 'total_revenue', 'year']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart type=line, acceptable=['line']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_mismatch",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart x=year, acceptable=['day']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart y=total_revenue, acceptable=['total_revenue']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_series_mismatch",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart series=∅, acceptable=['store_id']"
+      }
+    ]
+  }
+]

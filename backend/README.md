@@ -127,3 +127,7 @@ python backend/scripts/eval_chat_text_to_sql.py \
   - `repair_brief.md`
 
 Suite-файл хранится в JSON и поддерживает multi-turn кейсы, ожидания по `intent`, SQL-паттернам, результату выполнения и chart recommendation. Это удобно давать LLM-агенту как вход для автоматического улучшения `backend/app/services/llm_service.py`, `backend/app/services/chat_sql_adapter.py`, `backend/app/agents/semantic.py`, `backend/app/services/chart_decision_service.py` и связанных частей пайплайна.
+
+Подробный пошаговый гайд:
+
+- [backend/evals/README.md](/Users/vees1de/repos/sql-ide/backend/evals/README.md)

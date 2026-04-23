@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.schemas.chart_payload import validate_chart_payload
 from app.schemas.query import QueryExecutionResult
 from app.services.chart_decision_service import ChartDecision, ResultShape
 
@@ -76,11 +77,11 @@ class ChartDataAdapter:
         }
 
         if decision.chart_type == "table":
-            return payload
+            return validate_chart_payload(payload)
 
         if decision.chart_type == "metric_card":
             payload.update(self._build_metric_payload(execution, decision, resolved_shape))
-            return payload
+            return validate_chart_payload(payload)
 
         x_field = decision.encoding.x_field
         y_field = decision.encoding.y_field
@@ -88,14 +89,14 @@ class ChartDataAdapter:
 
         if decision.chart_type == "pie":
             payload["slices"] = self._build_pie_slices(execution, x_field, y_field, decision)
-            return payload
+            return validate_chart_payload(payload)
 
         if series_field:
             payload.update(self._build_multi_series_payload(execution, x_field, y_field, series_field, decision))
-            return payload
+            return validate_chart_payload(payload)
 
         payload.update(self._build_single_series_payload(execution, x_field, y_field, decision))
-        return payload
+        return validate_chart_payload(payload)
 
     def _payload_kind(self, chart_type: str, has_series: bool, variant: str | None) -> str:
         if chart_type == "metric_card":

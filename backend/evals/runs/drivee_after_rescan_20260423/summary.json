@@ -1,0 +1,17 @@
+{
+  "suite_name": "drivee_complex_chat_text_to_sql",
+  "api_base": "http://127.0.0.1:8001/api",
+  "started_at": "2026-04-23T02:14:16.202699+00:00",
+  "finished_at": "2026-04-23T02:16:27.839295+00:00",
+  "duration_seconds": 131.637,
+  "case_count": 3,
+  "step_count": 3,
+  "scores": {
+    "understanding": 1.0,
+    "sql": 1.0,
+    "chart": 1.0,
+    "overall": 1.0
+  },
+  "judge_used": false,
+  "failures_by_code": {}
+}

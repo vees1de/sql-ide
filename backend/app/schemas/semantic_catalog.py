@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.metadata import RelationshipGraphEdge, SchemaMetadataResponse
+from app.schemas.semantic_contract import SemanticContract
 
 
 SemanticType = Literal[
@@ -127,6 +128,7 @@ class SemanticCatalog(BaseModel):
 class SemanticRetrievalContext(BaseModel):
     catalog: SemanticCatalog
     schema: SchemaMetadataResponse
+    semantic_contract: SemanticContract | None = None
     dictionary_entries: list[dict[str, Any]] = Field(default_factory=list)
     table_names: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)

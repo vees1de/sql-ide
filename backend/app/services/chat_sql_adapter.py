@@ -13,6 +13,7 @@ from app.schemas.analytics import AnalyticsContext, AnalyticsQueryRequest
 from app.schemas.chat import (
     ClarificationBlock,
     ClarificationOption,
+    DebugTraceStep,
     ErrorBlock,
     Interpretation,
     StructuredPayload,
@@ -28,9 +29,11 @@ from app.schemas.query import (
     normalize_query_mode,
 )
 from app.services.chat_service import ChatService
+from app.services.clarification_policy import ClarificationPolicy
 from app.services.clarification_resolver import apply_answers
 from app.services.llm_service import LLMQueryPlan, LLMService
 from app.services.llm_schema_recon_service import LLMSchemaReconService
+from app.services.schema_truth_guard import SchemaTruthGuard
 from app.services.dictionary_service import DictionaryService
 from app.services.analytics_agent_service import AnalyticsAgentService
 from app.services.semantic_catalog_service import SemanticCatalogService
@@ -52,9 +55,11 @@ class ChatSqlAdapter:
         self.dictionary_service = DictionaryService()
         self.analytics_agent = AnalyticsAgentService()
         self.clarification_agent = self.analytics_agent.clarification_agent
+        self.clarification_policy = ClarificationPolicy()
         self.llm_service = LLMService()
         self.schema_recon_service = LLMSchemaReconService()
         self.semantic_catalog_service = SemanticCatalogService()
+        self.schema_truth_guard = SchemaTruthGuard()
 
     def generate_response(
         self,
@@ -103,6 +108,7 @@ class ChatSqlAdapter:
             else:
                 schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
             semantic_catalog = getattr(catalog_context, "catalog", None)
+            semantic_contract = getattr(catalog_context, "semantic_contract", None)
             semantic_notes = getattr(catalog_context, "notes", [])
             # Thinking mode tolerates a few retries so transient LLM planning/validation
             # failures do not immediately degrade into the rule-based clarification flow.
@@ -113,6 +119,7 @@ class ChatSqlAdapter:
                     user_text=user_text,
                     schema=schema,
                     semantic_catalog=semantic_catalog,
+                    semantic_contract=semantic_contract,
                     semantic_notes=semantic_notes,
                     previous_intent=previous_intent,
                     history_text=history_text,
@@ -126,6 +133,7 @@ class ChatSqlAdapter:
                     plan=plan,
                     schema=schema,
                     semantic_catalog=semantic_catalog,
+                    semantic_contract=semantic_contract,
                     semantic_notes=semantic_notes,
                     dictionary_entries=thinking_dictionary_entries,
                     user_text=user_text,
@@ -231,6 +239,7 @@ class ChatSqlAdapter:
         user_text: str,
         schema,
         semantic_catalog,
+        semantic_contract,
         semantic_notes: list[str],
         previous_intent: IntentPayload | None,
         history_text: str,
@@ -240,6 +249,7 @@ class ChatSqlAdapter:
             prompt=user_text,
             schema=schema,
             semantic_catalog=semantic_catalog,
+            semantic_contract=semantic_contract,
             semantic_notes=semantic_notes,
             previous_intent=previous_intent,
             history_text=history_text,
@@ -255,6 +265,7 @@ class ChatSqlAdapter:
         plan: LLMQueryPlan,
         schema,
         semantic_catalog,
+        semantic_contract,
         semantic_notes: list[str],
         dictionary_entries: list[DictionaryEntryRead],
         user_text: str,
@@ -273,6 +284,18 @@ class ChatSqlAdapter:
                 if complexity == "complex":
                     mode_warnings.append("Сложный запрос выполнен в Fast режиме. Результат может быть приближённым.")
             else:
+                suppression = self.clarification_policy.should_suppress(
+                    prompt=user_text,
+                    intent=intent,
+                    question=intent.clarification_question,
+                )
+                if suppression.suppress:
+                    return None
+                if self.schema_truth_guard.clarification_conflicts_with_schema_truth(
+                    question=intent.clarification_question,
+                    contract=semantic_contract,
+                ):
+                    return None
                 return self._build_llm_clarification_result(
                     db=db,
                     session=session,
@@ -421,6 +444,14 @@ class ChatSqlAdapter:
             tables_used=[],
             sql=None,
             warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            debug_trace=[
+                DebugTraceStep(
+                    stage="clarification",
+                    status="warning",
+                    code="llm_clarification_requested",
+                    detail=intent.clarification_question or "LLM requested clarification.",
+                )
+            ],
             message_kind="clarification",
             needs_clarification=True,
             clarification_question=intent.clarification_question,
@@ -466,6 +497,14 @@ class ChatSqlAdapter:
             tables_used=[],
             sql=None,
             warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            debug_trace=[
+                DebugTraceStep(
+                    stage="clarification",
+                    status="warning",
+                    code="rule_clarification_requested",
+                    detail=getattr(first_question, "text", None) or intent.clarification_question or "Clarification requested.",
+                )
+            ],
             message_kind="clarification",
             needs_clarification=True,
             clarification_question=getattr(first_question, "text", None) or intent.clarification_question,
@@ -509,6 +548,14 @@ class ChatSqlAdapter:
             tables_used=[],
             sql=None,
             warnings=list(dict.fromkeys([*(intent.ambiguities or [])])),
+            debug_trace=[
+                DebugTraceStep(
+                    stage="clarification",
+                    status="warning",
+                    code="clarification_agent_requested",
+                    detail=question or "Clarification requested.",
+                )
+            ],
             message_kind="clarification",
             needs_clarification=True,
             clarification_question=question,
@@ -704,6 +751,14 @@ class ChatSqlAdapter:
             warnings=warnings,
             confidence_level=confidence_level,
             confidence_reasons=confidence_reasons,
+            debug_trace=self._build_debug_trace(
+                intent=intent,
+                semantic=semantic,
+                validation=validation,
+                query_mode=query_mode,
+                complexity=complexity,
+                warnings=warnings,
+            ),
             needs_clarification=False,
             clarification_question=None,
             clarification_options=None,
@@ -714,6 +769,63 @@ class ChatSqlAdapter:
             mode_suggestion=mode_suggestion,
             mode_suggestion_reason=mode_suggestion_reason,
         )
+
+    def _build_debug_trace(
+        self,
+        *,
+        intent: IntentPayload,
+        semantic: SemanticMappingPayload | None,
+        validation: ValidationPayload | None,
+        query_mode: QueryMode,
+        complexity: str,
+        warnings: list[str],
+    ) -> list[DebugTraceStep]:
+        trace: list[DebugTraceStep] = [
+            DebugTraceStep(
+                stage="intent",
+                status="success",
+                code="intent_parsed",
+                detail=(
+                    f"metric={intent.metric or 'none'}; "
+                    f"dimensions={','.join(intent.dimensions or []) or 'none'}; "
+                    f"query_mode={query_mode}; complexity={complexity}"
+                ),
+            )
+        ]
+        if semantic is not None:
+            trace.append(
+                DebugTraceStep(
+                    stage="semantic",
+                    status="success",
+                    code="semantic_mapping_built",
+                    detail=(
+                        f"base_table={semantic.base_table or 'none'}; "
+                        f"tables={','.join(semantic.tables or []) or 'none'}"
+                    ),
+                )
+            )
+        if validation is not None:
+            trace.append(
+                DebugTraceStep(
+                    stage="validation",
+                    status="success" if validation.valid else "error",
+                    code="sql_validated",
+                    detail=(
+                        f"valid={validation.valid}; "
+                        f"confidence={validation.semantic_confidence_level or 'unknown'}"
+                    ),
+                )
+            )
+        for warning in warnings[:3]:
+            trace.append(
+                DebugTraceStep(
+                    stage="warning",
+                    status="warning",
+                    code="warning",
+                    detail=warning,
+                )
+            )
+        return trace
 
     def _build_interpretation(self, intent: IntentPayload) -> Interpretation:
         return Interpretation(

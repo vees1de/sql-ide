@@ -49,6 +49,7 @@ export interface ChartCellContent {
     value: number;
   }>;
   unit?: string;
+  valueFormat?: string;
   palette?: string[];
   stacked?: boolean;
   value?: number | string;

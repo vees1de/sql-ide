@@ -1,0 +1,1202 @@
+{
+  "suite": {
+    "suite_name": "dvdrental_complex_chat_text_to_sql",
+    "database_id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+    "database_name": null,
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "cases": [
+      {
+        "id": "daily_store_revenue_march_2007",
+        "title": "Daily revenue and payment count by store",
+        "tags": [
+          "complex",
+          "timeseries",
+          "comparison",
+          "aliases"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": null,
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2007-03",
+                  "payment",
+                  "payment_date",
+                  "group by",
+                  "sum("
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "payment"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": null,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "day"
+                  ],
+                  [
+                    "store_id"
+                  ],
+                  [
+                    "total_revenue"
+                  ],
+                  [
+                    "payment_count"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "line"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "day"
+                  ],
+                  "y_any_of": [
+                    "total_revenue"
+                  ],
+                  "series_any_of": [
+                    "store_id"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "top_categories_revenue_april_2007",
+        "title": "Top categories by revenue",
+        "tags": [
+          "complex",
+          "ranking",
+          "aliases"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": null,
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2007-04",
+                  "payment",
+                  "category",
+                  "limit 10",
+                  "sum("
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "payment"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": 10,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "category"
+                  ],
+                  [
+                    "total_revenue"
+                  ],
+                  [
+                    "payment_count"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "bar"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "category"
+                  ],
+                  "y_any_of": [
+                    "total_revenue"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "weekly_late_return_rate_august_2005",
+        "title": "Weekly actual rental days and late return rate",
+        "tags": [
+          "complex",
+          "rate",
+          "duration",
+          "repair"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": null,
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2005-08",
+                  "rental",
+                  "return_date",
+                  "rental_duration",
+                  "group by"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "rental",
+                  "film",
+                  "inventory"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": null,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "week"
+                  ],
+                  [
+                    "avg_rental_days"
+                  ],
+                  [
+                    "late_return_rate"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "line"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "week"
+                  ],
+                  "y_any_of": [
+                    "late_return_rate",
+                    "avg_rental_days"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "suite_name": "dvdrental_complex_chat_text_to_sql",
+    "api_base": "http://127.0.0.1:8001/api",
+    "started_at": "2026-04-23T02:04:49.997122+00:00",
+    "finished_at": "2026-04-23T02:06:34.765861+00:00",
+    "duration_seconds": 104.769,
+    "case_count": 3,
+    "step_count": 3,
+    "scores": {
+      "understanding": 0.3333,
+      "sql": 0.2121,
+      "chart": 0.0,
+      "overall": 0.1818
+    },
+    "judge_used": false,
+    "failures_by_code": {
+      "chart_missing": 3,
+      "clarification_unexpected": 2,
+      "sql_missing": 2,
+      "execution_missing": 2,
+      "sql_table_missing": 2,
+      "execution_failed": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "daily_store_revenue_march_2007",
+      "title": "Daily revenue and payment count by store",
+      "tags": [
+        "complex",
+        "timeseries",
+        "comparison",
+        "aliases"
+      ],
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "session_id": "8fdd0c3f75e44a5180298b9251a8516b",
+      "scores": {
+        "understanding": 0.0,
+        "sql": 0.0,
+        "chart": 0.0,
+        "overall": 0.0
+      },
+      "issue_counts": {
+        "clarification_unexpected": 1,
+        "sql_missing": 1,
+        "execution_missing": 1,
+        "chart_missing": 1
+      },
+      "steps": [
+        {
+          "case_id": "daily_store_revenue_march_2007",
+          "step_index": 1,
+          "step_ref": "daily_store_revenue_march_2007#step1",
+          "user_prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2007-03",
+                "payment",
+                "payment_date",
+                "group by",
+                "sum("
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "payment"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": null,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "day"
+                ],
+                [
+                  "store_id"
+                ],
+                [
+                  "total_revenue"
+                ],
+                [
+                  "payment_count"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "line"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "day"
+                ],
+                "y_any_of": [
+                  "total_revenue"
+                ],
+                "series_any_of": [
+                  "store_id"
+                ]
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+              "name": "dvdrental",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": true,
+            "clarification_question": "Запрос требует таблиц payment и store, которых нет в текущей схеме. Как поступить?",
+            "clarification_options": [
+              {
+                "id": "use_payment_table",
+                "label": "Использовать таблицу payment (если она доступна)",
+                "detail": "Требуется колонка amount и дата платежа",
+                "reason": null
+              },
+              {
+                "id": "use_inventory_updates",
+                "label": "Показать количество записей inventory по магазинам",
+                "detail": "Использует last_update как дату",
+                "reason": null
+              },
+              {
+                "id": "cancel_request",
+                "label": "Отменить запрос",
+                "detail": "Запрос нельзя выполнить с текущими таблицами",
+                "reason": null
+              }
+            ],
+            "message_kind": "clarification",
+            "initial_message_kind": "clarification",
+            "clarification_transcript": [
+              {
+                "round": 1,
+                "question": "Запрос требует таблиц payment и store, которых нет в текущей схеме. Как поступить?",
+                "answer": "Использовать таблицу payment (если она доступна)",
+                "options": [
+                  {
+                    "id": "use_payment_table",
+                    "label": "Использовать таблицу payment (если она доступна)",
+                    "detail": "Требуется колонка amount и дата платежа",
+                    "reason": null
+                  },
+                  {
+                    "id": "use_inventory_updates",
+                    "label": "Показать количество записей inventory по магазинам",
+                    "detail": "Использует last_update как дату",
+                    "reason": null
+                  },
+                  {
+                    "id": "cancel_request",
+                    "label": "Отменить запрос",
+                    "detail": "Запрос нельзя выполнить с текущими таблицами",
+                    "reason": null
+                  }
+                ]
+              },
+              {
+                "round": 2,
+                "question": "Таблица store отсутствует. Как хотите продолжить?",
+                "answer": "Показать общую выручку и количество платежей без разбивки по магазинам",
+                "options": [
+                  {
+                    "id": "overall_no_store",
+                    "label": "Показать общую выручку и количество платежей без разбивки по магазинам",
+                    "detail": "Будет один ряд с суммой amount и количеством платежей за март 2007",
+                    "reason": null
+                  },
+                  {
+                    "id": "by_city",
+                    "label": "Разбить по городам (через адрес клиента)",
+                    "detail": "Группировка по city.name, требует join через address и city",
+                    "reason": null
+                  },
+                  {
+                    "id": "cancel",
+                    "label": "Отменить запрос",
+                    "detail": "Запрос нельзя выполнить без таблицы store",
+                    "reason": null
+                  }
+                ]
+              }
+            ],
+            "intent": {
+              "raw_prompt": "Показать общую выручку и количество платежей без разбивки по магазинам",
+              "metric": null,
+              "dimensions": [],
+              "filters": [],
+              "comparison": null,
+              "date_range": null,
+              "visualization_preference": null,
+              "ambiguities": [
+                "Таблица payment, содержащая данные о выручке и количестве платежей, отсутствует в текущей схеме"
+              ],
+              "clarification_question": "Таблица payment недоступна. Как хотите продолжить?",
+              "clarification_options": [
+                {
+                  "id": "cancel",
+                  "label": "Отменить запрос",
+                  "detail": "Запрос нельзя выполнить без таблицы payment",
+                  "reason": null
+                },
+                {
+                  "id": "show_film_actor_counts",
+                  "label": "Показать общее количество записей в film_actor",
+                  "detail": "Вернёт количество актёров‑фильмов как замену количеству платежей",
+                  "reason": null
+                },
+                {
+                  "id": "show_actor_counts",
+                  "label": "Показать общее количество актёров",
+                  "detail": "Вернёт количество уникальных актёров как замену количеству платежей",
+                  "reason": null
+                }
+              ],
+              "confidence": 0.96,
+              "follow_up": false
+            },
+            "sql": "",
+            "execution": null,
+            "chart": null
+          },
+          "scores": {
+            "understanding": 0.0,
+            "sql": 0.0,
+            "chart": 0.0,
+            "overall": 0.0
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_unexpected",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "Expected a direct answer, but the system asked for clarification."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "SQL draft is empty."
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.5,
+              "message": "Execution payload is missing."
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart cannot be evaluated without execution payload."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "top_categories_revenue_april_2007",
+      "title": "Top categories by revenue",
+      "tags": [
+        "complex",
+        "ranking",
+        "aliases"
+      ],
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "session_id": "978b24e23e524448b2bfb1b9620be3c3",
+      "scores": {
+        "understanding": 0.0,
+        "sql": 0.0,
+        "chart": 0.0,
+        "overall": 0.0
+      },
+      "issue_counts": {
+        "clarification_unexpected": 1,
+        "sql_missing": 1,
+        "execution_missing": 1,
+        "chart_missing": 1
+      },
+      "steps": [
+        {
+          "case_id": "top_categories_revenue_april_2007",
+          "step_index": 1,
+          "step_ref": "top_categories_revenue_april_2007#step1",
+          "user_prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2007-04",
+                "payment",
+                "category",
+                "limit 10",
+                "sum("
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "payment"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "category"
+                ],
+                [
+                  "total_revenue"
+                ],
+                [
+                  "payment_count"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "bar"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "category"
+                ],
+                "y_any_of": [
+                  "total_revenue"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+              "name": "dvdrental",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": true,
+            "clarification_question": "Как вычислять выручку и количество платежей, учитывая отсутствие таблицы payment в текущей схеме?",
+            "clarification_options": [
+              {
+                "id": "use_rental_proxy",
+                "label": "Использовать данные аренды как выручку и количество аренд как количество платежей",
+                "detail": "Будем считать, что каждый акт аренды – это один платёж, а выручка = rental_rate * количество аренд.",
+                "reason": null
+              },
+              {
+                "id": "cannot_compute",
+                "label": "Невозможно выполнить запрос – в схеме нет таблицы payment",
+                "detail": "Требуется таблица payment с полями amount и payment_date.",
+                "reason": null
+              },
+              {
+                "id": "alternative_replacement_cost",
+                "label": "Считать выручку как суммарную стоимость замены (replacement_cost) фильмов в категории",
+                "detail": "Будет использовать поле replacement_cost из таблицы film; количество платежей будет оцениваться как количество аренд.",
+                "reason": null
+              }
+            ],
+            "message_kind": "clarification",
+            "initial_message_kind": "clarification",
+            "clarification_transcript": [
+              {
+                "round": 1,
+                "question": "Как вычислять выручку и количество платежей, учитывая отсутствие таблицы payment в текущей схеме?",
+                "answer": "Использовать данные аренды как выручку и количество аренд как количество платежей",
+                "options": [
+                  {
+                    "id": "use_rental_proxy",
+                    "label": "Использовать данные аренды как выручку и количество аренд как количество платежей",
+                    "detail": "Будем считать, что каждый акт аренды – это один платёж, а выручка = rental_rate * количество аренд.",
+                    "reason": null
+                  },
+                  {
+                    "id": "cannot_compute",
+                    "label": "Невозможно выполнить запрос – в схеме нет таблицы payment",
+                    "detail": "Требуется таблица payment с полями amount и payment_date.",
+                    "reason": null
+                  },
+                  {
+                    "id": "alternative_replacement_cost",
+                    "label": "Считать выручку как суммарную стоимость замены (replacement_cost) фильмов в категории",
+                    "detail": "Будет использовать поле replacement_cost из таблицы film; количество платежей будет оцениваться как количество аренд.",
+                    "reason": null
+                  }
+                ]
+              },
+              {
+                "round": 2,
+                "question": "Как группировать данные, если таблица category недоступна?",
+                "answer": "Группировать по языку фильма",
+                "options": [
+                  {
+                    "id": "group_by_language",
+                    "label": "Группировать по языку фильма",
+                    "detail": "Использовать таблицу language, связав её через film.language_id.",
+                    "reason": null
+                  },
+                  {
+                    "id": "group_by_rating",
+                    "label": "Группировать по рейтингу фильма",
+                    "detail": "Использовать поле rating из таблицы film.",
+                    "reason": null
+                  },
+                  {
+                    "id": "cannot_compute",
+                    "label": "Невозможно выполнить запрос – требуется таблица category",
+                    "detail": "Запрос требует категорию, которой нет в схеме.",
+                    "reason": null
+                  }
+                ]
+              }
+            ],
+            "intent": {
+              "raw_prompt": "Группировать по языку фильма",
+              "metric": null,
+              "dimensions": [
+                "language.name"
+              ],
+              "filters": [
+                {
+                  "field": "rental.rental_date",
+                  "operator": "between",
+                  "value": [
+                    "2007-04-01",
+                    "2007-04-30"
+                  ]
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2007-04-01",
+                "end": "2007-04-30",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "bar",
+              "ambiguities": [
+                "Таблица rental, необходимая для расчёта выручки и количества платежей, отсутствует в текущей схеме."
+              ],
+              "clarification_question": "Как поступить, учитывая отсутствие таблицы rental?",
+              "clarification_options": [
+                {
+                  "id": "cannot_compute",
+                  "label": "Невозможно выполнить запрос – требуется таблица rental",
+                  "detail": "Запрос требует данных о датах аренды, которых нет в схеме.",
+                  "reason": null
+                },
+                {
+                  "id": "use_replacement_cost",
+                  "label": "Использовать replacement_cost как прокси‑выручку",
+                  "detail": "Суммировать replacement_cost из таблицы film, группируя по языку.",
+                  "reason": null
+                },
+                {
+                  "id": "use_length",
+                  "label": "Использовать length как прокси‑выручку",
+                  "detail": "Суммировать длительность фильма (length) из таблицы film, группируя по языку.",
+                  "reason": null
+                }
+              ],
+              "confidence": 0.96,
+              "follow_up": false
+            },
+            "sql": "",
+            "execution": null,
+            "chart": null
+          },
+          "scores": {
+            "understanding": 0.0,
+            "sql": 0.0,
+            "chart": 0.0,
+            "overall": 0.0
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_unexpected",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "Expected a direct answer, but the system asked for clarification."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "SQL draft is empty."
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.5,
+              "message": "Execution payload is missing."
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart cannot be evaluated without execution payload."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "weekly_late_return_rate_august_2005",
+      "title": "Weekly actual rental days and late return rate",
+      "tags": [
+        "complex",
+        "rate",
+        "duration",
+        "repair"
+      ],
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "session_id": "c24ea594237a47f0b3990ee93a649fcc",
+      "scores": {
+        "understanding": 1.0,
+        "sql": 0.6364,
+        "chart": 0.0,
+        "overall": 0.5455
+      },
+      "issue_counts": {
+        "sql_table_missing": 2,
+        "execution_failed": 1,
+        "chart_missing": 1
+      },
+      "steps": [
+        {
+          "case_id": "weekly_late_return_rate_august_2005",
+          "step_index": 1,
+          "step_ref": "weekly_late_return_rate_august_2005#step1",
+          "user_prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2005-08",
+                "rental",
+                "return_date",
+                "rental_duration",
+                "group by"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "rental",
+                "film",
+                "inventory"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": null,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "week"
+                ],
+                [
+                  "avg_rental_days"
+                ],
+                [
+                  "late_return_rate"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "line"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "week"
+                ],
+                "y_any_of": [
+                  "late_return_rate",
+                  "avg_rental_days"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+              "name": "dvdrental",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": false,
+            "clarification_question": null,
+            "clarification_options": [],
+            "message_kind": "answer",
+            "initial_message_kind": "answer",
+            "clarification_transcript": [],
+            "intent": {
+              "raw_prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+              "metric": "avg_rental_days, overdue_rate",
+              "dimensions": [
+                "week"
+              ],
+              "filters": [
+                {
+                  "field": "rental.rental_date",
+                  "operator": ">= ",
+                  "value": "2005-08-01"
+                },
+                {
+                  "field": "rental.rental_date",
+                  "operator": "< ",
+                  "value": "2005-09-01"
+                },
+                {
+                  "field": "rental.return_date",
+                  "operator": "IS NOT NULL",
+                  "value": null
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2005-08-01",
+                "end": "2005-09-01",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "line",
+              "ambiguities": [],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 0.99,
+              "follow_up": false
+            },
+            "sql": "SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50",
+            "execution": {
+              "id": "c89ad7bb50104fd1ab36d127af5d9c90",
+              "session_id": "c24ea594237a47f0b3990ee93a649fcc",
+              "sql_text": "SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50",
+              "columns": null,
+              "rows_preview": null,
+              "rows_preview_truncated": false,
+              "row_count": 0,
+              "execution_time_ms": 7,
+              "chart_recommendation": null,
+              "error_message": "(psycopg2.errors.UndefinedColumn) column r.rental_duration does not exist\nLINE 8:       WHEN r.return_date > r.rental_date + r.rental_duration...\n                                                   ^\n\n[SQL: SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50]\n(Background on this error at: https://sqlalche.me/e/20/f405)",
+              "created_at": "2026-04-23T02:06:21.883336"
+            },
+            "chart": null
+          },
+          "scores": {
+            "understanding": 1.0,
+            "sql": 0.6364,
+            "chart": 0.0,
+            "overall": 0.5455
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Clarification expectation matched."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2005-08` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `rental` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `return_date` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `rental_duration` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `group by` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `rental` found; actual tables=['rental']"
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Required table `film` missing; actual tables=['rental']"
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Required table `inventory` missing; actual tables=['rental']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_failed",
+              "passed": false,
+              "score": 0.0,
+              "weight": 2.0,
+              "message": "Execution failed; error=(psycopg2.errors.UndefinedColumn) column r.rental_duration does not exist\nLINE 8:       WHEN r.return_date > r.rental_date + r.rental_duration...\n                                                   ^\n\n[SQL: SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart recommendation is missing."
+            }
+          ],
+          "repair_transcript": [
+            {
+              "round": 1,
+              "trigger": "(psycopg2.errors.UndefinedColumn) column r.rental_duration does not exist\nLINE 8:       WHEN r.return_date > r.rental_date + r.rental_duration...\n                                                   ^\n\n[SQL: SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50]\n(Background on this error at: https://sqlalche.me/e/20/f405)",
+              "repair_prompt": "SQL вернул ошибку: (psycopg2.errors.UndefinedColumn) column r.rental_duration does not exist\nLINE 8:       WHEN r.return_date > r.rental_date + r.rental_duration...\n                                                   ^\n\n[SQL: SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50]\n(Background on this error at: https://sqlalche.me/e/20/f405). Пожалуйста, исправь запрос, не меняя бизнес-логику.",
+              "repaired_sql": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "repair_targets": [
+    {
+      "code": "chart_missing",
+      "count": 3,
+      "summary": "Chart recommendation отсутствует или не может быть построен.",
+      "files": [
+        "backend/app/services/chart_decision_service.py",
+        "backend/app/services/chart_data_adapter.py",
+        "backend/app/services/chat_execution_service.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "daily_store_revenue_march_2007#step1",
+          "prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+          "message": "Chart cannot be evaluated without execution payload."
+        },
+        {
+          "step_ref": "top_categories_revenue_april_2007#step1",
+          "prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+          "message": "Chart cannot be evaluated without execution payload."
+        },
+        {
+          "step_ref": "weekly_late_return_rate_august_2005#step1",
+          "prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+          "message": "Chart recommendation is missing."
+        }
+      ]
+    },
+    {
+      "code": "clarification_unexpected",
+      "count": 2,
+      "summary": "Модель уходит в уточнение там, где ожидался прямой SQL-ответ.",
+      "files": [
+        "backend/app/services/llm_service.py",
+        "backend/app/agents/intent.py",
+        "backend/app/services/chat_sql_adapter.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "daily_store_revenue_march_2007#step1",
+          "prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+          "message": "Expected a direct answer, but the system asked for clarification."
+        },
+        {
+          "step_ref": "top_categories_revenue_april_2007#step1",
+          "prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+          "message": "Expected a direct answer, but the system asked for clarification."
+        }
+      ]
+    },
+    {
+      "code": "execution_missing",
+      "count": 2,
+      "summary": "Тестер не получил execution payload, хотя он нужен для проверки результата.",
+      "files": [
+        "backend/app/api/routes/chat.py",
+        "backend/app/services/chat_execution_service.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "daily_store_revenue_march_2007#step1",
+          "prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+          "message": "Execution payload is missing."
+        },
+        {
+          "step_ref": "top_categories_revenue_april_2007#step1",
+          "prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+          "message": "Execution payload is missing."
+        }
+      ]
+    },
+    {
+      "code": "sql_missing",
+      "count": 2,
+      "summary": "SQL вообще не был сгенерирован там, где ожидался ответ.",
+      "files": [
+        "backend/app/services/llm_service.py",
+        "backend/app/services/chat_sql_adapter.py",
+        "backend/app/services/analytics_agent_service.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "daily_store_revenue_march_2007#step1",
+          "prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+          "message": "SQL draft is empty."
+        },
+        {
+          "step_ref": "top_categories_revenue_april_2007#step1",
+          "prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+          "message": "SQL draft is empty."
+        }
+      ]
+    },
+    {
+      "code": "sql_table_missing",
+      "count": 2,
+      "summary": "SQL не использует ожидаемую таблицу или не делает нужный join.",
+      "files": [
+        "backend/app/services/llm_service.py",
+        "backend/app/agents/semantic.py",
+        "backend/app/agents/sql_generation.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "weekly_late_return_rate_august_2005#step1",
+          "prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+          "message": "Required table `film` missing; actual tables=['rental']"
+        },
+        {
+          "step_ref": "weekly_late_return_rate_august_2005#step1",
+          "prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+          "message": "Required table `inventory` missing; actual tables=['rental']"
+        }
+      ]
+    },
+    {
+      "code": "execution_failed",
+      "count": 1,
+      "summary": "SQL доехал до execution, но упал на реальной БД.",
+      "files": [
+        "backend/app/services/chat_execution_service.py",
+        "backend/app/agents/validation.py",
+        "backend/app/services/llm_service.py",
+        "backend/app/agents/sql_generation.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "weekly_late_return_rate_august_2005#step1",
+          "prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+          "message": "Execution failed; error=(psycopg2.errors.UndefinedColumn) column r.rental_duration does not exist\nLINE 8:       WHEN r.return_date > r.rental_date + r.rental_duration...\n                                                   ^\n\n[SQL: SELECT\n  CAST(DATE_TRUNC('WEEK', r.rental_date) AS DATE) AS week,\n  AVG((\n    CAST(r.return_date AS DATE) - CAST(r.rental_date AS DATE)\n  )) AS avg_rental_days,\n  CAST(SUM(\n    CASE\n      WHEN r.return_date > r.rental_date + r.rental_duration * INTERVAL '1 DAY'\n      THEN 1\n      ELSE 0\n    END\n  ) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS overdue_rate\nFROM rental AS r\nWHERE\n  r.rental_date >= CAST('2005-08-01' AS DATE)\n  AND r.rental_date < CAST('2005-09-01' AS DATE)\n  AND NOT r.return_date IS NULL\nGROUP BY\n  week\nORDER BY\n  week\nLIMIT 50]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+        }
+      ]
+    }
+  ]
+}
