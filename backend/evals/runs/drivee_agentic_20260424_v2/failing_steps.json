@@ -1,0 +1,1613 @@
+[
+  {
+    "case_id": "hourly_followup_done_only_metrics",
+    "step_index": 2,
+    "step_ref": "hourly_followup_done_only_metrics#step2",
+    "user_prompt": "А теперь оставь только завершённые заказы и сравни по часам среднее время подачи и среднее время поездки.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "expected_state": "SQL_READY",
+      "required_actions": [
+        "show_run_button",
+        "show_sql"
+      ],
+      "clarification": null,
+      "interpretation": {
+        "metric_any_of": [],
+        "dimensions_all_of": [
+          "hour"
+        ],
+        "dimensions_any_of": [],
+        "filters": [
+          {
+            "field": "status_order",
+            "operator": "=",
+            "value": "done",
+            "value_any_of": [],
+            "value_contains": []
+          }
+        ],
+        "date_range": null
+      },
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2026-04-14",
+          "group by",
+          "status_order",
+          "driveraccept_timestamp",
+          "driverarrived_timestamp",
+          "driverstarttheride_timestamp",
+          "driverdone_timestamp"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "train"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          [
+            "avg_pickup_minutes",
+            "pickup_minutes",
+            "avg_time_to_arrival",
+            "avg_pickup_time",
+            "avg_accept_to_arrival_minutes"
+          ],
+          [
+            "avg_ride_minutes",
+            "ride_minutes",
+            "avg_ride_time",
+            "avg_start_to_done_minutes"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          "y_any_of": [
+            "avg_pickup_minutes",
+            "pickup_minutes",
+            "avg_time_to_arrival",
+            "avg_ride_minutes",
+            "ride_minutes",
+            "avg_accept_to_arrival_minutes",
+            "avg_start_to_done_minutes"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": false,
+      "state": "SQL_READY",
+      "actions": [
+        "show_run_button",
+        "show_sql",
+        "show_chart_preview",
+        "save_report"
+      ],
+      "clarification_question": null,
+      "clarification_options": [],
+      "message_kind": "answer",
+      "initial_message_kind": "answer",
+      "clarification_transcript": [],
+      "intent": {
+        "raw_prompt": "А теперь оставь только завершённые заказы и сравни по часам среднее время подачи и среднее время поездки.",
+        "metric": null,
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": null,
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.0,
+        "follow_up": false
+      },
+      "sql": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM driveraccept_timestamp - order_timestamp) / 60.0) AS avg_submit_minutes,\n  AVG(EXTRACT(EPOCH FROM driverdone_timestamp - driverstarttheride_timestamp) / 60.0) AS avg_ride_minutes\nFROM train\nWHERE\n  NOT driverdone_timestamp IS NULL\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\n  AND DATE(order_timestamp) = CAST('2026-04-14' AS DATE)\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+      "execution": {
+        "id": "9fb2ca77913b4642a45373f5a533a3c8",
+        "session_id": "140a1faa67ff452c901d6ef9e59e6af6",
+        "sql_text": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM driveraccept_timestamp - order_timestamp) / 60.0) AS avg_submit_minutes,\n  AVG(EXTRACT(EPOCH FROM driverdone_timestamp - driverstarttheride_timestamp) / 60.0) AS avg_ride_minutes\nFROM train\nWHERE\n  NOT driverdone_timestamp IS NULL\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\n  AND DATE(order_timestamp) = CAST('2026-04-14' AS DATE)\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+        "columns": [
+          {
+            "name": "hour",
+            "type": "datetime64[ns]"
+          },
+          {
+            "name": "avg_submit_minutes",
+            "type": "float64"
+          },
+          {
+            "name": "avg_ride_minutes",
+            "type": "float64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "hour": "2026-04-14T00:00:00.000",
+            "avg_submit_minutes": 1.2266666667,
+            "avg_ride_minutes": 10.4266666667
+          },
+          {
+            "hour": "2026-04-14T01:00:00.000",
+            "avg_submit_minutes": 2.1388888889,
+            "avg_ride_minutes": 17.0055555556
+          },
+          {
+            "hour": "2026-04-14T05:00:00.000",
+            "avg_submit_minutes": 2.75,
+            "avg_ride_minutes": 1.3
+          },
+          {
+            "hour": "2026-04-14T06:00:00.000",
+            "avg_submit_minutes": 0.1291666667,
+            "avg_ride_minutes": 2.2375
+          },
+          {
+            "hour": "2026-04-14T07:00:00.000",
+            "avg_submit_minutes": 0.2582051282,
+            "avg_ride_minutes": 3.8333333333
+          },
+          {
+            "hour": "2026-04-14T08:00:00.000",
+            "avg_submit_minutes": 0.4105902778,
+            "avg_ride_minutes": 3.5485243056
+          },
+          {
+            "hour": "2026-04-14T09:00:00.000",
+            "avg_submit_minutes": 0.2572796935,
+            "avg_ride_minutes": 3.2289272031
+          },
+          {
+            "hour": "2026-04-14T10:00:00.000",
+            "avg_submit_minutes": 0.3289156627,
+            "avg_ride_minutes": 4.1234939759
+          },
+          {
+            "hour": "2026-04-14T11:00:00.000",
+            "avg_submit_minutes": 0.2509950249,
+            "avg_ride_minutes": 4.6756218905
+          },
+          {
+            "hour": "2026-04-14T12:00:00.000",
+            "avg_submit_minutes": 0.3091954023,
+            "avg_ride_minutes": 4.672605364
+          },
+          {
+            "hour": "2026-04-14T13:00:00.000",
+            "avg_submit_minutes": 0.7772277228,
+            "avg_ride_minutes": 3.9330033003
+          },
+          {
+            "hour": "2026-04-14T14:00:00.000",
+            "avg_submit_minutes": 0.6850694444,
+            "avg_ride_minutes": 4.7428819444
+          },
+          {
+            "hour": "2026-04-14T15:00:00.000",
+            "avg_submit_minutes": 0.4421146953,
+            "avg_ride_minutes": 4.1637992832
+          },
+          {
+            "hour": "2026-04-14T16:00:00.000",
+            "avg_submit_minutes": 0.4781893004,
+            "avg_ride_minutes": 4.54218107
+          },
+          {
+            "hour": "2026-04-14T17:00:00.000",
+            "avg_submit_minutes": 0.583033033,
+            "avg_ride_minutes": 4.3801801802
+          },
+          {
+            "hour": "2026-04-14T18:00:00.000",
+            "avg_submit_minutes": 0.5971193416,
+            "avg_ride_minutes": 4.70781893
+          },
+          {
+            "hour": "2026-04-14T19:00:00.000",
+            "avg_submit_minutes": 0.9065972222,
+            "avg_ride_minutes": 4.8847222222
+          },
+          {
+            "hour": "2026-04-14T20:00:00.000",
+            "avg_submit_minutes": 0.5655913978,
+            "avg_ride_minutes": 4.8284946237
+          },
+          {
+            "hour": "2026-04-14T21:00:00.000",
+            "avg_submit_minutes": 0.705,
+            "avg_ride_minutes": 4.3316666667
+          },
+          {
+            "hour": "2026-04-14T22:00:00.000",
+            "avg_submit_minutes": 2.4925925926,
+            "avg_ride_minutes": 4.0777777778
+          },
+          {
+            "hour": "2026-04-14T23:00:00.000",
+            "avg_submit_minutes": 1.6787878788,
+            "avg_ride_minutes": 3.9272727273
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 21,
+        "execution_time_ms": 29,
+        "dataset": {
+          "dataset_id": "query_execution:9fb2ca77913b4642a45373f5a533a3c8",
+          "query_execution_id": "9fb2ca77913b4642a45373f5a533a3c8",
+          "row_count": 21,
+          "columns": [
+            {
+              "name": "hour",
+              "type": "datetime64[ns]"
+            },
+            {
+              "name": "avg_submit_minutes",
+              "type": "float64"
+            },
+            {
+              "name": "avg_ride_minutes",
+              "type": "float64"
+            }
+          ]
+        },
+        "chart_recommendation": {
+          "recommended_view": "chart",
+          "chart_type": "line",
+          "x": "hour",
+          "y": "avg_submit_minutes",
+          "series": null,
+          "facet": null,
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "rule_id": "CASCADE_LINE",
+          "confidence": 0.9,
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "ruleId": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semanticIntent": "trend",
+            "analysisMode": "trend",
+            "visualGoal": "show_change_over_time",
+            "timeRole": "primary",
+            "comparisonGoal": "absolute",
+            "preferredMark": "line",
+            "alternatives": [],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              }
+            ],
+            "constraintsApplied": [],
+            "visualLoad": 21,
+            "reasonCodes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ],
+            "queryInterpretation": {
+              "user_goal": "Track avg_submit_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_submit_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decisionSummary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ],
+              "alternatives": [],
+              "confidence": 0.9
+            },
+            "understanding": {
+              "user_goal": "Track avg_submit_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_submit_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision": {
+              "chart_type": "line",
+              "x": "hour",
+              "y": "avg_submit_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none"
+            },
+            "explanationBlock": {
+              "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "confidence": 0.9,
+              "alternatives_considered": [],
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ]
+            },
+            "config": {
+              "xField": "hour",
+              "yField": "avg_submit_minutes",
+              "seriesField": null,
+              "facetField": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "seriesLimit": null,
+              "categoryLimit": null,
+              "topNStrategy": "none",
+              "valueFormat": "number_compact",
+              "dataRoles": {
+                "x": "hour",
+                "y": "avg_submit_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "label": "hour",
+                "value": "avg_submit_minutes"
+              }
+            },
+            "x": {
+              "field": "hour",
+              "values": [
+                "2026-04-14T00:00:00.000",
+                "2026-04-14T01:00:00.000",
+                "2026-04-14T05:00:00.000",
+                "2026-04-14T06:00:00.000",
+                "2026-04-14T07:00:00.000",
+                "2026-04-14T08:00:00.000",
+                "2026-04-14T09:00:00.000",
+                "2026-04-14T10:00:00.000",
+                "2026-04-14T11:00:00.000",
+                "2026-04-14T12:00:00.000",
+                "2026-04-14T13:00:00.000",
+                "2026-04-14T14:00:00.000",
+                "2026-04-14T15:00:00.000",
+                "2026-04-14T16:00:00.000",
+                "2026-04-14T17:00:00.000",
+                "2026-04-14T18:00:00.000",
+                "2026-04-14T19:00:00.000",
+                "2026-04-14T20:00:00.000",
+                "2026-04-14T21:00:00.000",
+                "2026-04-14T22:00:00.000",
+                "2026-04-14T23:00:00.000"
+              ],
+              "type": "categorical"
+            },
+            "y": {
+              "field": "avg_submit_minutes",
+              "values": [
+                1.2266666667,
+                2.1388888889,
+                2.75,
+                0.1291666667,
+                0.2582051282,
+                0.4105902778,
+                0.2572796935,
+                0.3289156627,
+                0.2509950249,
+                0.3091954023,
+                0.7772277228,
+                0.6850694444,
+                0.4421146953,
+                0.4781893004,
+                0.583033033,
+                0.5971193416,
+                0.9065972222,
+                0.5655913978,
+                0.705,
+                2.4925925926,
+                1.6787878788
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "semantic_intent": "trend",
+          "analysis_mode": "trend",
+          "visual_goal": "show_change_over_time",
+          "time_role": "primary",
+          "comparison_goal": "absolute",
+          "preferred_mark": "line",
+          "normalize": "none",
+          "value_format": "number_compact",
+          "series_limit": null,
+          "category_limit": null,
+          "top_n_strategy": "none",
+          "alternatives": [],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            }
+          ],
+          "constraints_applied": [],
+          "visual_load": 21,
+          "query_interpretation": {
+            "user_goal": "Track avg_submit_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_submit_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision_summary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ],
+            "alternatives": [],
+            "confidence": 0.9
+          },
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_MEDIUM"
+          ],
+          "chart_spec": {
+            "chart_type": "line",
+            "title": "Автоматическая визуализация",
+            "encoding": {
+              "x_field": "hour",
+              "y_field": "avg_submit_minutes",
+              "series_field": null,
+              "facet_field": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none",
+              "value_format": "number_compact",
+              "data_roles": {
+                "x": "hour",
+                "y": "avg_submit_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "label": "hour",
+                "value": "avg_submit_minutes"
+              }
+            },
+            "options": {
+              "rowCount": 21,
+              "ruleId": "CASCADE_LINE",
+              "variant": "single_series",
+              "confidence": 0.9
+            },
+            "data": {
+              "kind": "single_series",
+              "chartType": "line",
+              "variant": "single_series",
+              "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "ruleId": "CASCADE_LINE",
+              "confidence": 0.9,
+              "semanticIntent": "trend",
+              "analysisMode": "trend",
+              "visualGoal": "show_change_over_time",
+              "timeRole": "primary",
+              "comparisonGoal": "absolute",
+              "preferredMark": "line",
+              "alternatives": [],
+              "candidates": [
+                {
+                  "type": "line",
+                  "score": 0.9,
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                }
+              ],
+              "constraintsApplied": [],
+              "visualLoad": 21,
+              "reasonCodes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ],
+              "queryInterpretation": {
+                "user_goal": "Track avg_submit_minutes by hour",
+                "intent": "trend",
+                "analysis_mode": "trend",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "avg_submit_minutes",
+                    "aggregation": null,
+                    "format": "number_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "hour",
+                    "role": "time"
+                  }
+                ],
+                "time_dimension": "hour",
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.9,
+                "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              "decisionSummary": {
+                "selected_chart": "line",
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ],
+                "alternatives": [],
+                "confidence": 0.9
+              },
+              "understanding": {
+                "user_goal": "Track avg_submit_minutes by hour",
+                "intent": "trend",
+                "analysis_mode": "trend",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "avg_submit_minutes",
+                    "aggregation": null,
+                    "format": "number_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "hour",
+                    "role": "time"
+                  }
+                ],
+                "time_dimension": "hour",
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.9,
+                "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              "decision": {
+                "chart_type": "line",
+                "x": "hour",
+                "y": "avg_submit_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "normalize": "none",
+                "series_limit": null,
+                "category_limit": null,
+                "top_n_strategy": "none"
+              },
+              "explanationBlock": {
+                "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "confidence": 0.9,
+                "alternatives_considered": [],
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ]
+              },
+              "config": {
+                "xField": "hour",
+                "yField": "avg_submit_minutes",
+                "seriesField": null,
+                "facetField": null,
+                "sort": "time_asc",
+                "normalize": "none",
+                "seriesLimit": null,
+                "categoryLimit": null,
+                "topNStrategy": "none",
+                "valueFormat": "number_compact",
+                "dataRoles": {
+                  "x": "hour",
+                  "y": "avg_submit_minutes",
+                  "series_key": null,
+                  "facet_key": null,
+                  "label": "hour",
+                  "value": "avg_submit_minutes"
+                }
+              },
+              "x": {
+                "field": "hour",
+                "values": [
+                  "2026-04-14T00:00:00.000",
+                  "2026-04-14T01:00:00.000",
+                  "2026-04-14T05:00:00.000",
+                  "2026-04-14T06:00:00.000",
+                  "2026-04-14T07:00:00.000",
+                  "2026-04-14T08:00:00.000",
+                  "2026-04-14T09:00:00.000",
+                  "2026-04-14T10:00:00.000",
+                  "2026-04-14T11:00:00.000",
+                  "2026-04-14T12:00:00.000",
+                  "2026-04-14T13:00:00.000",
+                  "2026-04-14T14:00:00.000",
+                  "2026-04-14T15:00:00.000",
+                  "2026-04-14T16:00:00.000",
+                  "2026-04-14T17:00:00.000",
+                  "2026-04-14T18:00:00.000",
+                  "2026-04-14T19:00:00.000",
+                  "2026-04-14T20:00:00.000",
+                  "2026-04-14T21:00:00.000",
+                  "2026-04-14T22:00:00.000",
+                  "2026-04-14T23:00:00.000"
+                ],
+                "type": "categorical"
+              },
+              "y": {
+                "field": "avg_submit_minutes",
+                "values": [
+                  1.2266666667,
+                  2.1388888889,
+                  2.75,
+                  0.1291666667,
+                  0.2582051282,
+                  0.4105902778,
+                  0.2572796935,
+                  0.3289156627,
+                  0.2509950249,
+                  0.3091954023,
+                  0.7772277228,
+                  0.6850694444,
+                  0.4421146953,
+                  0.4781893004,
+                  0.583033033,
+                  0.5971193416,
+                  0.9065972222,
+                  0.5655913978,
+                  0.705,
+                  2.4925925926,
+                  1.6787878788
+                ],
+                "unit": null
+              },
+              "stacked": false
+            },
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "rule_id": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semantic_intent": "trend",
+            "analysis_mode": "trend",
+            "visual_goal": "show_change_over_time",
+            "time_role": "primary",
+            "comparison_goal": "absolute",
+            "preferred_mark": "line",
+            "alternatives": [],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              }
+            ],
+            "constraints_applied": [],
+            "visual_load": 21,
+            "query_interpretation": {
+              "user_goal": "Track avg_submit_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_submit_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision_summary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ],
+              "alternatives": [],
+              "confidence": 0.9
+            },
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ]
+          },
+          "ai_chart_spec": null
+        },
+        "error_message": null,
+        "created_at": "2026-04-23T18:11:52.395267"
+      },
+      "chart": {
+        "recommended_view": "chart",
+        "chart_type": "line",
+        "x": "hour",
+        "y": "avg_submit_minutes",
+        "series": null,
+        "facet": null,
+        "variant": "single_series",
+        "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+        "rule_id": "CASCADE_LINE",
+        "confidence": 0.9,
+        "data": {
+          "kind": "single_series",
+          "chartType": "line",
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "ruleId": "CASCADE_LINE",
+          "confidence": 0.9,
+          "semanticIntent": "trend",
+          "analysisMode": "trend",
+          "visualGoal": "show_change_over_time",
+          "timeRole": "primary",
+          "comparisonGoal": "absolute",
+          "preferredMark": "line",
+          "alternatives": [],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            }
+          ],
+          "constraintsApplied": [],
+          "visualLoad": 21,
+          "reasonCodes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_MEDIUM"
+          ],
+          "queryInterpretation": {
+            "user_goal": "Track avg_submit_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_submit_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decisionSummary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ],
+            "alternatives": [],
+            "confidence": 0.9
+          },
+          "understanding": {
+            "user_goal": "Track avg_submit_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_submit_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision": {
+            "chart_type": "line",
+            "x": "hour",
+            "y": "avg_submit_minutes",
+            "series_key": null,
+            "facet_key": null,
+            "normalize": "none",
+            "series_limit": null,
+            "category_limit": null,
+            "top_n_strategy": "none"
+          },
+          "explanationBlock": {
+            "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "confidence": 0.9,
+            "alternatives_considered": [],
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ]
+          },
+          "config": {
+            "xField": "hour",
+            "yField": "avg_submit_minutes",
+            "seriesField": null,
+            "facetField": null,
+            "sort": "time_asc",
+            "normalize": "none",
+            "seriesLimit": null,
+            "categoryLimit": null,
+            "topNStrategy": "none",
+            "valueFormat": "number_compact",
+            "dataRoles": {
+              "x": "hour",
+              "y": "avg_submit_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "label": "hour",
+              "value": "avg_submit_minutes"
+            }
+          },
+          "x": {
+            "field": "hour",
+            "values": [
+              "2026-04-14T00:00:00.000",
+              "2026-04-14T01:00:00.000",
+              "2026-04-14T05:00:00.000",
+              "2026-04-14T06:00:00.000",
+              "2026-04-14T07:00:00.000",
+              "2026-04-14T08:00:00.000",
+              "2026-04-14T09:00:00.000",
+              "2026-04-14T10:00:00.000",
+              "2026-04-14T11:00:00.000",
+              "2026-04-14T12:00:00.000",
+              "2026-04-14T13:00:00.000",
+              "2026-04-14T14:00:00.000",
+              "2026-04-14T15:00:00.000",
+              "2026-04-14T16:00:00.000",
+              "2026-04-14T17:00:00.000",
+              "2026-04-14T18:00:00.000",
+              "2026-04-14T19:00:00.000",
+              "2026-04-14T20:00:00.000",
+              "2026-04-14T21:00:00.000",
+              "2026-04-14T22:00:00.000",
+              "2026-04-14T23:00:00.000"
+            ],
+            "type": "categorical"
+          },
+          "y": {
+            "field": "avg_submit_minutes",
+            "values": [
+              1.2266666667,
+              2.1388888889,
+              2.75,
+              0.1291666667,
+              0.2582051282,
+              0.4105902778,
+              0.2572796935,
+              0.3289156627,
+              0.2509950249,
+              0.3091954023,
+              0.7772277228,
+              0.6850694444,
+              0.4421146953,
+              0.4781893004,
+              0.583033033,
+              0.5971193416,
+              0.9065972222,
+              0.5655913978,
+              0.705,
+              2.4925925926,
+              1.6787878788
+            ],
+            "unit": null
+          },
+          "stacked": false
+        },
+        "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+        "semantic_intent": "trend",
+        "analysis_mode": "trend",
+        "visual_goal": "show_change_over_time",
+        "time_role": "primary",
+        "comparison_goal": "absolute",
+        "preferred_mark": "line",
+        "normalize": "none",
+        "value_format": "number_compact",
+        "series_limit": null,
+        "category_limit": null,
+        "top_n_strategy": "none",
+        "alternatives": [],
+        "candidates": [
+          {
+            "type": "line",
+            "score": 0.9,
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          }
+        ],
+        "constraints_applied": [],
+        "visual_load": 21,
+        "query_interpretation": {
+          "user_goal": "Track avg_submit_minutes by hour",
+          "intent": "trend",
+          "analysis_mode": "trend",
+          "entities": [],
+          "metrics": [
+            {
+              "name": "avg_submit_minutes",
+              "aggregation": null,
+              "format": "number_compact"
+            }
+          ],
+          "dimensions": [
+            {
+              "name": "hour",
+              "role": "time"
+            }
+          ],
+          "time_dimension": "hour",
+          "series_dimension": null,
+          "requested_output": "chart",
+          "assumptions": [],
+          "ambiguities": [],
+          "confidence": 0.9,
+          "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+        },
+        "decision_summary": {
+          "selected_chart": "line",
+          "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_MEDIUM"
+          ],
+          "alternatives": [],
+          "confidence": 0.9
+        },
+        "reason_codes": [
+          "INTENT_TREND",
+          "HAS_TIME_AXIS",
+          "TREND_PRIMARY_GOAL",
+          "MANY_TIME_BUCKETS",
+          "VISUAL_LOAD_MEDIUM"
+        ],
+        "chart_spec": {
+          "chart_type": "line",
+          "title": "Автоматическая визуализация",
+          "encoding": {
+            "x_field": "hour",
+            "y_field": "avg_submit_minutes",
+            "series_field": null,
+            "facet_field": null,
+            "sort": "time_asc",
+            "normalize": "none",
+            "series_limit": null,
+            "category_limit": null,
+            "top_n_strategy": "none",
+            "value_format": "number_compact",
+            "data_roles": {
+              "x": "hour",
+              "y": "avg_submit_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "label": "hour",
+              "value": "avg_submit_minutes"
+            }
+          },
+          "options": {
+            "rowCount": 21,
+            "ruleId": "CASCADE_LINE",
+            "variant": "single_series",
+            "confidence": 0.9
+          },
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "ruleId": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semanticIntent": "trend",
+            "analysisMode": "trend",
+            "visualGoal": "show_change_over_time",
+            "timeRole": "primary",
+            "comparisonGoal": "absolute",
+            "preferredMark": "line",
+            "alternatives": [],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              }
+            ],
+            "constraintsApplied": [],
+            "visualLoad": 21,
+            "reasonCodes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ],
+            "queryInterpretation": {
+              "user_goal": "Track avg_submit_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_submit_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decisionSummary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ],
+              "alternatives": [],
+              "confidence": 0.9
+            },
+            "understanding": {
+              "user_goal": "Track avg_submit_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_submit_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision": {
+              "chart_type": "line",
+              "x": "hour",
+              "y": "avg_submit_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none"
+            },
+            "explanationBlock": {
+              "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "confidence": 0.9,
+              "alternatives_considered": [],
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ]
+            },
+            "config": {
+              "xField": "hour",
+              "yField": "avg_submit_minutes",
+              "seriesField": null,
+              "facetField": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "seriesLimit": null,
+              "categoryLimit": null,
+              "topNStrategy": "none",
+              "valueFormat": "number_compact",
+              "dataRoles": {
+                "x": "hour",
+                "y": "avg_submit_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "label": "hour",
+                "value": "avg_submit_minutes"
+              }
+            },
+            "x": {
+              "field": "hour",
+              "values": [
+                "2026-04-14T00:00:00.000",
+                "2026-04-14T01:00:00.000",
+                "2026-04-14T05:00:00.000",
+                "2026-04-14T06:00:00.000",
+                "2026-04-14T07:00:00.000",
+                "2026-04-14T08:00:00.000",
+                "2026-04-14T09:00:00.000",
+                "2026-04-14T10:00:00.000",
+                "2026-04-14T11:00:00.000",
+                "2026-04-14T12:00:00.000",
+                "2026-04-14T13:00:00.000",
+                "2026-04-14T14:00:00.000",
+                "2026-04-14T15:00:00.000",
+                "2026-04-14T16:00:00.000",
+                "2026-04-14T17:00:00.000",
+                "2026-04-14T18:00:00.000",
+                "2026-04-14T19:00:00.000",
+                "2026-04-14T20:00:00.000",
+                "2026-04-14T21:00:00.000",
+                "2026-04-14T22:00:00.000",
+                "2026-04-14T23:00:00.000"
+              ],
+              "type": "categorical"
+            },
+            "y": {
+              "field": "avg_submit_minutes",
+              "values": [
+                1.2266666667,
+                2.1388888889,
+                2.75,
+                0.1291666667,
+                0.2582051282,
+                0.4105902778,
+                0.2572796935,
+                0.3289156627,
+                0.2509950249,
+                0.3091954023,
+                0.7772277228,
+                0.6850694444,
+                0.4421146953,
+                0.4781893004,
+                0.583033033,
+                0.5971193416,
+                0.9065972222,
+                0.5655913978,
+                0.705,
+                2.4925925926,
+                1.6787878788
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "rule_id": "CASCADE_LINE",
+          "confidence": 0.9,
+          "semantic_intent": "trend",
+          "analysis_mode": "trend",
+          "visual_goal": "show_change_over_time",
+          "time_role": "primary",
+          "comparison_goal": "absolute",
+          "preferred_mark": "line",
+          "alternatives": [],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            }
+          ],
+          "constraints_applied": [],
+          "visual_load": 21,
+          "query_interpretation": {
+            "user_goal": "Track avg_submit_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_submit_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision_summary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_MEDIUM"
+            ],
+            "alternatives": [],
+            "confidence": 0.9
+          },
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_MEDIUM"
+          ]
+        },
+        "ai_chart_spec": null
+      }
+    },
+    "scores": {
+      "understanding": 0.6667,
+      "sql": 0.8,
+      "chart": 0.6667,
+      "overall": 0.7111
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Clarification expectation matched."
+      },
+      {
+        "bucket": "understanding",
+        "code": "state_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected state SQL_READY, got SQL_READY."
+      },
+      {
+        "bucket": "understanding",
+        "code": "actions_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "All required actions are present."
+      },
+      {
+        "bucket": "understanding",
+        "code": "dimension_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Missing dimensions: hour"
+      },
+      {
+        "bucket": "understanding",
+        "code": "filter_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected filter {'field': 'status_order', 'operator': '=', 'value': 'done', 'value_any_of': [], 'value_contains': []}; actual filters=[]"
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `2026-04-14` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `group by` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `status_order` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driveraccept_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driverarrived_timestamp` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driverstarttheride_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driverdone_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required table `train` found; actual tables=['train']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=21, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['hour', 'hour_bucket', 'order_hour', 'bucket']; actual columns=['avg_ride_minutes', 'avg_submit_minutes', 'hour']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_pickup_time', 'avg_accept_to_arrival_minutes']; actual columns=['avg_ride_minutes', 'avg_submit_minutes', 'hour']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['avg_ride_minutes', 'ride_minutes', 'avg_ride_time', 'avg_start_to_done_minutes']; actual columns=['avg_ride_minutes', 'avg_submit_minutes', 'hour']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart type=line, acceptable=['line']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart x=hour, acceptable=['hour', 'hour_bucket', 'order_hour', 'bucket']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_mismatch",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart y=avg_submit_minutes, acceptable=['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_ride_minutes', 'ride_minutes', 'avg_accept_to_arrival_minutes', 'avg_start_to_done_minutes']"
+      }
+    ]
+  }
+]

@@ -321,6 +321,13 @@ class SendMessageResponse(BaseModel):
     sql_draft_version: int
 
 
+class PrepareSqlResponse(BaseModel):
+    session: ChatSessionRead
+    assistant_message: ChatMessageRead
+    sql_draft: str | None = None
+    sql_draft_version: int
+
+
 class ExecuteResponse(BaseModel):
     session: ChatSessionRead
     execution: QueryExecutionRead

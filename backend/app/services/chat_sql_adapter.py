@@ -55,6 +55,15 @@ class AdapterResult:
     sql_draft_version: int
 
 
+@dataclass
+class PreparedSqlResult:
+    session: ChatSessionModel
+    assistant_message: ChatMessageModel
+    structured_payload: StructuredPayload
+    sql_draft: str | None
+    sql_draft_version: int
+
+
 class ChatSqlAdapter:
     def __init__(self) -> None:
         self.chat_service = ChatService()
@@ -186,7 +195,9 @@ class ChatSqlAdapter:
                 commit_updates=True,
             )
 
-        if plan.status == "error" or plan.sql is None:
+        plan_actions = list(getattr(plan, "actions", []) or [])
+
+        if plan.status == "error" or (plan.sql is None and not (plan.assistant_message or plan_actions)):
             payload = self._build_structured_payload(
                 state=plan.state,
                 intent=plan.intent,
@@ -203,6 +214,7 @@ class ChatSqlAdapter:
                 assistant_message=plan.error or (
                     plan.validation_errors[0] if plan.validation_errors else "Не удалось безопасно подготовить SQL."
                 ),
+                actions=plan_actions,
             )
             assistant_text = payload.assistant_message or "Не удалось безопасно подготовить SQL."
             return self._persist_result(
@@ -230,6 +242,7 @@ class ChatSqlAdapter:
             mode_warnings=mode_warnings,
             llm_model_alias=normalized_model_alias,
             assistant_message=self._build_assistant_text(query_mode, complexity),
+            actions=plan_actions,
         )
         assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
@@ -332,6 +345,7 @@ class ChatSqlAdapter:
                 llm_model_alias=llm_model_alias,
                 assistant_message=plan.error or "Не удалось безопасно подготовить SQL после уточнения.",
                 answered_clarification_id=clarification_id,
+                actions=plan_actions,
             )
             assistant_text = payload.assistant_message or "Не удалось подготовить SQL."
             return self._persist_result(
@@ -360,6 +374,7 @@ class ChatSqlAdapter:
             llm_model_alias=llm_model_alias,
             assistant_message=self._build_assistant_text(query_mode, complexity),
             answered_clarification_id=clarification_id,
+            actions=plan_actions,
         )
         assistant_text = payload.assistant_message or "SQL готов."
         return self._persist_result(
@@ -449,6 +464,42 @@ class ChatSqlAdapter:
                     llm_model_alias=llm_model_alias,
                 )
         if not plan.sql:
+            if plan.assistant_message or getattr(plan, "actions", None):
+                explanation_actions = plan_actions or [
+                    CreateSqlAction(
+                        label="Выгрузить таблицу",
+                        primary=True,
+                        disabled=False,
+                        payload={"reason": "Prepare a table export from the current chat context."},
+                    )
+                ]
+                payload = self._build_structured_payload(
+                    state=plan.state or "SQL_DRAFTING",
+                    intent=intent,
+                    semantic=None,
+                    sql=None,
+                    actions=explanation_actions,
+                    validation_warnings=list(dict.fromkeys([*getattr(plan, "warnings", [])])),
+                    validation_errors=[],
+                    validation=None,
+                    dialect=schema.dialect,
+                    query_mode=query_mode,
+                    complexity=complexity,
+                    mode_warnings=mode_warnings,
+                    llm_model_alias=llm_model_alias,
+                    assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
+                )
+                assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
+                return self._persist_result(
+                    db=db,
+                    session=session,
+                    user_text=user_text,
+                    intent=intent,
+                    payload=payload,
+                    sql_draft=None,
+                    assistant_text=assistant_text,
+                    commit_updates=True,
+                )
             return None
         semantic = self.analytics_agent.semantic_agent.run(
             intent,
@@ -475,6 +526,7 @@ class ChatSqlAdapter:
             intent=intent,
             semantic=semantic,
             sql=validation.sql,
+            actions=plan_actions or None,
             validation_warnings=list(dict.fromkeys([*getattr(plan, "warnings", [])])),
             validation_errors=[],
             validation=validation,
@@ -495,6 +547,117 @@ class ChatSqlAdapter:
             sql_draft=validation.sql,
             assistant_text=assistant_text,
             commit_updates=True,
+        )
+
+    def prepare_sql(self, db: Session, session_id: str) -> PreparedSqlResult:
+        session = self.chat_service.get_session(db, session_id)
+        if session is None:
+            raise ValueError("Chat session not found.")
+
+        previous_intent = self._load_previous_intent(session.last_intent_json)
+        if previous_intent is None:
+            raise ValueError("No prior intent found for this chat session.")
+
+        latest_payload = self._latest_assistant_payload(session.messages)
+        query_mode = normalize_query_mode(latest_payload.get("query_mode"))
+        llm_model_alias = normalize_llm_model_alias(latest_payload.get("llm_model_alias"))
+        llm_model = resolve_llm_model_from_alias(llm_model_alias) if llm_model_alias else settings.llm_model
+        complexity = self._classify_prompt_complexity(previous_intent.raw_prompt, previous_intent)
+        schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
+        history_text = self._build_history_text(session.messages)
+        dictionary_entries = self._load_dictionary_entries(db)
+        semantic_catalog = None
+        semantic_contract = None
+        semantic_notes: list[str] = []
+
+        try:
+            catalog_context = self.semantic_catalog_service.build_retrieval_context(
+                db,
+                session.database_connection_id,
+                previous_intent.raw_prompt,
+                dictionary_entries,
+            )
+            semantic_catalog = getattr(catalog_context, "catalog", None)
+            semantic_contract = getattr(catalog_context, "semantic_contract", None)
+            semantic_notes = list(getattr(catalog_context, "notes", []) or [])
+            dictionary_entries = self._merge_dictionary_entries(
+                dictionary_entries,
+                [DictionaryEntryRead.model_validate(entry) for entry in getattr(catalog_context, "dictionary_entries", [])],
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+        plan = self.analytics_agent.prepare_query(
+            db,
+            AnalyticsQueryRequest(
+                query=previous_intent.raw_prompt,
+                context=AnalyticsContext(
+                    previous_intent=previous_intent,
+                    database=session.database_connection_id,
+                    notebook_id=None,
+                ),
+            ),
+        )
+        if plan.status != "success" or plan.sql is None:
+            raise ValueError("Unable to prepare SQL from the current chat context.")
+
+        semantic = self.analytics_agent.semantic_agent.run(
+            plan.intent,
+            dictionary_entries,
+            schema.dialect,
+            schema,
+        )
+        validation = self._validate_llm_sql(
+            db=db,
+            session=session,
+            user_text=previous_intent.raw_prompt,
+            history_text=history_text,
+            previous_intent=previous_intent,
+            sql=plan.sql,
+            schema=schema,
+            semantic_catalog=semantic_catalog,
+            semantic_notes=semantic_notes,
+            llm_model=llm_model,
+        )
+        if validation is None or not validation.valid:
+            raise ValueError("Unable to validate prepared SQL from the current chat context.")
+
+        payload = self._build_structured_payload(
+            state="SQL_READY",
+            intent=plan.intent,
+            semantic=semantic,
+            sql=validation.sql,
+            actions=None,
+            validation_warnings=list(dict.fromkeys([*getattr(plan, "warnings", [])])),
+            validation_errors=[],
+            validation=validation,
+            dialect=schema.dialect,
+            query_mode=query_mode,
+            complexity=complexity,
+            mode_warnings=[],
+            llm_model_alias=llm_model_alias,
+            assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
+        )
+        assistant_message = self.chat_service.append_message(
+            db,
+            session,
+            "assistant",
+            payload.assistant_message or "SQL готов. Он не будет выполнен автоматически.",
+            structured_payload=payload,
+            commit=False,
+        )
+        session.last_intent_json = plan.intent.model_dump(mode="json")
+        session.current_sql_draft = validation.sql
+        session.sql_draft_version = (session.sql_draft_version or 0) + 1
+        db.commit()
+        db.refresh(session)
+        db.refresh(assistant_message)
+        return PreparedSqlResult(
+            session=session,
+            assistant_message=assistant_message,
+            structured_payload=payload,
+            sql_draft=validation.sql,
+            sql_draft_version=session.sql_draft_version,
         )
 
     def _validate_llm_sql(
@@ -897,6 +1060,7 @@ class ChatSqlAdapter:
         intent: IntentPayload,
         semantic: SemanticMappingPayload | None,
         sql: str | None,
+        actions: list[Any] | None,
         validation_warnings: list[str],
         validation_errors: list[str],
         validation: ValidationPayload | None,
@@ -943,7 +1107,7 @@ class ChatSqlAdapter:
             state="SQL_READY" if state == "success" else state,  # backward-compat safety
             assistant_message=assistant_message or self._build_default_assistant_message(state=state, sql=sql),
             semantic_parse=self._build_semantic_parse(intent=intent, semantic=semantic),
-            actions=self._build_actions(state=state, sql=sql),
+            actions=list(actions) if actions is not None else self._build_actions(state=state, sql=sql),
             interpretation=self._build_interpretation(intent),
             tables_used=tables_used,
             sql=sql,

@@ -116,6 +116,7 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
+              @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
               @show-chart-preview="showChartPreview"
@@ -141,6 +142,7 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
+              @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
               @show-chart-preview="showChartPreview"
@@ -436,6 +438,10 @@ function updateSqlDraft(value: string) {
 
 function applySql(sql: string) {
   chat.applyAssistantSqlDraft(sql, chat.sqlDraftVersion);
+}
+
+function prepareSql() {
+  void chat.prepareSql();
 }
 </script>
 

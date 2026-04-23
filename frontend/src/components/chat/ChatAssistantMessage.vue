@@ -113,6 +113,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'apply-sql', sql: string): void;
+  (event: 'prepare-sql'): void;
   (event: 'clarification', payload: { clarificationId: string; optionId?: string | null; text?: string | null }): void;
   (event: 'run-prepared'): void;
   (event: 'show-chart-preview'): void;
@@ -232,6 +233,8 @@ function handleAction(type: ApiChatAction['type']) {
     case 'create_sql':
       if (payload.value?.sql) {
         emit('apply-sql', payload.value.sql);
+      } else {
+        emit('prepare-sql');
       }
       break;
     case 'show_sql':

@@ -8,6 +8,7 @@
           :key="message.id"
           :message="message"
           @apply-sql="$emit('apply-sql', $event)"
+          @prepare-sql="$emit('prepare-sql')"
           @clarification="$emit('clarification', $event)"
           @run-prepared="$emit('run-prepared')"
           @show-chart-preview="$emit('show-chart-preview')"
@@ -69,6 +70,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'send', text: string, mode: ApiQueryMode): void;
   (event: 'apply-sql', sql: string): void;
+  (event: 'prepare-sql'): void;
   (event: 'clarification', payload: { clarificationId: string; optionId?: string | null; text?: string | null }): void;
   (event: 'run-prepared'): void;
   (event: 'show-chart-preview'): void;

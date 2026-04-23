@@ -18,6 +18,7 @@ from app.schemas.chat import (
     ClarificationAnswerRequest,
     ExecuteRequest,
     ExecuteResponse,
+    PrepareSqlResponse,
     QueryExecutionRead,
     RunPreparedSqlRequest,
     SendMessageResponse,
@@ -262,6 +263,24 @@ def run_prepared_sql(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     session = _get_session_or_404(db, session_id)
     return ExecuteResponse(session=_session_to_read(session), execution=_execution_to_read(execution))
+
+
+@router.post("/chat/sessions/{session_id}/actions/create-sql", response_model=PrepareSqlResponse, status_code=201)
+def create_sql(
+    session_id: str,
+    db: Session = Depends(get_db),
+) -> PrepareSqlResponse:
+    _get_session_or_404(db, session_id)
+    try:
+        result = chat_adapter.prepare_sql(db, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PrepareSqlResponse(
+        session=_session_to_read(result.session),
+        assistant_message=_message_to_read(result.assistant_message),
+        sql_draft=result.sql_draft,
+        sql_draft_version=result.sql_draft_version,
+    )
 
 
 @router.post(

@@ -514,6 +514,35 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function prepareSql() {
+    if (!currentSession.value) {
+      throw new Error('Сессия чата не выбрана.');
+    }
+
+    generating.value = true;
+    setError(null);
+    setStatus('Подготавливаю SQL');
+    try {
+      const response = await chatApi.prepareSql(currentSession.value.id);
+      syncSession(response.session);
+      messages.value = [...messages.value, response.assistant_message];
+      applyAssistantState(response.assistant_message);
+      if (response.sql_draft) {
+        applyAssistantSqlDraft(response.sql_draft, response.sql_draft_version);
+      } else {
+        setSessionDraft('', response.sql_draft_version);
+      }
+      setSessionResult(null);
+      setStatus('SQL готов');
+      return response;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Не удалось подготовить SQL.');
+      throw error;
+    } finally {
+      generating.value = false;
+    }
+  }
+
   async function suggestChart(goal: 'best_chart' | 'explain_visualization' | 'dashboard_ready' = 'best_chart') {
     if (!currentSession.value || !executionResult.value?.id) {
       throw new Error('Нет результата SQL для AI-подсказки.');
@@ -591,6 +620,7 @@ export const useChatStore = defineStore('chat', () => {
     loadSessions,
     messages,
     queryMode,
+    prepareSql,
     runPreparedSql,
     sessions,
     semanticParse,

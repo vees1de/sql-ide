@@ -1,5 +1,5 @@
 {
-  "suite_name": "drivee_agentic_chat_suite",
+  "suite_name": "drivee_complex_chat_text_to_sql",
   "database_id": "30a98b573aef4c069fd14d129e21f82b",
   "query_mode": "thinking",
   "llm_model_alias": "gpt120",
@@ -7,15 +7,13 @@
     {
       "id": "hourly_completion_conversion",
       "title": "Hourly created vs completed vs completion rate",
-      "tags": ["agentic", "timeseries", "conversion"],
+      "tags": ["complex", "timeseries", "conversion"],
       "steps": [
         {
           "user": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
           "clarification_reply": "Hour",
           "expectations": {
             "should_clarify": false,
-            "expected_state": "SQL_READY",
-            "required_actions": ["show_run_button", "show_sql"],
             "sql": {
               "required_substrings": [
                 "2026-04-14",
@@ -32,7 +30,7 @@
               "min_row_count": 1,
               "required_column_groups": [
                 ["hour", "hour_bucket", "order_hour", "bucket"],
-                ["created_orders", "total_orders", "orders_created", "created_order_count", "created_count"],
+                ["created_orders", "total_orders", "orders_created", "created_order_count"],
                 ["completed_orders", "done_orders", "completed_rides", "completed_count", "completed_trip_count"],
                 ["completion_rate", "conversion_rate", "done_rate"]
               ],
@@ -49,15 +47,13 @@
     {
       "id": "top_drivers_non_completion_rate",
       "title": "Top drivers by accepted but not completed share",
-      "tags": ["agentic", "ranking", "driver"],
+      "tags": ["complex", "ranking", "driver"],
       "steps": [
         {
           "user": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
           "clarification_reply": "Группируй по driver_id. Принятым считай заказ, у которого driveraccept_timestamp IS NOT NULL; завершённым — у которого driverdone_timestamp IS NOT NULL. Минимум 20 принятых заказов на водителя.",
           "expectations": {
             "should_clarify": false,
-            "expected_state": "SQL_READY",
-            "required_actions": ["show_run_button", "show_sql"],
             "sql": {
               "required_substrings": [
                 "2026-04-14",
@@ -98,23 +94,21 @@
         {
           "user": "За 14 апреля 2026 хочу понять, что именно лучше показать по качеству поездок. Дай понятный выбор из нескольких вариантов и не строй SQL, пока не выберу.",
           "clarification_reply": "Конверсию в завершение",
-          "max_auto_clarifications": 0,
           "expectations": {
             "should_clarify": true,
             "expected_state": "CLARIFYING",
             "required_actions": ["create_sql"],
             "clarification": {
               "question_should_contain": [
-                "метрик",
-                "качества",
-                "поездок"
+                "что",
+                "лучше",
+                "показать"
               ],
               "options_should_include": [
-                "завершённости",
-                "длительность",
-                "дистанц",
-                "отмен",
-                "принят"
+                "создан",
+                "заверш",
+                "конвер",
+                "врем"
               ],
               "min_options": 4
             }
@@ -150,7 +144,7 @@
               "min_row_count": 1,
               "required_column_groups": [
                 ["hour", "hour_bucket", "order_hour", "bucket"],
-                ["created_orders", "total_orders", "orders_created", "created_count"],
+                ["created_orders", "total_orders", "orders_created"],
                 ["completed_orders", "done_orders", "completed_rides", "completed_count"]
               ],
               "chart": {

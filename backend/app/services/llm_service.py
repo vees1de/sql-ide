@@ -64,6 +64,8 @@ class LLMQueryPlan(BaseModel):
                 payload["state"] = "CLARIFYING"
             elif payload.get("sql"):
                 payload["state"] = "SQL_READY"
+            elif payload.get("assistant_message") and not payload.get("sql"):
+                payload["state"] = "SQL_DRAFTING"
             else:
                 payload["state"] = "ERROR"
 
@@ -145,7 +147,8 @@ class LLMService:
             "You are a senior analytics engineer. "
             "Return exactly one JSON object and no markdown. "
             "Your job is to understand the analytics request, decide whether clarification is needed, "
-            "and draft a single safe read-only SELECT query when possible.\n"
+            "and draft a single safe read-only SELECT query when possible. You may also answer a schema or "
+            "column meaning question directly in natural language when the user is not asking for a computation.\n"
             "Rules:\n"
             "1. Use only tables, columns, and relationships from the schema.\n"
             "2. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, GRANT or transaction statements.\n"
@@ -153,6 +156,10 @@ class LLMService:
             "4. Keep SQL compatible with the provided SQL dialect.\n"
             "5. Never execute SQL or imply that it was executed. The user must explicitly press Run.\n"
             "6. First clarify or explore schema semantics when needed, then draft SQL.\n"
+            "6b. If the user asks what a column, table, or status means, answer in plain language from the "
+            "available schema or semantic catalog. In that case, set state to SQL_DRAFTING, leave sql null, "
+            "and include a create_sql action labeled like \"Выгрузить таблицу\" only when a table export "
+            "would help the user follow up.\n"
             "7. Treat the semantic layer and semantic catalog as the source of truth for business terms, metrics, dimensions, and allowed join paths.\n"
             "8. If a business term is not grounded in the semantic layer, ask for clarification instead of guessing.\n"
             "9. Clarifications are welcome when they genuinely help pin down user intent — e.g. "

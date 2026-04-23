@@ -6,6 +6,7 @@ import type {
   ApiChatExecuteResponse,
   ApiChatExecutionRead,
   ApiChatMessageCreate,
+  ApiChatPrepareSqlResponse,
   ApiChatRunPreparedSqlRequest,
   ApiChatSendMessageResponse,
   ApiChatSessionCreate,
@@ -69,6 +70,12 @@ export const chatApi = {
         body: JSON.stringify(payload)
       }
     );
+  },
+
+  prepareSql(sessionId: string) {
+    return request<ApiChatPrepareSqlResponse>(`/api/chat/sessions/${sessionId}/actions/create-sql`, {
+      method: 'POST'
+    });
   },
 
   updateSqlDraft(sessionId: string, payload: ApiChatSqlDraftUpdate) {

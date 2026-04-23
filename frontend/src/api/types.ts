@@ -367,6 +367,13 @@ export interface ApiChatSendMessageResponse {
   sql_draft_version: number;
 }
 
+export interface ApiChatPrepareSqlResponse {
+  session: ApiChatSessionRead;
+  assistant_message: ApiChatMessageRead;
+  sql_draft: string | null;
+  sql_draft_version: number;
+}
+
 export interface ApiChatExecuteResponse {
   session: ApiChatSessionRead;
   execution: ApiChatExecutionRead;
