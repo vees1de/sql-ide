@@ -23,6 +23,22 @@
       <div class="chat-result-panel__actions">
         <span v-if="execution" class="chat-result-panel__summary">{{ summary }}</span>
         <button
+          v-if="execution && view === 'chart'"
+          class="chat-result-panel__toggle-btn"
+          type="button"
+          @click="showInterpretation = !showInterpretation"
+        >
+          {{ showInterpretation ? 'Скрыть интерпретацию' : 'Показать интерпретацию' }}
+        </button>
+        <button
+          v-if="execution && view === 'chart'"
+          class="chat-result-panel__toggle-btn"
+          type="button"
+          @click="showChartHeader = !showChartHeader"
+        >
+          {{ showChartHeader ? 'Скрыть заголовок' : 'Показать заголовок' }}
+        </button>
+        <button
           v-if="execution && !execution.error_message && sqlText"
           class="chat-result-panel__save-btn"
           type="button"
@@ -48,6 +64,8 @@
       <ChatResultChart
         v-else
         :execution="execution"
+        :show-interpretation="showInterpretation"
+        :show-chart-header="showChartHeader"
       />
     </template>
 
@@ -67,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import ChatResultChart from '@/components/chat/ChatResultChart.vue';
 import ChatResultTable from '@/components/chat/ChatResultTable.vue';
 import SaveReportModal from '@/components/widgets/SaveReportModal.vue';
@@ -85,6 +103,8 @@ defineEmits<{
 }>();
 
 const showSaveModal = ref(false);
+const showInterpretation = ref(false);
+const showChartHeader = ref(false);
 
 const summary = computed(() => {
   if (!props.execution) {
@@ -97,6 +117,14 @@ const summary = computed(() => {
 function onSaved(widgetId: string) {
   showSaveModal.value = false;
 }
+
+watch(
+  () => props.execution?.id,
+  () => {
+    showInterpretation.value = false;
+    showChartHeader.value = false;
+  },
+);
 </script>
 
 <style scoped lang="scss">
@@ -155,6 +183,7 @@ function onSaved(widgetId: string) {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .chat-result-panel__summary {
@@ -175,6 +204,24 @@ function onSaved(widgetId: string) {
 
   &:hover {
     background: rgba(112, 59, 247, 0.22);
+  }
+}
+
+.chat-result-panel__toggle-btn {
+  padding: 0 10px;
+  min-height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--ink-strong);
+    border-color: rgba(112, 59, 247, 0.5);
+    background: rgba(112, 59, 247, 0.12);
   }
 }
 

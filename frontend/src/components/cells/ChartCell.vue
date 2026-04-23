@@ -1,6 +1,6 @@
 <template>
   <div class="chart-cell">
-    <div class="chart-cell__head">
+    <div v-if="showHeader" class="chart-cell__head">
       <div>
         <strong>{{ content.title }}</strong>
         <p :title="content.explanation ?? content.subtitle ?? ''">
@@ -31,6 +31,7 @@ import type { ChartCellContent } from '@/types/app';
 
 const props = defineProps<{
   content: ChartCellContent;
+  showHeader?: boolean;
 }>();
 
 const palette = computed(

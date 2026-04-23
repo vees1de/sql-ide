@@ -76,3 +76,193 @@ npm run dev
 - compose использует две PostgreSQL базы:
   - `sqlide_service`
   - `sqlide_analytics`
+
+## Как поднять проект локально
+
+Ниже самый практичный сценарий для разработки:
+
+1. Поднять PostgreSQL в Docker.
+2. Запустить backend локально.
+3. Запустить frontend локально.
+4. При необходимости развернуть тестовую БД `dvdrental`.
+
+### 1. Поднять PostgreSQL в Docker
+
+Из корня репозитория:
+
+```bash
+docker compose up -d postgres
+```
+
+После старта PostgreSQL будет доступен на:
+
+- host: `127.0.0.1`
+- port: `5433`
+- user: `sqlide`
+- password: `sqlide`
+
+Проверка:
+
+```bash
+docker compose ps
+```
+
+### 2. Запустить backend локально
+
+Из `backend/`:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+Если хотите использовать PostgreSQL из Docker для сервисной БД и встроенной analytics DB:
+
+```bash
+export SERVICE_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/sqlide_service
+export ANALYTICS_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/sqlide_analytics
+export BOOTSTRAP_DEMO_ANALYTICS=true
+```
+
+Если хотите запускать backend против `dvdrental`, используйте:
+
+```bash
+export SERVICE_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/sqlide_service
+export ANALYTICS_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/dvdrental
+```
+
+После этого:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Backend будет доступен на:
+
+- API: `http://127.0.0.1:8000/api`
+- Swagger: `http://127.0.0.1:8000/docs`
+
+### 3. Запустить frontend локально
+
+Из `frontend/`:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend будет доступен на:
+
+- `http://127.0.0.1:5173`
+
+По умолчанию dev frontend ходит в локальный backend через `/api`.
+
+Если backend у вас не на стандартном порту, задайте:
+
+```bash
+export VITE_API_BASE_URL=http://127.0.0.1:8000/api
+```
+
+или настройте `VITE_PROXY_TARGET`.
+
+## Как поднять `dvdrental`
+
+В репозитории уже лежит дамп:
+
+- [db-samples/dvdrental/restore.sql](/Users/vees1de/repos/sql-ide/db-samples/dvdrental/restore.sql)
+
+и все `.dat` файлы, которые он использует.
+
+### Вариант 1. Загрузить `dvdrental` в PostgreSQL из Docker
+
+1. Убедитесь, что контейнер PostgreSQL уже поднят:
+
+```bash
+docker compose up -d postgres
+```
+
+2. Из корня репозитория выполните:
+
+```bash
+DVDDIR="$(pwd)/db-samples/dvdrental"
+sed \
+  -e "s|\$\$PATH\$\$|$DVDDIR|g" \
+  -e "s|OWNER TO postgres|OWNER TO sqlide|g" \
+  db-samples/dvdrental/restore.sql \
+  | docker exec -i sql-ide-postgres psql -U sqlide -d postgres
+```
+
+Что делает эта команда:
+
+- подставляет реальный путь к `.dat` файлам вместо `$$PATH$$`
+- заменяет `OWNER TO postgres` на `OWNER TO sqlide`, потому что в docker-compose используется роль `sqlide`
+- выполняет импорт в контейнерный PostgreSQL
+
+3. Проверьте, что база появилась:
+
+```bash
+docker exec -it sql-ide-postgres psql -U sqlide -d postgres -c "\\l"
+```
+
+4. Быстрая проверка таблиц:
+
+```bash
+docker exec -it sql-ide-postgres psql -U sqlide -d dvdrental -c "\\dt"
+```
+
+### Вариант 2. Использовать `dvdrental` как analytics DB для backend
+
+После импорта просто запустите backend с:
+
+```bash
+export SERVICE_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/sqlide_service
+export ANALYTICS_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/dvdrental
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --reload
+```
+
+### Если backend уже запущен и нужно добавить `dvdrental` через UI
+
+Используйте подключение:
+
+- host: `127.0.0.1`
+- port: `5433`
+- database: `dvdrental`
+- username: `sqlide`
+- password: `sqlide`
+
+## Полезные команды
+
+Поднять только БД в Docker:
+
+```bash
+docker compose up -d postgres
+```
+
+Поднять БД и backend в Docker:
+
+```bash
+docker compose up --build -d postgres backend
+```
+
+Остановить контейнеры:
+
+```bash
+docker compose down
+```
+
+Посмотреть логи PostgreSQL:
+
+```bash
+docker compose logs -f postgres
+```
+
+Посмотреть логи backend в Docker:
+
+```bash
+docker compose logs -f backend
+```

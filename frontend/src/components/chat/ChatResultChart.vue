@@ -1,6 +1,6 @@
 <template>
   <div class="chat-result-chart">
-    <div v-if="interpretation" class="chat-result-chart__interpretation">
+    <div v-if="showInterpretation && interpretation" class="chat-result-chart__interpretation">
       <strong>Как я понял запрос</strong>
       <p>{{ interpretation.short_explanation ?? recommendationReason }}</p>
       <div class="chat-result-chart__chips">
@@ -17,7 +17,7 @@
       </p>
     </div>
     <div v-if="content" class="chat-result-chart__chart">
-      <ChartCell :content="content" />
+      <ChartCell :content="content" :show-header="showChartHeader" />
     </div>
     <div v-else class="chat-result-chart__empty">
       <p>{{ emptyMessage }}</p>
@@ -33,6 +33,8 @@ import type { ApiChatExecutionRead } from '@/api/types';
 
 const props = defineProps<{
   execution: ApiChatExecutionRead | null;
+  showInterpretation?: boolean;
+  showChartHeader?: boolean;
 }>();
 
 const recommendation = computed(() => props.execution?.chart_recommendation ?? null);
