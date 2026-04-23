@@ -758,15 +758,28 @@ class ChartDecisionService:
         return None
 
     def _resolve_y_field(self, shape: ResultShape, semantics: QuerySemantics) -> str | None:
+        is_rate_query = (
+            semantics.flags.is_ranking
+            or semantics.flags.is_share
+            or semantics.intent == "share"
+            or semantics.intent == "ranking"
+        )
+        rate_markers = ("rate", "share", "ratio", "conversion", "percent", "pct")
+
+        def _is_rate_like(col_name: str) -> bool:
+            return any(marker in col_name.lower() for marker in rate_markers)
+
+        # For ranking/share queries, prefer a rate column even if roles.y is set to a non-rate column.
+        if is_rate_query:
+            rate_column = self._first_rate_like_numeric(shape)
+            if rate_column is not None:
+                return rate_column.name
+
         roles = semantics.data_roles
         if roles and roles.y and shape.column(roles.y) is not None:
             return roles.y
         if semantics.metric and semantics.metric.name and shape.column(semantics.metric.name) is not None:
             return semantics.metric.name
-        if semantics.flags.is_ranking or semantics.flags.is_share or semantics.intent == "share":
-            rate_column = self._first_rate_like_numeric(shape)
-            if rate_column is not None:
-                return rate_column.name
         y_candidate = shape.y_candidate()
         return y_candidate.name if y_candidate is not None else None
 

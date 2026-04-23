@@ -427,7 +427,8 @@ class SemanticCatalogService:
             if rel.from_table in selected_table_names or rel.to_table in selected_table_names
         ]
         selected_graph = build_relationship_graph(selected_relationships)
-        schema = self._catalog_to_schema(
+        schema = self._build_retrieval_schema(
+            db,
             catalog.database_id,
             catalog.dialect,
             selected_tables,
@@ -461,6 +462,50 @@ class SemanticCatalogService:
     ) -> SchemaMetadataResponse:
         return SchemaMetadataResponse.model_validate(
             self.build_retrieval_context(db, database_id, intent_text, dictionary_entries).schema
+        )
+
+    def _build_retrieval_schema(
+        self,
+        db: Session,
+        database_id: str,
+        dialect: str,
+        tables: list[SemanticTable],
+        join_paths: list[SemanticJoinPath],
+        relationship_graph: list[RelationshipGraphEdge],
+    ) -> SchemaMetadataResponse:
+        selected_table_names = {table.table_name for table in tables}
+        try:
+            from app.services.schema_context_provider import SchemaContextProvider
+
+            base_schema = SchemaContextProvider().get_schema_for_llm(db, database_id)
+            filtered_tables = [
+                table for table in base_schema.tables
+                if table.name in selected_table_names
+            ]
+            filtered_relationships = [
+                relationship for relationship in base_schema.relationships
+                if relationship.from_table in selected_table_names and relationship.to_table in selected_table_names
+            ]
+            filtered_graph = [
+                edge for edge in base_schema.relationship_graph
+                if edge.from_table in selected_table_names and edge.to_table in selected_table_names
+            ]
+            if filtered_tables:
+                return SchemaMetadataResponse(
+                    database_id=base_schema.database_id,
+                    dialect=base_schema.dialect,
+                    tables=filtered_tables,
+                    relationships=filtered_relationships,
+                    relationship_graph=filtered_graph or relationship_graph,
+                )
+        except Exception:
+            pass
+        return self._catalog_to_schema(
+            database_id,
+            dialect,
+            tables,
+            join_paths,
+            relationship_graph,
         )
 
     def _load_active_catalog(self, db: Session, database_id: str) -> SemanticCatalog | None:
@@ -1387,8 +1432,15 @@ class SemanticCatalogService:
             tables=[
                 TableMetadata(
                     name=table.table_name,
+                    description=table.business_description,
                     columns=[
-                        ColumnMetadata(name=column.column_name, type=self._resolve_column_type(column))
+                        ColumnMetadata(
+                            name=column.column_name,
+                            type=self._resolve_column_type(column),
+                            min_value=column.profile.min_value,
+                            max_value=column.profile.max_value,
+                            description=column.business_description,
+                        )
                         for column in table.columns
                     ],
                 )

@@ -617,16 +617,23 @@ class LLMService:
             mx = getattr(column, "max_value", None)
             if mn is not None or mx is not None:
                 entry["observed_range"] = {"min": mn, "max": mx}
+            desc = getattr(column, "description", None)
+            if desc:
+                entry["description"] = desc
+            return entry
+
+        def _table_entry(table: Any) -> dict[str, Any]:
+            entry: dict[str, Any] = {
+                "table": table.name,
+                "columns": [_column_entry(column) for column in table.columns],
+            }
+            desc = getattr(table, "description", None)
+            if desc:
+                entry["description"] = desc
             return entry
 
         return {
-            "tables": [
-                {
-                    "table": table.name,
-                    "columns": [_column_entry(column) for column in table.columns],
-                }
-                for table in schema.tables
-            ],
+            "tables": [_table_entry(table) for table in schema.tables],
             "relationships": [
                 {
                     "from_table": relationship.from_table,

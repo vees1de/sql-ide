@@ -102,25 +102,31 @@ class ChatSqlAdapter:
                 )
             else:
                 schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
-            plan = self._try_llm_plan(
-                db=db,
-                database_connection_id=session.database_connection_id,
-                user_text=user_text,
-                schema=schema,
-                semantic_catalog=getattr(catalog_context, "catalog", None),
-                semantic_notes=getattr(catalog_context, "notes", []),
-                previous_intent=previous_intent,
-                history_text=history_text,
-                llm_model=llm_model,
-            )
-            if plan is not None:
+            semantic_catalog = getattr(catalog_context, "catalog", None)
+            semantic_notes = getattr(catalog_context, "notes", [])
+            # Thinking mode tolerates a few retries so transient LLM planning/validation
+            # failures do not immediately degrade into the rule-based clarification flow.
+            for _attempt in range(5):
+                plan = self._try_llm_plan(
+                    db=db,
+                    database_connection_id=session.database_connection_id,
+                    user_text=user_text,
+                    schema=schema,
+                    semantic_catalog=semantic_catalog,
+                    semantic_notes=semantic_notes,
+                    previous_intent=previous_intent,
+                    history_text=history_text,
+                    llm_model=llm_model,
+                )
+                if plan is None:
+                    continue
                 result = self._from_plan(
                     db=db,
                     session=session,
                     plan=plan,
                     schema=schema,
-                    semantic_catalog=getattr(catalog_context, "catalog", None),
-                    semantic_notes=getattr(catalog_context, "notes", []),
+                    semantic_catalog=semantic_catalog,
+                    semantic_notes=semantic_notes,
                     dictionary_entries=thinking_dictionary_entries,
                     user_text=user_text,
                     previous_intent=previous_intent,

@@ -1,0 +1,3236 @@
+{
+  "suite": {
+    "suite_name": "drivee_complex_chat_text_to_sql",
+    "database_id": "30a98b573aef4c069fd14d129e21f82b",
+    "database_name": null,
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "cases": [
+      {
+        "id": "hourly_completion_conversion",
+        "title": "Hourly created vs completed vs completion rate",
+        "tags": [
+          "complex",
+          "timeseries",
+          "conversion"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": "Hour",
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2026-04-14",
+                  "group by",
+                  "order_timestamp",
+                  "driverdone_timestamp"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "train"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": null,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  [
+                    "created_orders",
+                    "total_orders",
+                    "orders_created"
+                  ],
+                  [
+                    "completed_orders",
+                    "done_orders",
+                    "completed_rides",
+                    "completed_count"
+                  ],
+                  [
+                    "completion_rate",
+                    "conversion_rate",
+                    "done_rate"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "line"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  "y_any_of": [
+                    "created_orders",
+                    "total_orders",
+                    "orders_created",
+                    "completed_orders",
+                    "completion_rate"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "top_drivers_non_completion_rate",
+        "title": "Top drivers by accepted but not completed share",
+        "tags": [
+          "complex",
+          "ranking",
+          "driver"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": "Группируй по driver_id. Принятым считай заказ, у которого driveraccept_timestamp IS NOT NULL; завершённым — у которого driverdone_timestamp IS NOT NULL. Минимум 20 принятых заказов на водителя.",
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2026-04-14",
+                  "driver_id",
+                  "driveraccept_timestamp",
+                  "driverdone_timestamp",
+                  "limit 10"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "train"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": 10,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "driver_id"
+                  ],
+                  [
+                    "accepted_orders",
+                    "accepted_count",
+                    "total_accepted"
+                  ],
+                  [
+                    "not_completed_orders",
+                    "failed_after_accept",
+                    "not_done_orders",
+                    "not_completed_count"
+                  ],
+                  [
+                    "non_completion_rate",
+                    "not_completed_rate",
+                    "fail_rate"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "bar"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "driver_id"
+                  ],
+                  "y_any_of": [
+                    "non_completion_rate",
+                    "not_completed_rate",
+                    "fail_rate",
+                    "not_completed_count"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "hourly_pickup_vs_ride_duration",
+        "title": "Hourly pickup time vs ride duration",
+        "tags": [
+          "complex",
+          "sla",
+          "timeseries"
+        ],
+        "database_id": null,
+        "database_name": null,
+        "steps": [
+          {
+            "user": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+            "query_mode": null,
+            "llm_model_alias": null,
+            "execute_sql": null,
+            "clarification_reply": "Считать завершённым status_order = 'done'. Фильтровать по order_timestamp = '2026-04-14'. Группировка по часам.",
+            "max_auto_clarifications": 2,
+            "expectations": {
+              "should_clarify": false,
+              "clarification": null,
+              "interpretation": null,
+              "sql": {
+                "must_parse": true,
+                "required_substrings": [
+                  "2026-04-14",
+                  "group by",
+                  "driveraccept_timestamp",
+                  "driverarrived_timestamp",
+                  "driverstarttheride_timestamp",
+                  "driverdone_timestamp"
+                ],
+                "forbidden_substrings": [],
+                "required_tables": [
+                  "train"
+                ],
+                "forbidden_tables": [],
+                "required_columns": []
+              },
+              "execution": {
+                "should_succeed": true,
+                "min_row_count": 1,
+                "max_row_count": null,
+                "required_columns_all_of": [],
+                "required_column_groups": [
+                  [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  [
+                    "avg_pickup_minutes",
+                    "pickup_minutes",
+                    "avg_time_to_arrival",
+                    "avg_pickup_time",
+                    "avg_accept_to_arrival_minutes"
+                  ],
+                  [
+                    "avg_ride_minutes",
+                    "ride_minutes",
+                    "avg_ride_time",
+                    "avg_start_to_done_minutes"
+                  ]
+                ],
+                "chart": {
+                  "acceptable_types": [
+                    "line"
+                  ],
+                  "acceptable_views": [],
+                  "x_any_of": [
+                    "hour",
+                    "hour_bucket",
+                    "order_hour",
+                    "bucket"
+                  ],
+                  "y_any_of": [
+                    "avg_pickup_minutes",
+                    "pickup_minutes",
+                    "avg_time_to_arrival",
+                    "avg_ride_minutes",
+                    "ride_minutes",
+                    "avg_accept_to_arrival_minutes",
+                    "avg_start_to_done_minutes"
+                  ],
+                  "series_any_of": []
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "summary": {
+    "suite_name": "drivee_complex_chat_text_to_sql",
+    "api_base": "http://127.0.0.1:8000/api",
+    "started_at": "2026-04-22T23:45:07.503101+00:00",
+    "finished_at": "2026-04-22T23:45:56.152158+00:00",
+    "duration_seconds": 48.649,
+    "case_count": 3,
+    "step_count": 3,
+    "scores": {
+      "understanding": 1.0,
+      "sql": 0.9744,
+      "chart": 0.7778,
+      "overall": 0.9174
+    },
+    "judge_used": false,
+    "failures_by_code": {
+      "chart_y_mismatch": 2,
+      "sql_required_substring_missing": 1
+    }
+  },
+  "cases": [
+    {
+      "case_id": "hourly_completion_conversion",
+      "title": "Hourly created vs completed vs completion rate",
+      "tags": [
+        "complex",
+        "timeseries",
+        "conversion"
+      ],
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "session_id": "1d7ddc4622064410898c4a036cdb8e57",
+      "scores": {
+        "understanding": 1.0,
+        "sql": 0.9231,
+        "chart": 0.6667,
+        "overall": 0.8633
+      },
+      "issue_counts": {
+        "sql_required_substring_missing": 1,
+        "chart_y_mismatch": 1
+      },
+      "steps": [
+        {
+          "case_id": "hourly_completion_conversion",
+          "step_index": 1,
+          "step_ref": "hourly_completion_conversion#step1",
+          "user_prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "order_timestamp",
+                "driverdone_timestamp"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "train"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": null,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created"
+                ],
+                [
+                  "completed_orders",
+                  "done_orders",
+                  "completed_rides",
+                  "completed_count"
+                ],
+                [
+                  "completion_rate",
+                  "conversion_rate",
+                  "done_rate"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "line"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created",
+                  "completed_orders",
+                  "completion_rate"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "30a98b573aef4c069fd14d129e21f82b",
+              "name": "drivee test data",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": false,
+            "clarification_question": null,
+            "clarification_options": [],
+            "message_kind": "answer",
+            "initial_message_kind": "answer",
+            "clarification_transcript": [],
+            "intent": {
+              "raw_prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+              "metric": null,
+              "dimensions": [
+                "hour"
+              ],
+              "filters": [
+                {
+                  "field": "order_timestamp",
+                  "operator": "between",
+                  "value": [
+                    "2026-04-14",
+                    "2026-04-15"
+                  ]
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2026-04-14",
+                "end": "2026-04-14",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "line",
+              "ambiguities": [],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 1.0,
+              "follow_up": false
+            },
+            "sql": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  COUNT(*) AS created_order_count,\n  COUNT(*) FILTER(WHERE\n    status_order = 'done') AS completed_trip_count,\n  CASE\n    WHEN COUNT(*) = 0\n    THEN 0\n    ELSE CAST(COUNT(*) FILTER(WHERE\n      status_order = 'done') AS DECIMAL) / NULLIF(COUNT(*), 0)\n  END AS completion_rate\nFROM train\nWHERE\n  order_timestamp >= CAST('2026-04-14' AS DATE)\n  AND order_timestamp < CAST('2026-04-15' AS DATE)\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+            "execution": {
+              "id": "c17e288859294d8db4f50aa657253316",
+              "session_id": "1d7ddc4622064410898c4a036cdb8e57",
+              "sql_text": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  COUNT(*) AS created_order_count,\n  COUNT(*) FILTER(WHERE\n    status_order = 'done') AS completed_trip_count,\n  CASE\n    WHEN COUNT(*) = 0\n    THEN 0\n    ELSE CAST(COUNT(*) FILTER(WHERE\n      status_order = 'done') AS DECIMAL) / NULLIF(COUNT(*), 0)\n  END AS completion_rate\nFROM train\nWHERE\n  order_timestamp >= CAST('2026-04-14' AS DATE)\n  AND order_timestamp < CAST('2026-04-15' AS DATE)\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+              "columns": [
+                {
+                  "name": "hour",
+                  "type": "datetime64[ns]"
+                },
+                {
+                  "name": "created_order_count",
+                  "type": "int64"
+                },
+                {
+                  "name": "completed_trip_count",
+                  "type": "int64"
+                },
+                {
+                  "name": "completion_rate",
+                  "type": "float64"
+                }
+              ],
+              "rows_preview": [
+                {
+                  "hour": "2026-04-14T00:00:00.000",
+                  "created_order_count": 18,
+                  "completed_trip_count": 6,
+                  "completion_rate": 0.3333333333
+                },
+                {
+                  "hour": "2026-04-14T01:00:00.000",
+                  "created_order_count": 8,
+                  "completed_trip_count": 3,
+                  "completion_rate": 0.375
+                },
+                {
+                  "hour": "2026-04-14T05:00:00.000",
+                  "created_order_count": 3,
+                  "completed_trip_count": 1,
+                  "completion_rate": 0.3333333333
+                },
+                {
+                  "hour": "2026-04-14T06:00:00.000",
+                  "created_order_count": 9,
+                  "completed_trip_count": 8,
+                  "completion_rate": 0.8888888889
+                },
+                {
+                  "hour": "2026-04-14T07:00:00.000",
+                  "created_order_count": 140,
+                  "completed_trip_count": 134,
+                  "completion_rate": 0.9571428571
+                },
+                {
+                  "hour": "2026-04-14T08:00:00.000",
+                  "created_order_count": 419,
+                  "completed_trip_count": 388,
+                  "completion_rate": 0.9260143198
+                },
+                {
+                  "hour": "2026-04-14T09:00:00.000",
+                  "created_order_count": 239,
+                  "completed_trip_count": 221,
+                  "completion_rate": 0.9246861925
+                },
+                {
+                  "hour": "2026-04-14T10:00:00.000",
+                  "created_order_count": 192,
+                  "completed_trip_count": 186,
+                  "completion_rate": 0.96875
+                },
+                {
+                  "hour": "2026-04-14T11:00:00.000",
+                  "created_order_count": 168,
+                  "completed_trip_count": 158,
+                  "completion_rate": 0.9404761905
+                },
+                {
+                  "hour": "2026-04-14T12:00:00.000",
+                  "created_order_count": 165,
+                  "completed_trip_count": 145,
+                  "completion_rate": 0.8787878788
+                },
+                {
+                  "hour": "2026-04-14T13:00:00.000",
+                  "created_order_count": 219,
+                  "completed_trip_count": 127,
+                  "completion_rate": 0.5799086758
+                },
+                {
+                  "hour": "2026-04-14T14:00:00.000",
+                  "created_order_count": 192,
+                  "completed_trip_count": 158,
+                  "completion_rate": 0.8229166667
+                },
+                {
+                  "hour": "2026-04-14T15:00:00.000",
+                  "created_order_count": 186,
+                  "completed_trip_count": 159,
+                  "completion_rate": 0.8548387097
+                },
+                {
+                  "hour": "2026-04-14T16:00:00.000",
+                  "created_order_count": 190,
+                  "completed_trip_count": 169,
+                  "completion_rate": 0.8894736842
+                },
+                {
+                  "hour": "2026-04-14T17:00:00.000",
+                  "created_order_count": 218,
+                  "completed_trip_count": 181,
+                  "completion_rate": 0.8302752294
+                },
+                {
+                  "hour": "2026-04-14T18:00:00.000",
+                  "created_order_count": 135,
+                  "completed_trip_count": 107,
+                  "completion_rate": 0.7925925926
+                },
+                {
+                  "hour": "2026-04-14T19:00:00.000",
+                  "created_order_count": 93,
+                  "completed_trip_count": 66,
+                  "completion_rate": 0.7096774194
+                },
+                {
+                  "hour": "2026-04-14T20:00:00.000",
+                  "created_order_count": 83,
+                  "completed_trip_count": 43,
+                  "completion_rate": 0.5180722892
+                },
+                {
+                  "hour": "2026-04-14T21:00:00.000",
+                  "created_order_count": 66,
+                  "completed_trip_count": 22,
+                  "completion_rate": 0.3333333333
+                },
+                {
+                  "hour": "2026-04-14T22:00:00.000",
+                  "created_order_count": 47,
+                  "completed_trip_count": 9,
+                  "completion_rate": 0.1914893617
+                },
+                {
+                  "hour": "2026-04-14T23:00:00.000",
+                  "created_order_count": 63,
+                  "completed_trip_count": 11,
+                  "completion_rate": 0.1746031746
+                }
+              ],
+              "rows_preview_truncated": false,
+              "row_count": 21,
+              "execution_time_ms": 29,
+              "chart_recommendation": {
+                "recommended_view": "chart",
+                "chart_type": "line",
+                "x": "hour",
+                "y": "completed_trip_count",
+                "series": null,
+                "facet": null,
+                "variant": "single_series",
+                "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "rule_id": "CASCADE_LINE",
+                "confidence": 0.9,
+                "data": {
+                  "kind": "single_series",
+                  "chartType": "line",
+                  "variant": "single_series",
+                  "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "ruleId": "CASCADE_LINE",
+                  "confidence": 0.9,
+                  "semanticIntent": "trend",
+                  "analysisMode": "trend",
+                  "visualGoal": "show_change_over_time",
+                  "timeRole": "primary",
+                  "comparisonGoal": "absolute",
+                  "preferredMark": "line",
+                  "alternatives": [],
+                  "candidates": [
+                    {
+                      "type": "line",
+                      "score": 0.9,
+                      "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                    }
+                  ],
+                  "constraintsApplied": [],
+                  "visualLoad": 21,
+                  "reasonCodes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ],
+                  "queryInterpretation": {
+                    "user_goal": "Track completed_trip_count by hour",
+                    "intent": "trend",
+                    "analysis_mode": "trend",
+                    "entities": [],
+                    "metrics": [
+                      {
+                        "name": "completed_trip_count",
+                        "aggregation": null,
+                        "format": "integer_compact"
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "name": "hour",
+                        "role": "time"
+                      }
+                    ],
+                    "time_dimension": "hour",
+                    "series_dimension": null,
+                    "requested_output": "chart",
+                    "assumptions": [],
+                    "ambiguities": [],
+                    "confidence": 0.9,
+                    "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  },
+                  "decisionSummary": {
+                    "selected_chart": "line",
+                    "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                    "reason_codes": [
+                      "INTENT_TREND",
+                      "HAS_TIME_AXIS",
+                      "TREND_PRIMARY_GOAL",
+                      "MANY_TIME_BUCKETS",
+                      "VISUAL_LOAD_MEDIUM"
+                    ],
+                    "alternatives": [],
+                    "confidence": 0.9
+                  },
+                  "understanding": {
+                    "user_goal": "Track completed_trip_count by hour",
+                    "intent": "trend",
+                    "analysis_mode": "trend",
+                    "entities": [],
+                    "metrics": [
+                      {
+                        "name": "completed_trip_count",
+                        "aggregation": null,
+                        "format": "integer_compact"
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "name": "hour",
+                        "role": "time"
+                      }
+                    ],
+                    "time_dimension": "hour",
+                    "series_dimension": null,
+                    "requested_output": "chart",
+                    "assumptions": [],
+                    "ambiguities": [],
+                    "confidence": 0.9,
+                    "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  },
+                  "decision": {
+                    "chart_type": "line",
+                    "x": "hour",
+                    "y": "completed_trip_count",
+                    "series_key": null,
+                    "facet_key": null,
+                    "normalize": "none",
+                    "series_limit": null,
+                    "category_limit": null,
+                    "top_n_strategy": "none"
+                  },
+                  "explanationBlock": {
+                    "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                    "confidence": 0.9,
+                    "alternatives_considered": [],
+                    "reason_codes": [
+                      "INTENT_TREND",
+                      "HAS_TIME_AXIS",
+                      "TREND_PRIMARY_GOAL",
+                      "MANY_TIME_BUCKETS",
+                      "VISUAL_LOAD_MEDIUM"
+                    ]
+                  },
+                  "config": {
+                    "xField": "hour",
+                    "yField": "completed_trip_count",
+                    "seriesField": null,
+                    "facetField": null,
+                    "sort": "time_asc",
+                    "normalize": "none",
+                    "seriesLimit": null,
+                    "categoryLimit": null,
+                    "topNStrategy": "none",
+                    "valueFormat": "integer_compact",
+                    "dataRoles": {
+                      "x": "hour",
+                      "y": "completed_trip_count",
+                      "series_key": null,
+                      "facet_key": null,
+                      "label": "hour",
+                      "value": "completed_trip_count"
+                    }
+                  },
+                  "x": {
+                    "field": "hour",
+                    "values": [
+                      "2026-04-14T00:00:00.000",
+                      "2026-04-14T01:00:00.000",
+                      "2026-04-14T05:00:00.000",
+                      "2026-04-14T06:00:00.000",
+                      "2026-04-14T07:00:00.000",
+                      "2026-04-14T08:00:00.000",
+                      "2026-04-14T09:00:00.000",
+                      "2026-04-14T10:00:00.000",
+                      "2026-04-14T11:00:00.000",
+                      "2026-04-14T12:00:00.000",
+                      "2026-04-14T13:00:00.000",
+                      "2026-04-14T14:00:00.000",
+                      "2026-04-14T15:00:00.000",
+                      "2026-04-14T16:00:00.000",
+                      "2026-04-14T17:00:00.000",
+                      "2026-04-14T18:00:00.000",
+                      "2026-04-14T19:00:00.000",
+                      "2026-04-14T20:00:00.000",
+                      "2026-04-14T21:00:00.000",
+                      "2026-04-14T22:00:00.000",
+                      "2026-04-14T23:00:00.000"
+                    ],
+                    "type": "categorical"
+                  },
+                  "y": {
+                    "field": "completed_trip_count",
+                    "values": [
+                      6.0,
+                      3.0,
+                      1.0,
+                      8.0,
+                      134.0,
+                      388.0,
+                      221.0,
+                      186.0,
+                      158.0,
+                      145.0,
+                      127.0,
+                      158.0,
+                      159.0,
+                      169.0,
+                      181.0,
+                      107.0,
+                      66.0,
+                      43.0,
+                      22.0,
+                      9.0,
+                      11.0
+                    ],
+                    "unit": null
+                  },
+                  "stacked": false
+                },
+                "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "semantic_intent": "trend",
+                "analysis_mode": "trend",
+                "visual_goal": "show_change_over_time",
+                "time_role": "primary",
+                "comparison_goal": "absolute",
+                "preferred_mark": "line",
+                "normalize": "none",
+                "value_format": "integer_compact",
+                "series_limit": null,
+                "category_limit": null,
+                "top_n_strategy": "none",
+                "alternatives": [],
+                "candidates": [
+                  {
+                    "type": "line",
+                    "score": 0.9,
+                    "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  }
+                ],
+                "constraints_applied": [],
+                "visual_load": 21,
+                "query_interpretation": {
+                  "user_goal": "Track completed_trip_count by hour",
+                  "intent": "trend",
+                  "analysis_mode": "trend",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "completed_trip_count",
+                      "aggregation": null,
+                      "format": "integer_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "hour",
+                      "role": "time"
+                    }
+                  ],
+                  "time_dimension": "hour",
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.9,
+                  "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                "decision_summary": {
+                  "selected_chart": "line",
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "reason_codes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ],
+                  "alternatives": [],
+                  "confidence": 0.9
+                },
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ]
+              },
+              "error_message": null,
+              "created_at": "2026-04-22T23:45:22.628964"
+            },
+            "chart": {
+              "recommended_view": "chart",
+              "chart_type": "line",
+              "x": "hour",
+              "y": "completed_trip_count",
+              "series": null,
+              "facet": null,
+              "variant": "single_series",
+              "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "rule_id": "CASCADE_LINE",
+              "confidence": 0.9,
+              "data": {
+                "kind": "single_series",
+                "chartType": "line",
+                "variant": "single_series",
+                "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "ruleId": "CASCADE_LINE",
+                "confidence": 0.9,
+                "semanticIntent": "trend",
+                "analysisMode": "trend",
+                "visualGoal": "show_change_over_time",
+                "timeRole": "primary",
+                "comparisonGoal": "absolute",
+                "preferredMark": "line",
+                "alternatives": [],
+                "candidates": [
+                  {
+                    "type": "line",
+                    "score": 0.9,
+                    "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  }
+                ],
+                "constraintsApplied": [],
+                "visualLoad": 21,
+                "reasonCodes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ],
+                "queryInterpretation": {
+                  "user_goal": "Track completed_trip_count by hour",
+                  "intent": "trend",
+                  "analysis_mode": "trend",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "completed_trip_count",
+                      "aggregation": null,
+                      "format": "integer_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "hour",
+                      "role": "time"
+                    }
+                  ],
+                  "time_dimension": "hour",
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.9,
+                  "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                "decisionSummary": {
+                  "selected_chart": "line",
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "reason_codes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ],
+                  "alternatives": [],
+                  "confidence": 0.9
+                },
+                "understanding": {
+                  "user_goal": "Track completed_trip_count by hour",
+                  "intent": "trend",
+                  "analysis_mode": "trend",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "completed_trip_count",
+                      "aggregation": null,
+                      "format": "integer_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "hour",
+                      "role": "time"
+                    }
+                  ],
+                  "time_dimension": "hour",
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.9,
+                  "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                "decision": {
+                  "chart_type": "line",
+                  "x": "hour",
+                  "y": "completed_trip_count",
+                  "series_key": null,
+                  "facet_key": null,
+                  "normalize": "none",
+                  "series_limit": null,
+                  "category_limit": null,
+                  "top_n_strategy": "none"
+                },
+                "explanationBlock": {
+                  "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "confidence": 0.9,
+                  "alternatives_considered": [],
+                  "reason_codes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ]
+                },
+                "config": {
+                  "xField": "hour",
+                  "yField": "completed_trip_count",
+                  "seriesField": null,
+                  "facetField": null,
+                  "sort": "time_asc",
+                  "normalize": "none",
+                  "seriesLimit": null,
+                  "categoryLimit": null,
+                  "topNStrategy": "none",
+                  "valueFormat": "integer_compact",
+                  "dataRoles": {
+                    "x": "hour",
+                    "y": "completed_trip_count",
+                    "series_key": null,
+                    "facet_key": null,
+                    "label": "hour",
+                    "value": "completed_trip_count"
+                  }
+                },
+                "x": {
+                  "field": "hour",
+                  "values": [
+                    "2026-04-14T00:00:00.000",
+                    "2026-04-14T01:00:00.000",
+                    "2026-04-14T05:00:00.000",
+                    "2026-04-14T06:00:00.000",
+                    "2026-04-14T07:00:00.000",
+                    "2026-04-14T08:00:00.000",
+                    "2026-04-14T09:00:00.000",
+                    "2026-04-14T10:00:00.000",
+                    "2026-04-14T11:00:00.000",
+                    "2026-04-14T12:00:00.000",
+                    "2026-04-14T13:00:00.000",
+                    "2026-04-14T14:00:00.000",
+                    "2026-04-14T15:00:00.000",
+                    "2026-04-14T16:00:00.000",
+                    "2026-04-14T17:00:00.000",
+                    "2026-04-14T18:00:00.000",
+                    "2026-04-14T19:00:00.000",
+                    "2026-04-14T20:00:00.000",
+                    "2026-04-14T21:00:00.000",
+                    "2026-04-14T22:00:00.000",
+                    "2026-04-14T23:00:00.000"
+                  ],
+                  "type": "categorical"
+                },
+                "y": {
+                  "field": "completed_trip_count",
+                  "values": [
+                    6.0,
+                    3.0,
+                    1.0,
+                    8.0,
+                    134.0,
+                    388.0,
+                    221.0,
+                    186.0,
+                    158.0,
+                    145.0,
+                    127.0,
+                    158.0,
+                    159.0,
+                    169.0,
+                    181.0,
+                    107.0,
+                    66.0,
+                    43.0,
+                    22.0,
+                    9.0,
+                    11.0
+                  ],
+                  "unit": null
+                },
+                "stacked": false
+              },
+              "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "semantic_intent": "trend",
+              "analysis_mode": "trend",
+              "visual_goal": "show_change_over_time",
+              "time_role": "primary",
+              "comparison_goal": "absolute",
+              "preferred_mark": "line",
+              "normalize": "none",
+              "value_format": "integer_compact",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none",
+              "alternatives": [],
+              "candidates": [
+                {
+                  "type": "line",
+                  "score": 0.9,
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                }
+              ],
+              "constraints_applied": [],
+              "visual_load": 21,
+              "query_interpretation": {
+                "user_goal": "Track completed_trip_count by hour",
+                "intent": "trend",
+                "analysis_mode": "trend",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "completed_trip_count",
+                    "aggregation": null,
+                    "format": "integer_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "hour",
+                    "role": "time"
+                  }
+                ],
+                "time_dimension": "hour",
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.9,
+                "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              "decision_summary": {
+                "selected_chart": "line",
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ],
+                "alternatives": [],
+                "confidence": 0.9
+              },
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ]
+            }
+          },
+          "scores": {
+            "understanding": 1.0,
+            "sql": 0.9231,
+            "chart": 0.6667,
+            "overall": 0.8633
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Clarification expectation matched."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2026-04-14` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `group by` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `order_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_missing",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverdone_timestamp` missing."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `train` found; actual tables=['train']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_status_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Execution succeeded; error=None"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_min_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=21, expected at least 1"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['hour', 'hour_bucket', 'order_hour', 'bucket']; actual columns=['completed_trip_count', 'completion_rate', 'created_order_count', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['created_orders', 'total_orders', 'orders_created']; actual columns=['completed_trip_count', 'completion_rate', 'created_order_count', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['completed_orders', 'done_orders', 'completed_rides', 'completed_count']; actual columns=['completed_trip_count', 'completion_rate', 'created_order_count', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['completion_rate', 'conversion_rate', 'done_rate']; actual columns=['completed_trip_count', 'completion_rate', 'created_order_count', 'hour']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_type_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart type=line, acceptable=['line']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_x_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart x=hour, acceptable=['hour', 'hour_bucket', 'order_hour', 'bucket']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_y_mismatch",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart y=completed_trip_count, acceptable=['created_orders', 'total_orders', 'orders_created', 'completed_orders', 'completion_rate']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "top_drivers_non_completion_rate",
+      "title": "Top drivers by accepted but not completed share",
+      "tags": [
+        "complex",
+        "ranking",
+        "driver"
+      ],
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "session_id": "d7bcbb49805345ba8ce408cc947151a6",
+      "scores": {
+        "understanding": 1.0,
+        "sql": 1.0,
+        "chart": 0.6667,
+        "overall": 0.8889
+      },
+      "issue_counts": {
+        "chart_y_mismatch": 1
+      },
+      "steps": [
+        {
+          "case_id": "top_drivers_non_completion_rate",
+          "step_index": 1,
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "user_prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2026-04-14",
+                "driver_id",
+                "driveraccept_timestamp",
+                "driverdone_timestamp",
+                "limit 10"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "train"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "driver_id"
+                ],
+                [
+                  "accepted_orders",
+                  "accepted_count",
+                  "total_accepted"
+                ],
+                [
+                  "not_completed_orders",
+                  "failed_after_accept",
+                  "not_done_orders",
+                  "not_completed_count"
+                ],
+                [
+                  "non_completion_rate",
+                  "not_completed_rate",
+                  "fail_rate"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "bar"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "driver_id"
+                ],
+                "y_any_of": [
+                  "non_completion_rate",
+                  "not_completed_rate",
+                  "fail_rate",
+                  "not_completed_count"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "30a98b573aef4c069fd14d129e21f82b",
+              "name": "drivee test data",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": false,
+            "clarification_question": null,
+            "clarification_options": [],
+            "message_kind": "answer",
+            "initial_message_kind": "answer",
+            "clarification_transcript": [],
+            "intent": {
+              "raw_prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+              "metric": "not_completed_share",
+              "dimensions": [
+                "driver_id"
+              ],
+              "filters": [
+                {
+                  "field": "order_timestamp",
+                  "operator": "=",
+                  "value": "2026-04-14"
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2026-04-14",
+                "end": "2026-04-14",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "bar",
+              "ambiguities": [
+                "Как точно определять «принятый» заказ (по статусу или наличию driveraccept_timestamp)",
+                "Как определять «не завершённый» (по отсутствию driverdone_timestamp или статусу)"
+              ],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 0.97,
+              "follow_up": false
+            },
+            "sql": "SELECT\n  driver_id,\n  COUNT(*) AS total_accepted,\n  COUNT(*) FILTER(WHERE\n    driverdone_timestamp IS NULL) AS not_completed_count,\n  CAST(COUNT(*) FILTER(WHERE\n    driverdone_timestamp IS NULL) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS not_completed_share\nFROM train\nWHERE\n  CAST(order_timestamp AS DATE) = CAST('2026-04-14' AS DATE)\n  AND NOT driveraccept_timestamp IS NULL\nGROUP BY\n  driver_id\nHAVING\n  COUNT(*) >= 20\nORDER BY\n  not_completed_share DESC\nLIMIT 10",
+            "execution": {
+              "id": "c200d596ab7f425a8c43e53420d85412",
+              "session_id": "d7bcbb49805345ba8ce408cc947151a6",
+              "sql_text": "SELECT\n  driver_id,\n  COUNT(*) AS total_accepted,\n  COUNT(*) FILTER(WHERE\n    driverdone_timestamp IS NULL) AS not_completed_count,\n  CAST(COUNT(*) FILTER(WHERE\n    driverdone_timestamp IS NULL) AS DOUBLE PRECISION) / NULLIF(COUNT(*), 0) AS not_completed_share\nFROM train\nWHERE\n  CAST(order_timestamp AS DATE) = CAST('2026-04-14' AS DATE)\n  AND NOT driveraccept_timestamp IS NULL\nGROUP BY\n  driver_id\nHAVING\n  COUNT(*) >= 20\nORDER BY\n  not_completed_share DESC\nLIMIT 10",
+              "columns": [
+                {
+                  "name": "driver_id",
+                  "type": "object"
+                },
+                {
+                  "name": "total_accepted",
+                  "type": "int64"
+                },
+                {
+                  "name": "not_completed_count",
+                  "type": "int64"
+                },
+                {
+                  "name": "not_completed_share",
+                  "type": "float64"
+                }
+              ],
+              "rows_preview": [
+                {
+                  "driver_id": "51ecc84af8897408",
+                  "total_accepted": 28,
+                  "not_completed_count": 2,
+                  "not_completed_share": 0.0714285714
+                },
+                {
+                  "driver_id": "5eaa28ce7863098f",
+                  "total_accepted": 28,
+                  "not_completed_count": 2,
+                  "not_completed_share": 0.0714285714
+                },
+                {
+                  "driver_id": "14bf67cb957d47a2",
+                  "total_accepted": 30,
+                  "not_completed_count": 2,
+                  "not_completed_share": 0.0666666667
+                },
+                {
+                  "driver_id": "0e957bf8142c6495",
+                  "total_accepted": 20,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.05
+                },
+                {
+                  "driver_id": "9fb037c07ad0a2b4",
+                  "total_accepted": 21,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.0476190476
+                },
+                {
+                  "driver_id": "1f4b066f201c98ec",
+                  "total_accepted": 21,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.0476190476
+                },
+                {
+                  "driver_id": "48ac1d23961334de",
+                  "total_accepted": 21,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.0476190476
+                },
+                {
+                  "driver_id": "5f3b2547ad5fd520",
+                  "total_accepted": 24,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.0416666667
+                },
+                {
+                  "driver_id": "c10e5eaf72d6881d",
+                  "total_accepted": 25,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.04
+                },
+                {
+                  "driver_id": "58fe49a6559c186f",
+                  "total_accepted": 26,
+                  "not_completed_count": 1,
+                  "not_completed_share": 0.0384615385
+                }
+              ],
+              "rows_preview_truncated": false,
+              "row_count": 10,
+              "execution_time_ms": 33,
+              "chart_recommendation": {
+                "recommended_view": "chart",
+                "chart_type": "bar",
+                "x": "driver_id",
+                "y": "total_accepted",
+                "series": null,
+                "facet": null,
+                "variant": "horizontal_sorted",
+                "explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                "rule_id": "CASCADE_BAR_HORIZONTAL_SORTED",
+                "confidence": 0.95,
+                "data": {
+                  "kind": "single_series",
+                  "chartType": "bar",
+                  "variant": "horizontal_sorted",
+                  "explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                  "reason": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                  "ruleId": "CASCADE_BAR_HORIZONTAL_SORTED",
+                  "confidence": 0.95,
+                  "semanticIntent": "ranking",
+                  "analysisMode": "rank",
+                  "visualGoal": "compare_ranked_categories",
+                  "timeRole": "none",
+                  "comparisonGoal": "rank",
+                  "preferredMark": "bar",
+                  "alternatives": [
+                    "table"
+                  ],
+                  "candidates": [
+                    {
+                      "type": "bar_horizontal_sorted",
+                      "score": 0.95,
+                      "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                    },
+                    {
+                      "type": "table",
+                      "score": 0.61,
+                      "why": "Таблица может быть fallback для длинного рейтинга."
+                    }
+                  ],
+                  "constraintsApplied": [],
+                  "visualLoad": 10,
+                  "reasonCodes": [
+                    "INTENT_RANKING",
+                    "RANKING_PRIMARY_GOAL"
+                  ],
+                  "queryInterpretation": {
+                    "user_goal": "Rank total_accepted by driver_id",
+                    "intent": "ranking",
+                    "analysis_mode": "rank",
+                    "entities": [],
+                    "metrics": [
+                      {
+                        "name": "total_accepted",
+                        "aggregation": null,
+                        "format": "number_compact"
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "name": "driver_id",
+                        "role": "category"
+                      }
+                    ],
+                    "time_dimension": null,
+                    "series_dimension": null,
+                    "requested_output": "chart",
+                    "assumptions": [],
+                    "ambiguities": [],
+                    "confidence": 0.95,
+                    "short_explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                  },
+                  "decisionSummary": {
+                    "selected_chart": "bar_horizontal_sorted",
+                    "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                    "reason_codes": [
+                      "INTENT_RANKING",
+                      "RANKING_PRIMARY_GOAL"
+                    ],
+                    "alternatives": [
+                      {
+                        "type": "table",
+                        "why_not": "Таблица может быть fallback для длинного рейтинга."
+                      }
+                    ],
+                    "confidence": 0.95
+                  },
+                  "understanding": {
+                    "user_goal": "Rank total_accepted by driver_id",
+                    "intent": "ranking",
+                    "analysis_mode": "rank",
+                    "entities": [],
+                    "metrics": [
+                      {
+                        "name": "total_accepted",
+                        "aggregation": null,
+                        "format": "number_compact"
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "name": "driver_id",
+                        "role": "category"
+                      }
+                    ],
+                    "time_dimension": null,
+                    "series_dimension": null,
+                    "requested_output": "chart",
+                    "assumptions": [],
+                    "ambiguities": [],
+                    "confidence": 0.95,
+                    "short_explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                  },
+                  "decision": {
+                    "chart_type": "bar_horizontal_sorted",
+                    "x": "driver_id",
+                    "y": "total_accepted",
+                    "series_key": null,
+                    "facet_key": null,
+                    "normalize": "none",
+                    "series_limit": null,
+                    "category_limit": null,
+                    "top_n_strategy": "none"
+                  },
+                  "explanationBlock": {
+                    "summary": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                    "confidence": 0.95,
+                    "alternatives_considered": [
+                      "table"
+                    ],
+                    "reason_codes": [
+                      "INTENT_RANKING",
+                      "RANKING_PRIMARY_GOAL"
+                    ]
+                  },
+                  "config": {
+                    "xField": "driver_id",
+                    "yField": "total_accepted",
+                    "seriesField": null,
+                    "facetField": null,
+                    "sort": "value_desc",
+                    "normalize": "none",
+                    "seriesLimit": null,
+                    "categoryLimit": null,
+                    "topNStrategy": "none",
+                    "valueFormat": "number_compact",
+                    "dataRoles": {
+                      "x": "driver_id",
+                      "y": "total_accepted",
+                      "series_key": null,
+                      "facet_key": null,
+                      "label": "driver_id",
+                      "value": "total_accepted"
+                    }
+                  },
+                  "x": {
+                    "field": "driver_id",
+                    "values": [
+                      "14bf67cb957d47a2",
+                      "51ecc84af8897408",
+                      "5eaa28ce7863098f",
+                      "58fe49a6559c186f",
+                      "c10e5eaf72d6881d",
+                      "5f3b2547ad5fd520",
+                      "9fb037c07ad0a2b4",
+                      "1f4b066f201c98ec",
+                      "48ac1d23961334de",
+                      "0e957bf8142c6495"
+                    ],
+                    "type": "categorical"
+                  },
+                  "y": {
+                    "field": "total_accepted",
+                    "values": [
+                      30.0,
+                      28.0,
+                      28.0,
+                      26.0,
+                      25.0,
+                      24.0,
+                      21.0,
+                      21.0,
+                      21.0,
+                      20.0
+                    ],
+                    "unit": null
+                  },
+                  "stacked": false
+                },
+                "reason": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                "semantic_intent": "ranking",
+                "analysis_mode": "rank",
+                "visual_goal": "compare_ranked_categories",
+                "time_role": "none",
+                "comparison_goal": "rank",
+                "preferred_mark": "bar",
+                "normalize": "none",
+                "value_format": "number_compact",
+                "series_limit": null,
+                "category_limit": null,
+                "top_n_strategy": "none",
+                "alternatives": [
+                  "table"
+                ],
+                "candidates": [
+                  {
+                    "type": "bar_horizontal_sorted",
+                    "score": 0.95,
+                    "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                  },
+                  {
+                    "type": "table",
+                    "score": 0.61,
+                    "why": "Таблица может быть fallback для длинного рейтинга."
+                  }
+                ],
+                "constraints_applied": [],
+                "visual_load": 10,
+                "query_interpretation": {
+                  "user_goal": "Rank total_accepted by driver_id",
+                  "intent": "ranking",
+                  "analysis_mode": "rank",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "total_accepted",
+                      "aggregation": null,
+                      "format": "number_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "driver_id",
+                      "role": "category"
+                    }
+                  ],
+                  "time_dimension": null,
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.95,
+                  "short_explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                },
+                "decision_summary": {
+                  "selected_chart": "bar_horizontal_sorted",
+                  "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                  "reason_codes": [
+                    "INTENT_RANKING",
+                    "RANKING_PRIMARY_GOAL"
+                  ],
+                  "alternatives": [
+                    {
+                      "type": "table",
+                      "why_not": "Таблица может быть fallback для длинного рейтинга."
+                    }
+                  ],
+                  "confidence": 0.95
+                },
+                "reason_codes": [
+                  "INTENT_RANKING",
+                  "RANKING_PRIMARY_GOAL"
+                ]
+              },
+              "error_message": null,
+              "created_at": "2026-04-22T23:45:38.701144"
+            },
+            "chart": {
+              "recommended_view": "chart",
+              "chart_type": "bar",
+              "x": "driver_id",
+              "y": "total_accepted",
+              "series": null,
+              "facet": null,
+              "variant": "horizontal_sorted",
+              "explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+              "rule_id": "CASCADE_BAR_HORIZONTAL_SORTED",
+              "confidence": 0.95,
+              "data": {
+                "kind": "single_series",
+                "chartType": "bar",
+                "variant": "horizontal_sorted",
+                "explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                "reason": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                "ruleId": "CASCADE_BAR_HORIZONTAL_SORTED",
+                "confidence": 0.95,
+                "semanticIntent": "ranking",
+                "analysisMode": "rank",
+                "visualGoal": "compare_ranked_categories",
+                "timeRole": "none",
+                "comparisonGoal": "rank",
+                "preferredMark": "bar",
+                "alternatives": [
+                  "table"
+                ],
+                "candidates": [
+                  {
+                    "type": "bar_horizontal_sorted",
+                    "score": 0.95,
+                    "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                  },
+                  {
+                    "type": "table",
+                    "score": 0.61,
+                    "why": "Таблица может быть fallback для длинного рейтинга."
+                  }
+                ],
+                "constraintsApplied": [],
+                "visualLoad": 10,
+                "reasonCodes": [
+                  "INTENT_RANKING",
+                  "RANKING_PRIMARY_GOAL"
+                ],
+                "queryInterpretation": {
+                  "user_goal": "Rank total_accepted by driver_id",
+                  "intent": "ranking",
+                  "analysis_mode": "rank",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "total_accepted",
+                      "aggregation": null,
+                      "format": "number_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "driver_id",
+                      "role": "category"
+                    }
+                  ],
+                  "time_dimension": null,
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.95,
+                  "short_explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                },
+                "decisionSummary": {
+                  "selected_chart": "bar_horizontal_sorted",
+                  "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                  "reason_codes": [
+                    "INTENT_RANKING",
+                    "RANKING_PRIMARY_GOAL"
+                  ],
+                  "alternatives": [
+                    {
+                      "type": "table",
+                      "why_not": "Таблица может быть fallback для длинного рейтинга."
+                    }
+                  ],
+                  "confidence": 0.95
+                },
+                "understanding": {
+                  "user_goal": "Rank total_accepted by driver_id",
+                  "intent": "ranking",
+                  "analysis_mode": "rank",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "total_accepted",
+                      "aggregation": null,
+                      "format": "number_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "driver_id",
+                      "role": "category"
+                    }
+                  ],
+                  "time_dimension": null,
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.95,
+                  "short_explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                },
+                "decision": {
+                  "chart_type": "bar_horizontal_sorted",
+                  "x": "driver_id",
+                  "y": "total_accepted",
+                  "series_key": null,
+                  "facet_key": null,
+                  "normalize": "none",
+                  "series_limit": null,
+                  "category_limit": null,
+                  "top_n_strategy": "none"
+                },
+                "explanationBlock": {
+                  "summary": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                  "confidence": 0.95,
+                  "alternatives_considered": [
+                    "table"
+                  ],
+                  "reason_codes": [
+                    "INTENT_RANKING",
+                    "RANKING_PRIMARY_GOAL"
+                  ]
+                },
+                "config": {
+                  "xField": "driver_id",
+                  "yField": "total_accepted",
+                  "seriesField": null,
+                  "facetField": null,
+                  "sort": "value_desc",
+                  "normalize": "none",
+                  "seriesLimit": null,
+                  "categoryLimit": null,
+                  "topNStrategy": "none",
+                  "valueFormat": "number_compact",
+                  "dataRoles": {
+                    "x": "driver_id",
+                    "y": "total_accepted",
+                    "series_key": null,
+                    "facet_key": null,
+                    "label": "driver_id",
+                    "value": "total_accepted"
+                  }
+                },
+                "x": {
+                  "field": "driver_id",
+                  "values": [
+                    "14bf67cb957d47a2",
+                    "51ecc84af8897408",
+                    "5eaa28ce7863098f",
+                    "58fe49a6559c186f",
+                    "c10e5eaf72d6881d",
+                    "5f3b2547ad5fd520",
+                    "9fb037c07ad0a2b4",
+                    "1f4b066f201c98ec",
+                    "48ac1d23961334de",
+                    "0e957bf8142c6495"
+                  ],
+                  "type": "categorical"
+                },
+                "y": {
+                  "field": "total_accepted",
+                  "values": [
+                    30.0,
+                    28.0,
+                    28.0,
+                    26.0,
+                    25.0,
+                    24.0,
+                    21.0,
+                    21.0,
+                    21.0,
+                    20.0
+                  ],
+                  "unit": null
+                },
+                "stacked": false
+              },
+              "reason": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+              "semantic_intent": "ranking",
+              "analysis_mode": "rank",
+              "visual_goal": "compare_ranked_categories",
+              "time_role": "none",
+              "comparison_goal": "rank",
+              "preferred_mark": "bar",
+              "normalize": "none",
+              "value_format": "number_compact",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none",
+              "alternatives": [
+                "table"
+              ],
+              "candidates": [
+                {
+                  "type": "bar_horizontal_sorted",
+                  "score": 0.95,
+                  "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+                },
+                {
+                  "type": "table",
+                  "score": 0.61,
+                  "why": "Таблица может быть fallback для длинного рейтинга."
+                }
+              ],
+              "constraints_applied": [],
+              "visual_load": 10,
+              "query_interpretation": {
+                "user_goal": "Rank total_accepted by driver_id",
+                "intent": "ranking",
+                "analysis_mode": "rank",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "total_accepted",
+                    "aggregation": null,
+                    "format": "number_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "driver_id",
+                    "role": "category"
+                  }
+                ],
+                "time_dimension": null,
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.95,
+                "short_explanation": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart."
+              },
+              "decision_summary": {
+                "selected_chart": "bar_horizontal_sorted",
+                "why": "Запрос похож на ranking/top-N, поэтому нужен отсортированный horizontal bar chart.",
+                "reason_codes": [
+                  "INTENT_RANKING",
+                  "RANKING_PRIMARY_GOAL"
+                ],
+                "alternatives": [
+                  {
+                    "type": "table",
+                    "why_not": "Таблица может быть fallback для длинного рейтинга."
+                  }
+                ],
+                "confidence": 0.95
+              },
+              "reason_codes": [
+                "INTENT_RANKING",
+                "RANKING_PRIMARY_GOAL"
+              ]
+            }
+          },
+          "scores": {
+            "understanding": 1.0,
+            "sql": 1.0,
+            "chart": 0.6667,
+            "overall": 0.8889
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Clarification expectation matched."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2026-04-14` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driver_id` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driveraccept_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverdone_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `limit 10` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `train` found; actual tables=['train']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_status_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Execution succeeded; error=None"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_min_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=10, expected at least 1"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_max_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=10, expected at most 10"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['driver_id']; actual columns=['driver_id', 'not_completed_count', 'not_completed_share', 'total_accepted']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['accepted_orders', 'accepted_count', 'total_accepted']; actual columns=['driver_id', 'not_completed_count', 'not_completed_share', 'total_accepted']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['not_completed_orders', 'failed_after_accept', 'not_done_orders', 'not_completed_count']; actual columns=['driver_id', 'not_completed_count', 'not_completed_share', 'total_accepted']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['non_completion_rate', 'not_completed_rate', 'fail_rate']; actual columns=['driver_id', 'not_completed_count', 'not_completed_share', 'total_accepted']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_type_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart type=bar, acceptable=['bar']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_x_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart x=driver_id, acceptable=['driver_id']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_y_mismatch",
+              "passed": false,
+              "score": 0.0,
+              "weight": 1.0,
+              "message": "Chart y=total_accepted, acceptable=['non_completion_rate', 'not_completed_rate', 'fail_rate', 'not_completed_count']"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "hourly_pickup_vs_ride_duration",
+      "title": "Hourly pickup time vs ride duration",
+      "tags": [
+        "complex",
+        "sla",
+        "timeseries"
+      ],
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "session_id": "75446f1fd0154fec89bbbeb19aa626c0",
+      "scores": {
+        "understanding": 1.0,
+        "sql": 1.0,
+        "chart": 1.0,
+        "overall": 1.0
+      },
+      "issue_counts": {},
+      "steps": [
+        {
+          "case_id": "hourly_pickup_vs_ride_duration",
+          "step_index": 1,
+          "step_ref": "hourly_pickup_vs_ride_duration#step1",
+          "user_prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+          "query_mode": "thinking",
+          "llm_model_alias": "gpt120",
+          "expectations": {
+            "should_clarify": false,
+            "clarification": null,
+            "interpretation": null,
+            "sql": {
+              "must_parse": true,
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "driveraccept_timestamp",
+                "driverarrived_timestamp",
+                "driverstarttheride_timestamp",
+                "driverdone_timestamp"
+              ],
+              "forbidden_substrings": [],
+              "required_tables": [
+                "train"
+              ],
+              "forbidden_tables": [],
+              "required_columns": []
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": null,
+              "required_columns_all_of": [],
+              "required_column_groups": [
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "avg_pickup_minutes",
+                  "pickup_minutes",
+                  "avg_time_to_arrival",
+                  "avg_pickup_time",
+                  "avg_accept_to_arrival_minutes"
+                ],
+                [
+                  "avg_ride_minutes",
+                  "ride_minutes",
+                  "avg_ride_time",
+                  "avg_start_to_done_minutes"
+                ]
+              ],
+              "chart": {
+                "acceptable_types": [
+                  "line"
+                ],
+                "acceptable_views": [],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "avg_pickup_minutes",
+                  "pickup_minutes",
+                  "avg_time_to_arrival",
+                  "avg_ride_minutes",
+                  "ride_minutes",
+                  "avg_accept_to_arrival_minutes",
+                  "avg_start_to_done_minutes"
+                ],
+                "series_any_of": []
+              }
+            }
+          },
+          "actual": {
+            "database": {
+              "id": "30a98b573aef4c069fd14d129e21f82b",
+              "name": "drivee test data",
+              "dialect": "postgresql"
+            },
+            "needs_clarification": false,
+            "clarification_question": null,
+            "clarification_options": [],
+            "message_kind": "answer",
+            "initial_message_kind": "answer",
+            "clarification_transcript": [],
+            "intent": {
+              "raw_prompt": "За 14 апреля 2026 сравни по часам среднее время подачи от принятия водителем до прибытия и среднее время поездки от старта до завершения только для завершённых заказов. Нужен line chart.",
+              "metric": null,
+              "dimensions": [
+                "hour"
+              ],
+              "filters": [
+                {
+                  "field": "status_order",
+                  "operator": "=",
+                  "value": "done"
+                },
+                {
+                  "field": "order_timestamp",
+                  "operator": "date_eq",
+                  "value": "2026-04-14"
+                }
+              ],
+              "comparison": null,
+              "date_range": {
+                "kind": "absolute",
+                "start": "2026-04-14",
+                "end": "2026-04-14",
+                "lookback_value": null,
+                "lookback_unit": null
+              },
+              "visualization_preference": "line",
+              "ambiguities": [],
+              "clarification_question": null,
+              "clarification_options": [],
+              "confidence": 1.0,
+              "follow_up": false
+            },
+            "sql": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM (\n    driverarrived_timestamp - driveraccept_timestamp\n  )) / 60) AS avg_accept_to_arrival_minutes,\n  AVG(\n    EXTRACT(EPOCH FROM (\n      driverdone_timestamp - driverstarttheride_timestamp\n    )) / 60\n  ) AS avg_ride_minutes\nFROM train\nWHERE\n  status_order = 'done'\n  AND CAST(order_timestamp AS DATE) = CAST('2026-04-14' AS DATE)\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverarrived_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\n  AND NOT driverdone_timestamp IS NULL\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+            "execution": {
+              "id": "946cc191e59b47abb05e8f1fcbb07d58",
+              "session_id": "75446f1fd0154fec89bbbeb19aa626c0",
+              "sql_text": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM (\n    driverarrived_timestamp - driveraccept_timestamp\n  )) / 60) AS avg_accept_to_arrival_minutes,\n  AVG(\n    EXTRACT(EPOCH FROM (\n      driverdone_timestamp - driverstarttheride_timestamp\n    )) / 60\n  ) AS avg_ride_minutes\nFROM train\nWHERE\n  status_order = 'done'\n  AND CAST(order_timestamp AS DATE) = CAST('2026-04-14' AS DATE)\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverarrived_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\n  AND NOT driverdone_timestamp IS NULL\nGROUP BY\n  hour\nORDER BY\n  hour\nLIMIT 50",
+              "columns": [
+                {
+                  "name": "hour",
+                  "type": "datetime64[ns]"
+                },
+                {
+                  "name": "avg_accept_to_arrival_minutes",
+                  "type": "float64"
+                },
+                {
+                  "name": "avg_ride_minutes",
+                  "type": "float64"
+                }
+              ],
+              "rows_preview": [
+                {
+                  "hour": "2026-04-14T00:00:00.000",
+                  "avg_accept_to_arrival_minutes": 3.5666666667,
+                  "avg_ride_minutes": 10.4266666667
+                },
+                {
+                  "hour": "2026-04-14T01:00:00.000",
+                  "avg_accept_to_arrival_minutes": 5.1888888889,
+                  "avg_ride_minutes": 17.0055555556
+                },
+                {
+                  "hour": "2026-04-14T05:00:00.000",
+                  "avg_accept_to_arrival_minutes": 5.25,
+                  "avg_ride_minutes": 1.3
+                },
+                {
+                  "hour": "2026-04-14T06:00:00.000",
+                  "avg_accept_to_arrival_minutes": 1.6791666667,
+                  "avg_ride_minutes": 2.2375
+                },
+                {
+                  "hour": "2026-04-14T07:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.4041025641,
+                  "avg_ride_minutes": 3.8333333333
+                },
+                {
+                  "hour": "2026-04-14T08:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.1983506944,
+                  "avg_ride_minutes": 3.5485243056
+                },
+                {
+                  "hour": "2026-04-14T09:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.0030651341,
+                  "avg_ride_minutes": 3.2289272031
+                },
+                {
+                  "hour": "2026-04-14T10:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.2006024096,
+                  "avg_ride_minutes": 4.1234939759
+                },
+                {
+                  "hour": "2026-04-14T11:00:00.000",
+                  "avg_accept_to_arrival_minutes": 1.7425373134,
+                  "avg_ride_minutes": 4.6756218905
+                },
+                {
+                  "hour": "2026-04-14T12:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.2492337165,
+                  "avg_ride_minutes": 4.672605364
+                },
+                {
+                  "hour": "2026-04-14T13:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.497029703,
+                  "avg_ride_minutes": 3.9330033003
+                },
+                {
+                  "hour": "2026-04-14T14:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.4876736111,
+                  "avg_ride_minutes": 4.7428819444
+                },
+                {
+                  "hour": "2026-04-14T15:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.0695340502,
+                  "avg_ride_minutes": 4.1637992832
+                },
+                {
+                  "hour": "2026-04-14T16:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.599382716,
+                  "avg_ride_minutes": 4.54218107
+                },
+                {
+                  "hour": "2026-04-14T17:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.2645645646,
+                  "avg_ride_minutes": 4.3801801802
+                },
+                {
+                  "hour": "2026-04-14T18:00:00.000",
+                  "avg_accept_to_arrival_minutes": 1.8808641975,
+                  "avg_ride_minutes": 4.70781893
+                },
+                {
+                  "hour": "2026-04-14T19:00:00.000",
+                  "avg_accept_to_arrival_minutes": 1.9836805556,
+                  "avg_ride_minutes": 4.8847222222
+                },
+                {
+                  "hour": "2026-04-14T20:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.0951612903,
+                  "avg_ride_minutes": 4.8284946237
+                },
+                {
+                  "hour": "2026-04-14T21:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.275,
+                  "avg_ride_minutes": 4.3316666667
+                },
+                {
+                  "hour": "2026-04-14T22:00:00.000",
+                  "avg_accept_to_arrival_minutes": 2.8648148148,
+                  "avg_ride_minutes": 4.0777777778
+                },
+                {
+                  "hour": "2026-04-14T23:00:00.000",
+                  "avg_accept_to_arrival_minutes": 3.4409090909,
+                  "avg_ride_minutes": 3.9272727273
+                }
+              ],
+              "rows_preview_truncated": false,
+              "row_count": 21,
+              "execution_time_ms": 31,
+              "chart_recommendation": {
+                "recommended_view": "chart",
+                "chart_type": "line",
+                "x": "hour",
+                "y": "avg_accept_to_arrival_minutes",
+                "series": null,
+                "facet": null,
+                "variant": "single_series",
+                "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "rule_id": "CASCADE_LINE",
+                "confidence": 0.9,
+                "data": {
+                  "kind": "single_series",
+                  "chartType": "line",
+                  "variant": "single_series",
+                  "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "ruleId": "CASCADE_LINE",
+                  "confidence": 0.9,
+                  "semanticIntent": "trend",
+                  "analysisMode": "trend",
+                  "visualGoal": "show_change_over_time",
+                  "timeRole": "primary",
+                  "comparisonGoal": "absolute",
+                  "preferredMark": "line",
+                  "alternatives": [],
+                  "candidates": [
+                    {
+                      "type": "line",
+                      "score": 0.9,
+                      "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                    }
+                  ],
+                  "constraintsApplied": [],
+                  "visualLoad": 21,
+                  "reasonCodes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ],
+                  "queryInterpretation": {
+                    "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                    "intent": "trend",
+                    "analysis_mode": "trend",
+                    "entities": [],
+                    "metrics": [
+                      {
+                        "name": "avg_accept_to_arrival_minutes",
+                        "aggregation": null,
+                        "format": "number_compact"
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "name": "hour",
+                        "role": "time"
+                      }
+                    ],
+                    "time_dimension": "hour",
+                    "series_dimension": null,
+                    "requested_output": "chart",
+                    "assumptions": [],
+                    "ambiguities": [],
+                    "confidence": 0.9,
+                    "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  },
+                  "decisionSummary": {
+                    "selected_chart": "line",
+                    "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                    "reason_codes": [
+                      "INTENT_TREND",
+                      "HAS_TIME_AXIS",
+                      "TREND_PRIMARY_GOAL",
+                      "MANY_TIME_BUCKETS",
+                      "VISUAL_LOAD_MEDIUM"
+                    ],
+                    "alternatives": [],
+                    "confidence": 0.9
+                  },
+                  "understanding": {
+                    "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                    "intent": "trend",
+                    "analysis_mode": "trend",
+                    "entities": [],
+                    "metrics": [
+                      {
+                        "name": "avg_accept_to_arrival_minutes",
+                        "aggregation": null,
+                        "format": "number_compact"
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "name": "hour",
+                        "role": "time"
+                      }
+                    ],
+                    "time_dimension": "hour",
+                    "series_dimension": null,
+                    "requested_output": "chart",
+                    "assumptions": [],
+                    "ambiguities": [],
+                    "confidence": 0.9,
+                    "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  },
+                  "decision": {
+                    "chart_type": "line",
+                    "x": "hour",
+                    "y": "avg_accept_to_arrival_minutes",
+                    "series_key": null,
+                    "facet_key": null,
+                    "normalize": "none",
+                    "series_limit": null,
+                    "category_limit": null,
+                    "top_n_strategy": "none"
+                  },
+                  "explanationBlock": {
+                    "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                    "confidence": 0.9,
+                    "alternatives_considered": [],
+                    "reason_codes": [
+                      "INTENT_TREND",
+                      "HAS_TIME_AXIS",
+                      "TREND_PRIMARY_GOAL",
+                      "MANY_TIME_BUCKETS",
+                      "VISUAL_LOAD_MEDIUM"
+                    ]
+                  },
+                  "config": {
+                    "xField": "hour",
+                    "yField": "avg_accept_to_arrival_minutes",
+                    "seriesField": null,
+                    "facetField": null,
+                    "sort": "time_asc",
+                    "normalize": "none",
+                    "seriesLimit": null,
+                    "categoryLimit": null,
+                    "topNStrategy": "none",
+                    "valueFormat": "number_compact",
+                    "dataRoles": {
+                      "x": "hour",
+                      "y": "avg_accept_to_arrival_minutes",
+                      "series_key": null,
+                      "facet_key": null,
+                      "label": "hour",
+                      "value": "avg_accept_to_arrival_minutes"
+                    }
+                  },
+                  "x": {
+                    "field": "hour",
+                    "values": [
+                      "2026-04-14T00:00:00.000",
+                      "2026-04-14T01:00:00.000",
+                      "2026-04-14T05:00:00.000",
+                      "2026-04-14T06:00:00.000",
+                      "2026-04-14T07:00:00.000",
+                      "2026-04-14T08:00:00.000",
+                      "2026-04-14T09:00:00.000",
+                      "2026-04-14T10:00:00.000",
+                      "2026-04-14T11:00:00.000",
+                      "2026-04-14T12:00:00.000",
+                      "2026-04-14T13:00:00.000",
+                      "2026-04-14T14:00:00.000",
+                      "2026-04-14T15:00:00.000",
+                      "2026-04-14T16:00:00.000",
+                      "2026-04-14T17:00:00.000",
+                      "2026-04-14T18:00:00.000",
+                      "2026-04-14T19:00:00.000",
+                      "2026-04-14T20:00:00.000",
+                      "2026-04-14T21:00:00.000",
+                      "2026-04-14T22:00:00.000",
+                      "2026-04-14T23:00:00.000"
+                    ],
+                    "type": "categorical"
+                  },
+                  "y": {
+                    "field": "avg_accept_to_arrival_minutes",
+                    "values": [
+                      3.5666666667,
+                      5.1888888889,
+                      5.25,
+                      1.6791666667,
+                      2.4041025641,
+                      2.1983506944,
+                      2.0030651341,
+                      2.2006024096,
+                      1.7425373134,
+                      2.2492337165,
+                      2.497029703,
+                      2.4876736111,
+                      2.0695340502,
+                      2.599382716,
+                      2.2645645646,
+                      1.8808641975,
+                      1.9836805556,
+                      2.0951612903,
+                      2.275,
+                      2.8648148148,
+                      3.4409090909
+                    ],
+                    "unit": null
+                  },
+                  "stacked": false
+                },
+                "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "semantic_intent": "trend",
+                "analysis_mode": "trend",
+                "visual_goal": "show_change_over_time",
+                "time_role": "primary",
+                "comparison_goal": "absolute",
+                "preferred_mark": "line",
+                "normalize": "none",
+                "value_format": "number_compact",
+                "series_limit": null,
+                "category_limit": null,
+                "top_n_strategy": "none",
+                "alternatives": [],
+                "candidates": [
+                  {
+                    "type": "line",
+                    "score": 0.9,
+                    "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  }
+                ],
+                "constraints_applied": [],
+                "visual_load": 21,
+                "query_interpretation": {
+                  "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                  "intent": "trend",
+                  "analysis_mode": "trend",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "avg_accept_to_arrival_minutes",
+                      "aggregation": null,
+                      "format": "number_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "hour",
+                      "role": "time"
+                    }
+                  ],
+                  "time_dimension": "hour",
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.9,
+                  "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                "decision_summary": {
+                  "selected_chart": "line",
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "reason_codes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ],
+                  "alternatives": [],
+                  "confidence": 0.9
+                },
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ]
+              },
+              "error_message": null,
+              "created_at": "2026-04-22T23:45:56.122077"
+            },
+            "chart": {
+              "recommended_view": "chart",
+              "chart_type": "line",
+              "x": "hour",
+              "y": "avg_accept_to_arrival_minutes",
+              "series": null,
+              "facet": null,
+              "variant": "single_series",
+              "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "rule_id": "CASCADE_LINE",
+              "confidence": 0.9,
+              "data": {
+                "kind": "single_series",
+                "chartType": "line",
+                "variant": "single_series",
+                "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "ruleId": "CASCADE_LINE",
+                "confidence": 0.9,
+                "semanticIntent": "trend",
+                "analysisMode": "trend",
+                "visualGoal": "show_change_over_time",
+                "timeRole": "primary",
+                "comparisonGoal": "absolute",
+                "preferredMark": "line",
+                "alternatives": [],
+                "candidates": [
+                  {
+                    "type": "line",
+                    "score": 0.9,
+                    "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                  }
+                ],
+                "constraintsApplied": [],
+                "visualLoad": 21,
+                "reasonCodes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ],
+                "queryInterpretation": {
+                  "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                  "intent": "trend",
+                  "analysis_mode": "trend",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "avg_accept_to_arrival_minutes",
+                      "aggregation": null,
+                      "format": "number_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "hour",
+                      "role": "time"
+                    }
+                  ],
+                  "time_dimension": "hour",
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.9,
+                  "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                "decisionSummary": {
+                  "selected_chart": "line",
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "reason_codes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ],
+                  "alternatives": [],
+                  "confidence": 0.9
+                },
+                "understanding": {
+                  "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                  "intent": "trend",
+                  "analysis_mode": "trend",
+                  "entities": [],
+                  "metrics": [
+                    {
+                      "name": "avg_accept_to_arrival_minutes",
+                      "aggregation": null,
+                      "format": "number_compact"
+                    }
+                  ],
+                  "dimensions": [
+                    {
+                      "name": "hour",
+                      "role": "time"
+                    }
+                  ],
+                  "time_dimension": "hour",
+                  "series_dimension": null,
+                  "requested_output": "chart",
+                  "assumptions": [],
+                  "ambiguities": [],
+                  "confidence": 0.9,
+                  "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                "decision": {
+                  "chart_type": "line",
+                  "x": "hour",
+                  "y": "avg_accept_to_arrival_minutes",
+                  "series_key": null,
+                  "facet_key": null,
+                  "normalize": "none",
+                  "series_limit": null,
+                  "category_limit": null,
+                  "top_n_strategy": "none"
+                },
+                "explanationBlock": {
+                  "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                  "confidence": 0.9,
+                  "alternatives_considered": [],
+                  "reason_codes": [
+                    "INTENT_TREND",
+                    "HAS_TIME_AXIS",
+                    "TREND_PRIMARY_GOAL",
+                    "MANY_TIME_BUCKETS",
+                    "VISUAL_LOAD_MEDIUM"
+                  ]
+                },
+                "config": {
+                  "xField": "hour",
+                  "yField": "avg_accept_to_arrival_minutes",
+                  "seriesField": null,
+                  "facetField": null,
+                  "sort": "time_asc",
+                  "normalize": "none",
+                  "seriesLimit": null,
+                  "categoryLimit": null,
+                  "topNStrategy": "none",
+                  "valueFormat": "number_compact",
+                  "dataRoles": {
+                    "x": "hour",
+                    "y": "avg_accept_to_arrival_minutes",
+                    "series_key": null,
+                    "facet_key": null,
+                    "label": "hour",
+                    "value": "avg_accept_to_arrival_minutes"
+                  }
+                },
+                "x": {
+                  "field": "hour",
+                  "values": [
+                    "2026-04-14T00:00:00.000",
+                    "2026-04-14T01:00:00.000",
+                    "2026-04-14T05:00:00.000",
+                    "2026-04-14T06:00:00.000",
+                    "2026-04-14T07:00:00.000",
+                    "2026-04-14T08:00:00.000",
+                    "2026-04-14T09:00:00.000",
+                    "2026-04-14T10:00:00.000",
+                    "2026-04-14T11:00:00.000",
+                    "2026-04-14T12:00:00.000",
+                    "2026-04-14T13:00:00.000",
+                    "2026-04-14T14:00:00.000",
+                    "2026-04-14T15:00:00.000",
+                    "2026-04-14T16:00:00.000",
+                    "2026-04-14T17:00:00.000",
+                    "2026-04-14T18:00:00.000",
+                    "2026-04-14T19:00:00.000",
+                    "2026-04-14T20:00:00.000",
+                    "2026-04-14T21:00:00.000",
+                    "2026-04-14T22:00:00.000",
+                    "2026-04-14T23:00:00.000"
+                  ],
+                  "type": "categorical"
+                },
+                "y": {
+                  "field": "avg_accept_to_arrival_minutes",
+                  "values": [
+                    3.5666666667,
+                    5.1888888889,
+                    5.25,
+                    1.6791666667,
+                    2.4041025641,
+                    2.1983506944,
+                    2.0030651341,
+                    2.2006024096,
+                    1.7425373134,
+                    2.2492337165,
+                    2.497029703,
+                    2.4876736111,
+                    2.0695340502,
+                    2.599382716,
+                    2.2645645646,
+                    1.8808641975,
+                    1.9836805556,
+                    2.0951612903,
+                    2.275,
+                    2.8648148148,
+                    3.4409090909
+                  ],
+                  "unit": null
+                },
+                "stacked": false
+              },
+              "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "semantic_intent": "trend",
+              "analysis_mode": "trend",
+              "visual_goal": "show_change_over_time",
+              "time_role": "primary",
+              "comparison_goal": "absolute",
+              "preferred_mark": "line",
+              "normalize": "none",
+              "value_format": "number_compact",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none",
+              "alternatives": [],
+              "candidates": [
+                {
+                  "type": "line",
+                  "score": 0.9,
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                }
+              ],
+              "constraints_applied": [],
+              "visual_load": 21,
+              "query_interpretation": {
+                "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                "intent": "trend",
+                "analysis_mode": "trend",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "avg_accept_to_arrival_minutes",
+                    "aggregation": null,
+                    "format": "number_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "hour",
+                    "role": "time"
+                  }
+                ],
+                "time_dimension": "hour",
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.9,
+                "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              "decision_summary": {
+                "selected_chart": "line",
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_MEDIUM"
+                ],
+                "alternatives": [],
+                "confidence": 0.9
+              },
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_MEDIUM"
+              ]
+            }
+          },
+          "scores": {
+            "understanding": 1.0,
+            "sql": 1.0,
+            "chart": 1.0,
+            "overall": 1.0
+          },
+          "applicable_buckets": [
+            "understanding",
+            "sql",
+            "chart"
+          ],
+          "checks": [
+            {
+              "bucket": "understanding",
+              "code": "clarification_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Clarification expectation matched."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_parse_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "SQL parsed successfully."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `2026-04-14` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `group by` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driveraccept_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverarrived_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverstarttheride_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_required_substring_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required SQL substring `driverdone_timestamp` found."
+            },
+            {
+              "bucket": "sql",
+              "code": "sql_table_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Required table `train` found; actual tables=['train']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_status_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 2.0,
+              "message": "Execution succeeded; error=None"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_row_count_min_ok",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "row_count=21, expected at least 1"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['hour', 'hour_bucket', 'order_hour', 'bucket']; actual columns=['avg_accept_to_arrival_minutes', 'avg_ride_minutes', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_pickup_time', 'avg_accept_to_arrival_minutes']; actual columns=['avg_accept_to_arrival_minutes', 'avg_ride_minutes', 'hour']"
+            },
+            {
+              "bucket": "sql",
+              "code": "execution_required_column_group_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Expected one of columns ['avg_ride_minutes', 'ride_minutes', 'avg_ride_time', 'avg_start_to_done_minutes']; actual columns=['avg_accept_to_arrival_minutes', 'avg_ride_minutes', 'hour']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_type_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart type=line, acceptable=['line']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_x_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart x=hour, acceptable=['hour', 'hour_bucket', 'order_hour', 'bucket']"
+            },
+            {
+              "bucket": "chart",
+              "code": "chart_y_match",
+              "passed": true,
+              "score": 1.0,
+              "weight": 1.0,
+              "message": "Chart y=avg_accept_to_arrival_minutes, acceptable=['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_ride_minutes', 'ride_minutes', 'avg_accept_to_arrival_minutes', 'avg_start_to_done_minutes']"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "repair_targets": [
+    {
+      "code": "chart_y_mismatch",
+      "count": 2,
+      "summary": "Неверно выбрана метрика на оси Y.",
+      "files": [
+        "backend/app/services/chart_decision_service.py",
+        "backend/app/services/chart_data_adapter.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "hourly_completion_conversion#step1",
+          "prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "message": "Chart y=completed_trip_count, acceptable=['created_orders', 'total_orders', 'orders_created', 'completed_orders', 'completion_rate']"
+        },
+        {
+          "step_ref": "top_drivers_non_completion_rate#step1",
+          "prompt": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
+          "message": "Chart y=total_accepted, acceptable=['non_completion_rate', 'not_completed_rate', 'fail_rate', 'not_completed_count']"
+        }
+      ]
+    },
+    {
+      "code": "sql_required_substring_missing",
+      "count": 1,
+      "summary": "В SQL отсутствует критичный паттерн: LIMIT, GROUP BY, агрегация, нужный predicate.",
+      "files": [
+        "backend/app/services/llm_service.py",
+        "backend/app/agents/sql_generation.py",
+        "backend/app/agents/semantic.py"
+      ],
+      "examples": [
+        {
+          "step_ref": "hourly_completion_conversion#step1",
+          "prompt": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
+          "message": "Required SQL substring `driverdone_timestamp` missing."
+        }
+      ]
+    }
+  ]
+}

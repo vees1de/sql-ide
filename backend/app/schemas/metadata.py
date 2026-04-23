@@ -11,6 +11,8 @@ class ColumnMetadata(BaseModel):
     # filters on snapshot tables from 2016).
     min_value: str | None = None
     max_value: str | None = None
+    # Human-readable description from the knowledge layer (manual or auto).
+    description: str | None = None
 
 
 class RelationshipMetadata(BaseModel):
@@ -31,6 +33,7 @@ class RelationshipGraphEdge(BaseModel):
 class TableMetadata(BaseModel):
     name: str
     columns: list[ColumnMetadata] = Field(default_factory=list)
+    description: str | None = None
 
 
 class SchemaMetadataResponse(BaseModel):

@@ -47,14 +47,39 @@ class SchemaContextProvider:
             if table_model is None:
                 continue
 
+            engine = None
+            try:
+                from app.services.database_resolution import resolve_engine
+                engine = resolve_engine(db, database_connection_id)
+            except Exception:  # noqa: BLE001
+                pass
+
             columns: list[ColumnMetadata] = []
             for column in table_model.columns:
                 if column.status != "active" or column.hidden_for_llm:
                     continue
-                columns.append(ColumnMetadata(name=column.column_name, type=column.data_type))
+                min_val: str | None = None
+                max_val: str | None = None
+                if engine is not None:
+                    min_val, max_val = self._sample_value_range(
+                        engine, table.table_name, column.column_name, column.data_type
+                    )
+                col_desc = column.description_manual or None
+                columns.append(ColumnMetadata(
+                    name=column.column_name,
+                    type=column.data_type,
+                    min_value=min_val,
+                    max_value=max_val,
+                    description=col_desc,
+                ))
 
+            table_desc = table_model.description_manual or None
             if columns:
-                tables.append(TableMetadata(name=table.table_name, columns=columns))
+                tables.append(TableMetadata(
+                    name=table.table_name,
+                    columns=columns,
+                    description=table_desc,
+                ))
 
             prefetched_relationships = getattr(table_model, "_prefetched_relationships", [])
             for relationship in prefetched_relationships:
