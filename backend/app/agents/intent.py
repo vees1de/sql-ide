@@ -49,6 +49,7 @@ class IntentAgent:
         "avg_order_value": ("средний чек", "average order value", "aov", "average", "avg", "mean", "средн"),
     }
     DIMENSION_PATTERNS: dict[str, tuple[str, ...]] = {
+        "hour": ("по часам", "hourly", "by hour", "часам", "час"),
         "month": ("по месяц", "monthly", "by month", "помесяч"),
         "week": ("по недел", "weekly", "by week"),
         "day": ("по дням", "ежеднев", "daily", "by day"),

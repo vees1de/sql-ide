@@ -1,0 +1,23 @@
+{
+  "suite_name": "drivee_agentic_chat_suite",
+  "api_base": "http://127.0.0.1:8000/api",
+  "started_at": "2026-04-23T18:24:21.996132+00:00",
+  "finished_at": "2026-04-23T18:28:53.061176+00:00",
+  "duration_seconds": 271.065,
+  "case_count": 4,
+  "step_count": 5,
+  "scores": {
+    "understanding": 0.7714,
+    "sql": 0.95,
+    "chart": 1.0,
+    "overall": 0.8914
+  },
+  "judge_used": false,
+  "failures_by_code": {
+    "actions_missing": 3,
+    "sql_required_substring_missing": 3,
+    "clarification_options_missing": 1,
+    "dimension_missing": 1,
+    "filter_missing": 1
+  }
+}

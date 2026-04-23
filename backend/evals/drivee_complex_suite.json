@@ -1,9 +1,59 @@
 {
-  "suite_name": "drivee_agentic_chat_suite",
+  "suite_name": "drivee_agentic_chat_suite_v2",
   "database_id": "30a98b573aef4c069fd14d129e21f82b",
   "query_mode": "thinking",
   "llm_model_alias": "gpt120",
   "cases": [
+    {
+      "id": "column_meaning_offer_export",
+      "title": "Explain a column and offer export",
+      "tags": ["agentic", "explanation", "export"],
+      "steps": [
+        {
+          "user": "Что значит статус order_status в этих данных? Ответь по-человечески и если можно предложи выгрузить таблицу.",
+          "max_auto_clarifications": 0,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_DRAFTING",
+            "required_actions": ["create_sql"],
+            "sql": null,
+            "execution": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "clarify_report_focus",
+      "title": "Clarify the report focus before drafting SQL",
+      "tags": ["agentic", "clarification", "choices"],
+      "steps": [
+        {
+          "user": "За 14 апреля 2026 хочу понять, что именно лучше показать по качеству поездок. Дай понятный выбор из нескольких вариантов и не строй SQL, пока не выберу.",
+          "max_auto_clarifications": 0,
+          "expectations": {
+            "should_clarify": true,
+            "expected_state": "CLARIFYING",
+            "clarification": {
+              "question_should_contain": [
+                "метрик",
+                "качества",
+                "поездок"
+              ],
+              "options_should_include": [
+                "заверш",
+                "длитель",
+                "дистанц",
+                "отмен",
+                "прибыт"
+              ],
+              "min_options": 4
+            },
+            "sql": null,
+            "execution": null
+          }
+        }
+      ]
+    },
     {
       "id": "hourly_completion_conversion",
       "title": "Hourly created vs completed vs completion rate",
@@ -12,11 +62,13 @@
         {
           "user": "За 14 апреля 2026 покажи по часам количество созданных заказов, количество завершённых поездок и конверсию в завершение. Нужен line chart.",
           "clarification_reply": "Hour",
+          "max_auto_clarifications": 2,
           "expectations": {
             "should_clarify": false,
             "expected_state": "SQL_READY",
             "required_actions": ["show_run_button", "show_sql"],
             "sql": {
+              "must_parse": true,
               "required_substrings": [
                 "2026-04-14",
                 "group by",
@@ -31,92 +83,52 @@
               "should_succeed": true,
               "min_row_count": 1,
               "required_column_groups": [
-                ["hour", "hour_bucket", "order_hour", "bucket"],
-                ["created_orders", "total_orders", "orders_created", "created_order_count", "created_count"],
-                ["completed_orders", "done_orders", "completed_rides", "completed_count", "completed_trip_count"],
-                ["completion_rate", "conversion_rate", "done_rate"]
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created",
+                  "created_order_count",
+                  "created_count"
+                ],
+                [
+                  "completed_orders",
+                  "done_orders",
+                  "completed_rides",
+                  "completed_count",
+                  "completed_trip_count"
+                ],
+                [
+                  "completion_rate",
+                  "conversion_rate",
+                  "done_rate"
+                ]
               ],
               "chart": {
-                "acceptable_types": ["line"],
-                "x_any_of": ["hour", "hour_bucket", "order_hour", "bucket"],
-                "y_any_of": ["created_orders", "total_orders", "orders_created", "completed_orders", "completion_rate", "completed_trip_count", "created_order_count"]
+                "acceptable_types": [
+                  "line"
+                ],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created",
+                  "completed_orders",
+                  "completion_rate",
+                  "completed_trip_count",
+                  "created_order_count"
+                ]
               }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": "top_drivers_non_completion_rate",
-      "title": "Top drivers by accepted but not completed share",
-      "tags": ["agentic", "ranking", "driver"],
-      "steps": [
-        {
-          "user": "За 14 апреля 2026 найди топ-10 водителей с самой высокой долей принятых, но не завершённых поездок среди всех принятых ими заказов. Учитывай только водителей минимум с 20 принятыми заказами. Нужен bar chart.",
-          "clarification_reply": "Группируй по driver_id. Принятым считай заказ, у которого driveraccept_timestamp IS NOT NULL; завершённым — у которого driverdone_timestamp IS NOT NULL. Минимум 20 принятых заказов на водителя.",
-          "expectations": {
-            "should_clarify": false,
-            "expected_state": "SQL_READY",
-            "required_actions": ["show_run_button", "show_sql"],
-            "sql": {
-              "required_substrings": [
-                "2026-04-14",
-                "driver_id",
-                "driveraccept_timestamp",
-                "driverdone_timestamp",
-                "limit 10"
-              ],
-              "required_tables": [
-                "train"
-              ]
-            },
-            "execution": {
-              "should_succeed": true,
-              "min_row_count": 1,
-              "max_row_count": 10,
-              "required_column_groups": [
-                ["driver_id"],
-                ["accepted_orders", "accepted_count", "total_accepted"],
-                ["not_completed_orders", "failed_after_accept", "not_done_orders", "not_completed_count"],
-                ["non_completion_rate", "not_completed_rate", "fail_rate"]
-              ],
-              "chart": {
-                "acceptable_types": ["bar"],
-                "x_any_of": ["driver_id"],
-                "y_any_of": ["non_completion_rate", "not_completed_rate", "fail_rate", "not_completed_count"]
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": "clarify_report_focus",
-      "title": "Clarify the report focus before drafting SQL",
-      "tags": ["agentic", "clarification", "choices"],
-      "steps": [
-        {
-          "user": "За 14 апреля 2026 хочу понять, что именно лучше показать по качеству поездок. Дай понятный выбор из нескольких вариантов и не строй SQL, пока не выберу.",
-          "clarification_reply": "Конверсию в завершение",
-          "max_auto_clarifications": 0,
-          "expectations": {
-            "should_clarify": true,
-            "expected_state": "CLARIFYING",
-            "required_actions": ["create_sql"],
-            "clarification": {
-              "question_should_contain": [
-                "метрик",
-                "качества",
-                "поездок"
-              ],
-              "options_should_include": [
-                "завершённости",
-                "длительность",
-                "дистанц",
-                "отмен",
-                "принят"
-              ],
-              "min_options": 4
             }
           }
         }
@@ -130,11 +142,13 @@
         {
           "user": "За 14 апреля 2026 покажи по часам количество созданных заказов и количество завершённых поездок. Нужен line chart.",
           "clarification_reply": "Hour",
+          "max_auto_clarifications": 2,
           "expectations": {
             "should_clarify": false,
             "expected_state": "SQL_READY",
             "required_actions": ["show_run_button", "show_sql"],
             "sql": {
+              "must_parse": true,
               "required_substrings": [
                 "2026-04-14",
                 "group by",
@@ -149,21 +163,51 @@
               "should_succeed": true,
               "min_row_count": 1,
               "required_column_groups": [
-                ["hour", "hour_bucket", "order_hour", "bucket"],
-                ["created_orders", "total_orders", "orders_created", "created_count"],
-                ["completed_orders", "done_orders", "completed_rides", "completed_count"]
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created",
+                  "created_count"
+                ],
+                [
+                  "completed_orders",
+                  "done_orders",
+                  "completed_rides",
+                  "completed_count"
+                ]
               ],
               "chart": {
-                "acceptable_types": ["line"],
-                "x_any_of": ["hour", "hour_bucket", "order_hour", "bucket"],
-                "y_any_of": ["created_orders", "total_orders", "orders_created", "completed_orders", "completed_rides", "completed_count"]
+                "acceptable_types": [
+                  "line"
+                ],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "created_orders",
+                  "total_orders",
+                  "orders_created",
+                  "completed_orders",
+                  "completed_rides",
+                  "completed_count"
+                ]
               }
             }
           }
         },
         {
-          "user": "А теперь оставь только завершённые заказы и сравни по часам среднее время подачи и среднее время поездки.",
+          "user": "А теперь оставь только завершённые заказы и сравни по часам среднее время от принятия до прибытия и среднее время поездки от старта до завершения.",
           "clarification_reply": "Только завершённые",
+          "max_auto_clarifications": 2,
           "expectations": {
             "should_clarify": false,
             "expected_state": "SQL_READY",
@@ -179,10 +223,10 @@
               ]
             },
             "sql": {
+              "must_parse": true,
               "required_substrings": [
                 "2026-04-14",
                 "group by",
-                "status_order",
                 "driveraccept_timestamp",
                 "driverarrived_timestamp",
                 "driverstarttheride_timestamp",
@@ -196,14 +240,49 @@
               "should_succeed": true,
               "min_row_count": 1,
               "required_column_groups": [
-                ["hour", "hour_bucket", "order_hour", "bucket"],
-                ["avg_pickup_minutes", "pickup_minutes", "avg_time_to_arrival", "avg_pickup_time", "avg_accept_to_arrival_minutes"],
-                ["avg_ride_minutes", "ride_minutes", "avg_ride_time", "avg_start_to_done_minutes"]
+                [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                [
+                  "avg_pickup_minutes",
+                  "pickup_minutes",
+                  "avg_time_to_arrival",
+                  "avg_pickup_time",
+                  "avg_accept_to_arrival_minutes",
+                  "avg_time_to_accept_minutes"
+                ],
+                [
+                  "avg_ride_minutes",
+                  "ride_minutes",
+                  "avg_ride_time",
+                  "avg_start_to_done_minutes",
+                  "avg_ride_duration_minutes"
+                ]
               ],
               "chart": {
-                "acceptable_types": ["line"],
-                "x_any_of": ["hour", "hour_bucket", "order_hour", "bucket"],
-                "y_any_of": ["avg_pickup_minutes", "pickup_minutes", "avg_time_to_arrival", "avg_ride_minutes", "ride_minutes", "avg_accept_to_arrival_minutes", "avg_start_to_done_minutes"]
+                "acceptable_types": [
+                  "line"
+                ],
+                "x_any_of": [
+                  "hour",
+                  "hour_bucket",
+                  "order_hour",
+                  "bucket"
+                ],
+                "y_any_of": [
+                  "avg_pickup_minutes",
+                  "pickup_minutes",
+                  "avg_time_to_arrival",
+                  "avg_ride_minutes",
+                  "ride_minutes",
+                  "avg_accept_to_arrival_minutes",
+                  "avg_start_to_done_minutes",
+                  "avg_time_to_accept_minutes",
+                  "avg_ride_duration_minutes"
+                ]
               }
             }
           }

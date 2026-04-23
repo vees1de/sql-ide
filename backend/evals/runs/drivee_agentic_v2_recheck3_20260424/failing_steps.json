@@ -1,0 +1,2126 @@
+[
+  {
+    "case_id": "hourly_followup_done_only_metrics",
+    "step_index": 2,
+    "step_ref": "hourly_followup_done_only_metrics#step2",
+    "user_prompt": "А теперь оставь только завершённые заказы и сравни по часам среднее время от принятия до прибытия и среднее время поездки от старта до завершения.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "expected_state": "SQL_READY",
+      "required_actions": [
+        "show_run_button",
+        "show_sql"
+      ],
+      "clarification": null,
+      "interpretation": {
+        "metric_any_of": [],
+        "dimensions_all_of": [
+          "hour"
+        ],
+        "dimensions_any_of": [],
+        "filters": [
+          {
+            "field": "status_order",
+            "operator": "=",
+            "value": "done",
+            "value_any_of": [],
+            "value_contains": []
+          }
+        ],
+        "date_range": null
+      },
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2026-04-14",
+          "group by",
+          "status_order",
+          "driveraccept_timestamp",
+          "driverarrived_timestamp",
+          "driverstarttheride_timestamp",
+          "driverdone_timestamp"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "train"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          [
+            "avg_pickup_minutes",
+            "pickup_minutes",
+            "avg_time_to_arrival",
+            "avg_pickup_time",
+            "avg_accept_to_arrival_minutes",
+            "avg_time_to_accept_minutes"
+          ],
+          [
+            "avg_ride_minutes",
+            "ride_minutes",
+            "avg_ride_time",
+            "avg_start_to_done_minutes",
+            "avg_ride_duration_minutes"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "hour",
+            "hour_bucket",
+            "order_hour",
+            "bucket"
+          ],
+          "y_any_of": [
+            "avg_pickup_minutes",
+            "pickup_minutes",
+            "avg_time_to_arrival",
+            "avg_ride_minutes",
+            "ride_minutes",
+            "avg_accept_to_arrival_minutes",
+            "avg_start_to_done_minutes",
+            "avg_time_to_accept_minutes",
+            "avg_ride_duration_minutes"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "30a98b573aef4c069fd14d129e21f82b",
+        "name": "drivee test data",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": false,
+      "state": "SQL_READY",
+      "actions": [
+        "show_run_button",
+        "show_sql",
+        "show_chart_preview",
+        "save_report"
+      ],
+      "clarification_question": null,
+      "clarification_options": [],
+      "message_kind": "answer",
+      "initial_message_kind": "answer",
+      "clarification_transcript": [],
+      "intent": {
+        "raw_prompt": "А теперь оставь только завершённые заказы и сравни по часам среднее время от принятия до прибытия и среднее время поездки от старта до завершения.",
+        "metric": null,
+        "dimensions": [
+          "hour"
+        ],
+        "filters": [
+          {
+            "field": "driverdone_timestamp",
+            "operator": "IS NOT NULL",
+            "value": null
+          },
+          {
+            "field": "driveraccept_timestamp",
+            "operator": "IS NOT NULL",
+            "value": null
+          },
+          {
+            "field": "driverarrived_timestamp",
+            "operator": "IS NOT NULL",
+            "value": null
+          },
+          {
+            "field": "driverstarttheride_timestamp",
+            "operator": "IS NOT NULL",
+            "value": null
+          },
+          {
+            "field": "status_order",
+            "operator": "=",
+            "value": "done"
+          }
+        ],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": null,
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.99,
+        "follow_up": false
+      },
+      "sql": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM (\n    driverarrived_timestamp - driveraccept_timestamp\n  )) / 60) AS avg_accept_to_arrival_minutes,\n  AVG(\n    EXTRACT(EPOCH FROM (\n      driverdone_timestamp - driverstarttheride_timestamp\n    )) / 60\n  ) AS avg_start_to_done_minutes\nFROM train\nWHERE\n  NOT driverdone_timestamp IS NULL\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverarrived_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\nGROUP BY\n  hour\nORDER BY\n  hour ASC\nLIMIT 50",
+      "execution": {
+        "id": "0188527db5864b9fb4f71b14d79766e0",
+        "session_id": "62e1165341ef48c2a4e40450a91a6596",
+        "sql_text": "SELECT\n  DATE_TRUNC('HOUR', order_timestamp) AS hour,\n  AVG(EXTRACT(EPOCH FROM (\n    driverarrived_timestamp - driveraccept_timestamp\n  )) / 60) AS avg_accept_to_arrival_minutes,\n  AVG(\n    EXTRACT(EPOCH FROM (\n      driverdone_timestamp - driverstarttheride_timestamp\n    )) / 60\n  ) AS avg_start_to_done_minutes\nFROM train\nWHERE\n  NOT driverdone_timestamp IS NULL\n  AND NOT driveraccept_timestamp IS NULL\n  AND NOT driverarrived_timestamp IS NULL\n  AND NOT driverstarttheride_timestamp IS NULL\nGROUP BY\n  hour\nORDER BY\n  hour ASC\nLIMIT 50",
+        "columns": [
+          {
+            "name": "hour",
+            "type": "datetime64[ns]"
+          },
+          {
+            "name": "avg_accept_to_arrival_minutes",
+            "type": "float64"
+          },
+          {
+            "name": "avg_start_to_done_minutes",
+            "type": "float64"
+          }
+        ],
+        "rows_preview": [
+          {
+            "hour": "2025-01-02T14:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.8166666667,
+            "avg_start_to_done_minutes": 2827.7166666667
+          },
+          {
+            "hour": "2025-01-03T08:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.0633333333,
+            "avg_start_to_done_minutes": 3.11
+          },
+          {
+            "hour": "2025-01-03T09:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.1359375,
+            "avg_start_to_done_minutes": 2.99375
+          },
+          {
+            "hour": "2025-01-03T10:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.0695121951,
+            "avg_start_to_done_minutes": 2.7207317073
+          },
+          {
+            "hour": "2025-01-03T11:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.5252252252,
+            "avg_start_to_done_minutes": 2.8554054054
+          },
+          {
+            "hour": "2025-01-03T12:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.8347826087,
+            "avg_start_to_done_minutes": 3.0956521739
+          },
+          {
+            "hour": "2025-01-03T13:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.0722222222,
+            "avg_start_to_done_minutes": 3.885042735
+          },
+          {
+            "hour": "2025-01-03T14:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.23984375,
+            "avg_start_to_done_minutes": 3.4903645833
+          },
+          {
+            "hour": "2025-01-03T15:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.3326923077,
+            "avg_start_to_done_minutes": 3.4974358974
+          },
+          {
+            "hour": "2025-01-03T16:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.375862069,
+            "avg_start_to_done_minutes": 4.3359195402
+          },
+          {
+            "hour": "2025-01-03T17:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.2443548387,
+            "avg_start_to_done_minutes": 3.3930107527
+          },
+          {
+            "hour": "2025-01-03T18:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.3424242424,
+            "avg_start_to_done_minutes": 4.4781818182
+          },
+          {
+            "hour": "2025-01-03T19:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.930952381,
+            "avg_start_to_done_minutes": 3.9914285714
+          },
+          {
+            "hour": "2025-01-03T20:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.9452380952,
+            "avg_start_to_done_minutes": 4.2089285714
+          },
+          {
+            "hour": "2025-01-03T21:00:00.000",
+            "avg_accept_to_arrival_minutes": 3.030952381,
+            "avg_start_to_done_minutes": 4.7661904762
+          },
+          {
+            "hour": "2025-01-03T22:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.2549019608,
+            "avg_start_to_done_minutes": 2.2705882353
+          },
+          {
+            "hour": "2025-01-03T23:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.9989583333,
+            "avg_start_to_done_minutes": 4.4989583333
+          },
+          {
+            "hour": "2025-01-04T00:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.8955555556,
+            "avg_start_to_done_minutes": 4.2555555556
+          },
+          {
+            "hour": "2025-01-04T01:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.3435897436,
+            "avg_start_to_done_minutes": 3.8961538462
+          },
+          {
+            "hour": "2025-01-04T02:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.0458333333,
+            "avg_start_to_done_minutes": 1.7458333333
+          },
+          {
+            "hour": "2025-01-04T03:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.425,
+            "avg_start_to_done_minutes": 0.15
+          },
+          {
+            "hour": "2025-01-04T04:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.7,
+            "avg_start_to_done_minutes": 2.8888888889
+          },
+          {
+            "hour": "2025-01-04T06:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.7666666667,
+            "avg_start_to_done_minutes": 7.4666666667
+          },
+          {
+            "hour": "2025-01-04T07:00:00.000",
+            "avg_accept_to_arrival_minutes": 4.5083333333,
+            "avg_start_to_done_minutes": 2.4833333333
+          },
+          {
+            "hour": "2025-01-04T08:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.9119047619,
+            "avg_start_to_done_minutes": 2.694047619
+          },
+          {
+            "hour": "2025-01-04T09:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.5152777778,
+            "avg_start_to_done_minutes": 3.300462963
+          },
+          {
+            "hour": "2025-01-04T10:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.5029166667,
+            "avg_start_to_done_minutes": 3.4008333333
+          },
+          {
+            "hour": "2025-01-04T11:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.3823529412,
+            "avg_start_to_done_minutes": 3.2289215686
+          },
+          {
+            "hour": "2025-01-04T12:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.4233333333,
+            "avg_start_to_done_minutes": 2.308
+          },
+          {
+            "hour": "2025-01-04T13:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.05,
+            "avg_start_to_done_minutes": 3.3055555556
+          },
+          {
+            "hour": "2025-01-04T14:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.4016949153,
+            "avg_start_to_done_minutes": 4.6403954802
+          },
+          {
+            "hour": "2025-01-04T15:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.3289855072,
+            "avg_start_to_done_minutes": 3.3077294686
+          },
+          {
+            "hour": "2025-01-04T16:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.5008130081,
+            "avg_start_to_done_minutes": 3.3841463415
+          },
+          {
+            "hour": "2025-01-04T17:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.1623655914,
+            "avg_start_to_done_minutes": 3.8841397849
+          },
+          {
+            "hour": "2025-01-04T18:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.7378600823,
+            "avg_start_to_done_minutes": 3.4220164609
+          },
+          {
+            "hour": "2025-01-04T19:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.9903225806,
+            "avg_start_to_done_minutes": 3.0766129032
+          },
+          {
+            "hour": "2025-01-04T20:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.5728571429,
+            "avg_start_to_done_minutes": 4.1904761905
+          },
+          {
+            "hour": "2025-01-04T21:00:00.000",
+            "avg_accept_to_arrival_minutes": 1.8730994152,
+            "avg_start_to_done_minutes": 3.7111111111
+          },
+          {
+            "hour": "2025-01-04T22:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.375,
+            "avg_start_to_done_minutes": 2.7724358974
+          },
+          {
+            "hour": "2025-01-04T23:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.6446969697,
+            "avg_start_to_done_minutes": 2.7007575758
+          },
+          {
+            "hour": "2025-01-05T00:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.4677083333,
+            "avg_start_to_done_minutes": 3.7333333333
+          },
+          {
+            "hour": "2025-01-05T01:00:00.000",
+            "avg_accept_to_arrival_minutes": 3.3333333333,
+            "avg_start_to_done_minutes": 5.1972222222
+          },
+          {
+            "hour": "2025-01-05T02:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.575,
+            "avg_start_to_done_minutes": 2.7833333333
+          },
+          {
+            "hour": "2025-01-05T03:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.64,
+            "avg_start_to_done_minutes": 1.76
+          },
+          {
+            "hour": "2025-01-05T04:00:00.000",
+            "avg_accept_to_arrival_minutes": 3.2722222222,
+            "avg_start_to_done_minutes": 15.2388888889
+          },
+          {
+            "hour": "2025-01-05T06:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.9277777778,
+            "avg_start_to_done_minutes": 3.2722222222
+          },
+          {
+            "hour": "2025-01-05T07:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.7404761905,
+            "avg_start_to_done_minutes": 2.9333333333
+          },
+          {
+            "hour": "2025-01-05T08:00:00.000",
+            "avg_accept_to_arrival_minutes": 3.012962963,
+            "avg_start_to_done_minutes": 2.1981481481
+          },
+          {
+            "hour": "2025-01-05T09:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.25,
+            "avg_start_to_done_minutes": 3.0803030303
+          },
+          {
+            "hour": "2025-01-05T10:00:00.000",
+            "avg_accept_to_arrival_minutes": 2.9066666667,
+            "avg_start_to_done_minutes": 2.6966666667
+          }
+        ],
+        "rows_preview_truncated": false,
+        "row_count": 50,
+        "execution_time_ms": 69,
+        "dataset": {
+          "dataset_id": "query_execution:0188527db5864b9fb4f71b14d79766e0",
+          "query_execution_id": "0188527db5864b9fb4f71b14d79766e0",
+          "row_count": 50,
+          "columns": [
+            {
+              "name": "hour",
+              "type": "datetime64[ns]"
+            },
+            {
+              "name": "avg_accept_to_arrival_minutes",
+              "type": "float64"
+            },
+            {
+              "name": "avg_start_to_done_minutes",
+              "type": "float64"
+            }
+          ]
+        },
+        "chart_recommendation": {
+          "recommended_view": "chart",
+          "chart_type": "line",
+          "x": "hour",
+          "y": "avg_accept_to_arrival_minutes",
+          "series": null,
+          "facet": null,
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "rule_id": "CASCADE_LINE",
+          "confidence": 0.9,
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "ruleId": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semanticIntent": "trend",
+            "analysisMode": "trend",
+            "visualGoal": "show_change_over_time",
+            "timeRole": "primary",
+            "comparisonGoal": "absolute",
+            "preferredMark": "line",
+            "alternatives": [
+              "table"
+            ],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              {
+                "type": "table",
+                "score": 0.88,
+                "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+              }
+            ],
+            "constraintsApplied": [],
+            "visualLoad": 50,
+            "reasonCodes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ],
+            "queryInterpretation": {
+              "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_accept_to_arrival_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decisionSummary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_HIGH"
+              ],
+              "alternatives": [
+                {
+                  "type": "table",
+                  "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+                }
+              ],
+              "confidence": 0.9
+            },
+            "understanding": {
+              "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_accept_to_arrival_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision": {
+              "chart_type": "line",
+              "x": "hour",
+              "y": "avg_accept_to_arrival_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none"
+            },
+            "explanationBlock": {
+              "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "confidence": 0.9,
+              "alternatives_considered": [
+                "table"
+              ],
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_HIGH"
+              ]
+            },
+            "config": {
+              "xField": "hour",
+              "yField": "avg_accept_to_arrival_minutes",
+              "seriesField": null,
+              "facetField": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "seriesLimit": null,
+              "categoryLimit": null,
+              "topNStrategy": "none",
+              "valueFormat": "number_compact",
+              "dataRoles": {
+                "x": "hour",
+                "y": "avg_accept_to_arrival_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "label": "hour",
+                "value": "avg_accept_to_arrival_minutes"
+              }
+            },
+            "x": {
+              "field": "hour",
+              "values": [
+                "2025-01-02T14:00:00.000",
+                "2025-01-03T08:00:00.000",
+                "2025-01-03T09:00:00.000",
+                "2025-01-03T10:00:00.000",
+                "2025-01-03T11:00:00.000",
+                "2025-01-03T12:00:00.000",
+                "2025-01-03T13:00:00.000",
+                "2025-01-03T14:00:00.000",
+                "2025-01-03T15:00:00.000",
+                "2025-01-03T16:00:00.000",
+                "2025-01-03T17:00:00.000",
+                "2025-01-03T18:00:00.000",
+                "2025-01-03T19:00:00.000",
+                "2025-01-03T20:00:00.000",
+                "2025-01-03T21:00:00.000",
+                "2025-01-03T22:00:00.000",
+                "2025-01-03T23:00:00.000",
+                "2025-01-04T00:00:00.000",
+                "2025-01-04T01:00:00.000",
+                "2025-01-04T02:00:00.000",
+                "2025-01-04T03:00:00.000",
+                "2025-01-04T04:00:00.000",
+                "2025-01-04T06:00:00.000",
+                "2025-01-04T07:00:00.000",
+                "2025-01-04T08:00:00.000",
+                "2025-01-04T09:00:00.000",
+                "2025-01-04T10:00:00.000",
+                "2025-01-04T11:00:00.000",
+                "2025-01-04T12:00:00.000",
+                "2025-01-04T13:00:00.000",
+                "2025-01-04T14:00:00.000",
+                "2025-01-04T15:00:00.000",
+                "2025-01-04T16:00:00.000",
+                "2025-01-04T17:00:00.000",
+                "2025-01-04T18:00:00.000",
+                "2025-01-04T19:00:00.000",
+                "2025-01-04T20:00:00.000",
+                "2025-01-04T21:00:00.000",
+                "2025-01-04T22:00:00.000",
+                "2025-01-04T23:00:00.000",
+                "2025-01-05T00:00:00.000",
+                "2025-01-05T01:00:00.000",
+                "2025-01-05T02:00:00.000",
+                "2025-01-05T03:00:00.000",
+                "2025-01-05T04:00:00.000",
+                "2025-01-05T06:00:00.000",
+                "2025-01-05T07:00:00.000",
+                "2025-01-05T08:00:00.000",
+                "2025-01-05T09:00:00.000",
+                "2025-01-05T10:00:00.000"
+              ],
+              "type": "categorical"
+            },
+            "y": {
+              "field": "avg_accept_to_arrival_minutes",
+              "values": [
+                1.8166666667,
+                2.0633333333,
+                2.1359375,
+                2.0695121951,
+                2.5252252252,
+                1.8347826087,
+                2.0722222222,
+                2.23984375,
+                2.3326923077,
+                2.375862069,
+                2.2443548387,
+                2.3424242424,
+                2.930952381,
+                2.9452380952,
+                3.030952381,
+                2.2549019608,
+                1.9989583333,
+                1.8955555556,
+                2.3435897436,
+                1.0458333333,
+                1.425,
+                2.7,
+                1.7666666667,
+                4.5083333333,
+                2.9119047619,
+                2.5152777778,
+                2.5029166667,
+                2.3823529412,
+                2.4233333333,
+                2.05,
+                2.4016949153,
+                2.3289855072,
+                2.5008130081,
+                2.1623655914,
+                1.7378600823,
+                1.9903225806,
+                2.5728571429,
+                1.8730994152,
+                2.375,
+                2.6446969697,
+                2.4677083333,
+                3.3333333333,
+                2.575,
+                2.64,
+                3.2722222222,
+                2.9277777778,
+                2.7404761905,
+                3.012962963,
+                2.25,
+                2.9066666667
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "semantic_intent": "trend",
+          "analysis_mode": "trend",
+          "visual_goal": "show_change_over_time",
+          "time_role": "primary",
+          "comparison_goal": "absolute",
+          "preferred_mark": "line",
+          "normalize": "none",
+          "value_format": "number_compact",
+          "series_limit": null,
+          "category_limit": null,
+          "top_n_strategy": "none",
+          "alternatives": [
+            "table"
+          ],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            {
+              "type": "table",
+              "score": 0.88,
+              "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+            }
+          ],
+          "constraints_applied": [],
+          "visual_load": 50,
+          "query_interpretation": {
+            "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_accept_to_arrival_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision_summary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ],
+            "alternatives": [
+              {
+                "type": "table",
+                "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+              }
+            ],
+            "confidence": 0.9
+          },
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_HIGH"
+          ],
+          "chart_spec": {
+            "chart_type": "line",
+            "title": "Автоматическая визуализация",
+            "encoding": {
+              "x_field": "hour",
+              "y_field": "avg_accept_to_arrival_minutes",
+              "series_field": null,
+              "facet_field": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none",
+              "value_format": "number_compact",
+              "data_roles": {
+                "x": "hour",
+                "y": "avg_accept_to_arrival_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "label": "hour",
+                "value": "avg_accept_to_arrival_minutes"
+              }
+            },
+            "options": {
+              "rowCount": 50,
+              "ruleId": "CASCADE_LINE",
+              "variant": "single_series",
+              "confidence": 0.9
+            },
+            "data": {
+              "kind": "single_series",
+              "chartType": "line",
+              "variant": "single_series",
+              "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "ruleId": "CASCADE_LINE",
+              "confidence": 0.9,
+              "semanticIntent": "trend",
+              "analysisMode": "trend",
+              "visualGoal": "show_change_over_time",
+              "timeRole": "primary",
+              "comparisonGoal": "absolute",
+              "preferredMark": "line",
+              "alternatives": [
+                "table"
+              ],
+              "candidates": [
+                {
+                  "type": "line",
+                  "score": 0.9,
+                  "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+                },
+                {
+                  "type": "table",
+                  "score": 0.88,
+                  "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+                }
+              ],
+              "constraintsApplied": [],
+              "visualLoad": 50,
+              "reasonCodes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_HIGH"
+              ],
+              "queryInterpretation": {
+                "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                "intent": "trend",
+                "analysis_mode": "trend",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "avg_accept_to_arrival_minutes",
+                    "aggregation": null,
+                    "format": "number_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "hour",
+                    "role": "time"
+                  }
+                ],
+                "time_dimension": "hour",
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.9,
+                "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              "decisionSummary": {
+                "selected_chart": "line",
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_HIGH"
+                ],
+                "alternatives": [
+                  {
+                    "type": "table",
+                    "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+                  }
+                ],
+                "confidence": 0.9
+              },
+              "understanding": {
+                "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+                "intent": "trend",
+                "analysis_mode": "trend",
+                "entities": [],
+                "metrics": [
+                  {
+                    "name": "avg_accept_to_arrival_minutes",
+                    "aggregation": null,
+                    "format": "number_compact"
+                  }
+                ],
+                "dimensions": [
+                  {
+                    "name": "hour",
+                    "role": "time"
+                  }
+                ],
+                "time_dimension": "hour",
+                "series_dimension": null,
+                "requested_output": "chart",
+                "assumptions": [],
+                "ambiguities": [],
+                "confidence": 0.9,
+                "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              "decision": {
+                "chart_type": "line",
+                "x": "hour",
+                "y": "avg_accept_to_arrival_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "normalize": "none",
+                "series_limit": null,
+                "category_limit": null,
+                "top_n_strategy": "none"
+              },
+              "explanationBlock": {
+                "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+                "confidence": 0.9,
+                "alternatives_considered": [
+                  "table"
+                ],
+                "reason_codes": [
+                  "INTENT_TREND",
+                  "HAS_TIME_AXIS",
+                  "TREND_PRIMARY_GOAL",
+                  "MANY_TIME_BUCKETS",
+                  "VISUAL_LOAD_HIGH"
+                ]
+              },
+              "config": {
+                "xField": "hour",
+                "yField": "avg_accept_to_arrival_minutes",
+                "seriesField": null,
+                "facetField": null,
+                "sort": "time_asc",
+                "normalize": "none",
+                "seriesLimit": null,
+                "categoryLimit": null,
+                "topNStrategy": "none",
+                "valueFormat": "number_compact",
+                "dataRoles": {
+                  "x": "hour",
+                  "y": "avg_accept_to_arrival_minutes",
+                  "series_key": null,
+                  "facet_key": null,
+                  "label": "hour",
+                  "value": "avg_accept_to_arrival_minutes"
+                }
+              },
+              "x": {
+                "field": "hour",
+                "values": [
+                  "2025-01-02T14:00:00.000",
+                  "2025-01-03T08:00:00.000",
+                  "2025-01-03T09:00:00.000",
+                  "2025-01-03T10:00:00.000",
+                  "2025-01-03T11:00:00.000",
+                  "2025-01-03T12:00:00.000",
+                  "2025-01-03T13:00:00.000",
+                  "2025-01-03T14:00:00.000",
+                  "2025-01-03T15:00:00.000",
+                  "2025-01-03T16:00:00.000",
+                  "2025-01-03T17:00:00.000",
+                  "2025-01-03T18:00:00.000",
+                  "2025-01-03T19:00:00.000",
+                  "2025-01-03T20:00:00.000",
+                  "2025-01-03T21:00:00.000",
+                  "2025-01-03T22:00:00.000",
+                  "2025-01-03T23:00:00.000",
+                  "2025-01-04T00:00:00.000",
+                  "2025-01-04T01:00:00.000",
+                  "2025-01-04T02:00:00.000",
+                  "2025-01-04T03:00:00.000",
+                  "2025-01-04T04:00:00.000",
+                  "2025-01-04T06:00:00.000",
+                  "2025-01-04T07:00:00.000",
+                  "2025-01-04T08:00:00.000",
+                  "2025-01-04T09:00:00.000",
+                  "2025-01-04T10:00:00.000",
+                  "2025-01-04T11:00:00.000",
+                  "2025-01-04T12:00:00.000",
+                  "2025-01-04T13:00:00.000",
+                  "2025-01-04T14:00:00.000",
+                  "2025-01-04T15:00:00.000",
+                  "2025-01-04T16:00:00.000",
+                  "2025-01-04T17:00:00.000",
+                  "2025-01-04T18:00:00.000",
+                  "2025-01-04T19:00:00.000",
+                  "2025-01-04T20:00:00.000",
+                  "2025-01-04T21:00:00.000",
+                  "2025-01-04T22:00:00.000",
+                  "2025-01-04T23:00:00.000",
+                  "2025-01-05T00:00:00.000",
+                  "2025-01-05T01:00:00.000",
+                  "2025-01-05T02:00:00.000",
+                  "2025-01-05T03:00:00.000",
+                  "2025-01-05T04:00:00.000",
+                  "2025-01-05T06:00:00.000",
+                  "2025-01-05T07:00:00.000",
+                  "2025-01-05T08:00:00.000",
+                  "2025-01-05T09:00:00.000",
+                  "2025-01-05T10:00:00.000"
+                ],
+                "type": "categorical"
+              },
+              "y": {
+                "field": "avg_accept_to_arrival_minutes",
+                "values": [
+                  1.8166666667,
+                  2.0633333333,
+                  2.1359375,
+                  2.0695121951,
+                  2.5252252252,
+                  1.8347826087,
+                  2.0722222222,
+                  2.23984375,
+                  2.3326923077,
+                  2.375862069,
+                  2.2443548387,
+                  2.3424242424,
+                  2.930952381,
+                  2.9452380952,
+                  3.030952381,
+                  2.2549019608,
+                  1.9989583333,
+                  1.8955555556,
+                  2.3435897436,
+                  1.0458333333,
+                  1.425,
+                  2.7,
+                  1.7666666667,
+                  4.5083333333,
+                  2.9119047619,
+                  2.5152777778,
+                  2.5029166667,
+                  2.3823529412,
+                  2.4233333333,
+                  2.05,
+                  2.4016949153,
+                  2.3289855072,
+                  2.5008130081,
+                  2.1623655914,
+                  1.7378600823,
+                  1.9903225806,
+                  2.5728571429,
+                  1.8730994152,
+                  2.375,
+                  2.6446969697,
+                  2.4677083333,
+                  3.3333333333,
+                  2.575,
+                  2.64,
+                  3.2722222222,
+                  2.9277777778,
+                  2.7404761905,
+                  3.012962963,
+                  2.25,
+                  2.9066666667
+                ],
+                "unit": null
+              },
+              "stacked": false
+            },
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "rule_id": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semantic_intent": "trend",
+            "analysis_mode": "trend",
+            "visual_goal": "show_change_over_time",
+            "time_role": "primary",
+            "comparison_goal": "absolute",
+            "preferred_mark": "line",
+            "alternatives": [
+              "table"
+            ],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              {
+                "type": "table",
+                "score": 0.88,
+                "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+              }
+            ],
+            "constraints_applied": [],
+            "visual_load": 50,
+            "query_interpretation": {
+              "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_accept_to_arrival_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision_summary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_HIGH"
+              ],
+              "alternatives": [
+                {
+                  "type": "table",
+                  "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+                }
+              ],
+              "confidence": 0.9
+            },
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ]
+          },
+          "ai_chart_spec": null
+        },
+        "error_message": null,
+        "created_at": "2026-04-23T18:39:50.823483"
+      },
+      "chart": {
+        "recommended_view": "chart",
+        "chart_type": "line",
+        "x": "hour",
+        "y": "avg_accept_to_arrival_minutes",
+        "series": null,
+        "facet": null,
+        "variant": "single_series",
+        "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+        "rule_id": "CASCADE_LINE",
+        "confidence": 0.9,
+        "data": {
+          "kind": "single_series",
+          "chartType": "line",
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "ruleId": "CASCADE_LINE",
+          "confidence": 0.9,
+          "semanticIntent": "trend",
+          "analysisMode": "trend",
+          "visualGoal": "show_change_over_time",
+          "timeRole": "primary",
+          "comparisonGoal": "absolute",
+          "preferredMark": "line",
+          "alternatives": [
+            "table"
+          ],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            {
+              "type": "table",
+              "score": 0.88,
+              "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+            }
+          ],
+          "constraintsApplied": [],
+          "visualLoad": 50,
+          "reasonCodes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_HIGH"
+          ],
+          "queryInterpretation": {
+            "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_accept_to_arrival_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decisionSummary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ],
+            "alternatives": [
+              {
+                "type": "table",
+                "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+              }
+            ],
+            "confidence": 0.9
+          },
+          "understanding": {
+            "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_accept_to_arrival_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision": {
+            "chart_type": "line",
+            "x": "hour",
+            "y": "avg_accept_to_arrival_minutes",
+            "series_key": null,
+            "facet_key": null,
+            "normalize": "none",
+            "series_limit": null,
+            "category_limit": null,
+            "top_n_strategy": "none"
+          },
+          "explanationBlock": {
+            "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "confidence": 0.9,
+            "alternatives_considered": [
+              "table"
+            ],
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ]
+          },
+          "config": {
+            "xField": "hour",
+            "yField": "avg_accept_to_arrival_minutes",
+            "seriesField": null,
+            "facetField": null,
+            "sort": "time_asc",
+            "normalize": "none",
+            "seriesLimit": null,
+            "categoryLimit": null,
+            "topNStrategy": "none",
+            "valueFormat": "number_compact",
+            "dataRoles": {
+              "x": "hour",
+              "y": "avg_accept_to_arrival_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "label": "hour",
+              "value": "avg_accept_to_arrival_minutes"
+            }
+          },
+          "x": {
+            "field": "hour",
+            "values": [
+              "2025-01-02T14:00:00.000",
+              "2025-01-03T08:00:00.000",
+              "2025-01-03T09:00:00.000",
+              "2025-01-03T10:00:00.000",
+              "2025-01-03T11:00:00.000",
+              "2025-01-03T12:00:00.000",
+              "2025-01-03T13:00:00.000",
+              "2025-01-03T14:00:00.000",
+              "2025-01-03T15:00:00.000",
+              "2025-01-03T16:00:00.000",
+              "2025-01-03T17:00:00.000",
+              "2025-01-03T18:00:00.000",
+              "2025-01-03T19:00:00.000",
+              "2025-01-03T20:00:00.000",
+              "2025-01-03T21:00:00.000",
+              "2025-01-03T22:00:00.000",
+              "2025-01-03T23:00:00.000",
+              "2025-01-04T00:00:00.000",
+              "2025-01-04T01:00:00.000",
+              "2025-01-04T02:00:00.000",
+              "2025-01-04T03:00:00.000",
+              "2025-01-04T04:00:00.000",
+              "2025-01-04T06:00:00.000",
+              "2025-01-04T07:00:00.000",
+              "2025-01-04T08:00:00.000",
+              "2025-01-04T09:00:00.000",
+              "2025-01-04T10:00:00.000",
+              "2025-01-04T11:00:00.000",
+              "2025-01-04T12:00:00.000",
+              "2025-01-04T13:00:00.000",
+              "2025-01-04T14:00:00.000",
+              "2025-01-04T15:00:00.000",
+              "2025-01-04T16:00:00.000",
+              "2025-01-04T17:00:00.000",
+              "2025-01-04T18:00:00.000",
+              "2025-01-04T19:00:00.000",
+              "2025-01-04T20:00:00.000",
+              "2025-01-04T21:00:00.000",
+              "2025-01-04T22:00:00.000",
+              "2025-01-04T23:00:00.000",
+              "2025-01-05T00:00:00.000",
+              "2025-01-05T01:00:00.000",
+              "2025-01-05T02:00:00.000",
+              "2025-01-05T03:00:00.000",
+              "2025-01-05T04:00:00.000",
+              "2025-01-05T06:00:00.000",
+              "2025-01-05T07:00:00.000",
+              "2025-01-05T08:00:00.000",
+              "2025-01-05T09:00:00.000",
+              "2025-01-05T10:00:00.000"
+            ],
+            "type": "categorical"
+          },
+          "y": {
+            "field": "avg_accept_to_arrival_minutes",
+            "values": [
+              1.8166666667,
+              2.0633333333,
+              2.1359375,
+              2.0695121951,
+              2.5252252252,
+              1.8347826087,
+              2.0722222222,
+              2.23984375,
+              2.3326923077,
+              2.375862069,
+              2.2443548387,
+              2.3424242424,
+              2.930952381,
+              2.9452380952,
+              3.030952381,
+              2.2549019608,
+              1.9989583333,
+              1.8955555556,
+              2.3435897436,
+              1.0458333333,
+              1.425,
+              2.7,
+              1.7666666667,
+              4.5083333333,
+              2.9119047619,
+              2.5152777778,
+              2.5029166667,
+              2.3823529412,
+              2.4233333333,
+              2.05,
+              2.4016949153,
+              2.3289855072,
+              2.5008130081,
+              2.1623655914,
+              1.7378600823,
+              1.9903225806,
+              2.5728571429,
+              1.8730994152,
+              2.375,
+              2.6446969697,
+              2.4677083333,
+              3.3333333333,
+              2.575,
+              2.64,
+              3.2722222222,
+              2.9277777778,
+              2.7404761905,
+              3.012962963,
+              2.25,
+              2.9066666667
+            ],
+            "unit": null
+          },
+          "stacked": false
+        },
+        "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+        "semantic_intent": "trend",
+        "analysis_mode": "trend",
+        "visual_goal": "show_change_over_time",
+        "time_role": "primary",
+        "comparison_goal": "absolute",
+        "preferred_mark": "line",
+        "normalize": "none",
+        "value_format": "number_compact",
+        "series_limit": null,
+        "category_limit": null,
+        "top_n_strategy": "none",
+        "alternatives": [
+          "table"
+        ],
+        "candidates": [
+          {
+            "type": "line",
+            "score": 0.9,
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          {
+            "type": "table",
+            "score": 0.88,
+            "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+          }
+        ],
+        "constraints_applied": [],
+        "visual_load": 50,
+        "query_interpretation": {
+          "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+          "intent": "trend",
+          "analysis_mode": "trend",
+          "entities": [],
+          "metrics": [
+            {
+              "name": "avg_accept_to_arrival_minutes",
+              "aggregation": null,
+              "format": "number_compact"
+            }
+          ],
+          "dimensions": [
+            {
+              "name": "hour",
+              "role": "time"
+            }
+          ],
+          "time_dimension": "hour",
+          "series_dimension": null,
+          "requested_output": "chart",
+          "assumptions": [],
+          "ambiguities": [],
+          "confidence": 0.9,
+          "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+        },
+        "decision_summary": {
+          "selected_chart": "line",
+          "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_HIGH"
+          ],
+          "alternatives": [
+            {
+              "type": "table",
+              "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+            }
+          ],
+          "confidence": 0.9
+        },
+        "reason_codes": [
+          "INTENT_TREND",
+          "HAS_TIME_AXIS",
+          "TREND_PRIMARY_GOAL",
+          "MANY_TIME_BUCKETS",
+          "VISUAL_LOAD_HIGH"
+        ],
+        "chart_spec": {
+          "chart_type": "line",
+          "title": "Автоматическая визуализация",
+          "encoding": {
+            "x_field": "hour",
+            "y_field": "avg_accept_to_arrival_minutes",
+            "series_field": null,
+            "facet_field": null,
+            "sort": "time_asc",
+            "normalize": "none",
+            "series_limit": null,
+            "category_limit": null,
+            "top_n_strategy": "none",
+            "value_format": "number_compact",
+            "data_roles": {
+              "x": "hour",
+              "y": "avg_accept_to_arrival_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "label": "hour",
+              "value": "avg_accept_to_arrival_minutes"
+            }
+          },
+          "options": {
+            "rowCount": 50,
+            "ruleId": "CASCADE_LINE",
+            "variant": "single_series",
+            "confidence": 0.9
+          },
+          "data": {
+            "kind": "single_series",
+            "chartType": "line",
+            "variant": "single_series",
+            "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "ruleId": "CASCADE_LINE",
+            "confidence": 0.9,
+            "semanticIntent": "trend",
+            "analysisMode": "trend",
+            "visualGoal": "show_change_over_time",
+            "timeRole": "primary",
+            "comparisonGoal": "absolute",
+            "preferredMark": "line",
+            "alternatives": [
+              "table"
+            ],
+            "candidates": [
+              {
+                "type": "line",
+                "score": 0.9,
+                "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+              },
+              {
+                "type": "table",
+                "score": 0.88,
+                "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+              }
+            ],
+            "constraintsApplied": [],
+            "visualLoad": 50,
+            "reasonCodes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ],
+            "queryInterpretation": {
+              "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_accept_to_arrival_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decisionSummary": {
+              "selected_chart": "line",
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_HIGH"
+              ],
+              "alternatives": [
+                {
+                  "type": "table",
+                  "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+                }
+              ],
+              "confidence": 0.9
+            },
+            "understanding": {
+              "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+              "intent": "trend",
+              "analysis_mode": "trend",
+              "entities": [],
+              "metrics": [
+                {
+                  "name": "avg_accept_to_arrival_minutes",
+                  "aggregation": null,
+                  "format": "number_compact"
+                }
+              ],
+              "dimensions": [
+                {
+                  "name": "hour",
+                  "role": "time"
+                }
+              ],
+              "time_dimension": "hour",
+              "series_dimension": null,
+              "requested_output": "chart",
+              "assumptions": [],
+              "ambiguities": [],
+              "confidence": 0.9,
+              "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            "decision": {
+              "chart_type": "line",
+              "x": "hour",
+              "y": "avg_accept_to_arrival_minutes",
+              "series_key": null,
+              "facet_key": null,
+              "normalize": "none",
+              "series_limit": null,
+              "category_limit": null,
+              "top_n_strategy": "none"
+            },
+            "explanationBlock": {
+              "summary": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+              "confidence": 0.9,
+              "alternatives_considered": [
+                "table"
+              ],
+              "reason_codes": [
+                "INTENT_TREND",
+                "HAS_TIME_AXIS",
+                "TREND_PRIMARY_GOAL",
+                "MANY_TIME_BUCKETS",
+                "VISUAL_LOAD_HIGH"
+              ]
+            },
+            "config": {
+              "xField": "hour",
+              "yField": "avg_accept_to_arrival_minutes",
+              "seriesField": null,
+              "facetField": null,
+              "sort": "time_asc",
+              "normalize": "none",
+              "seriesLimit": null,
+              "categoryLimit": null,
+              "topNStrategy": "none",
+              "valueFormat": "number_compact",
+              "dataRoles": {
+                "x": "hour",
+                "y": "avg_accept_to_arrival_minutes",
+                "series_key": null,
+                "facet_key": null,
+                "label": "hour",
+                "value": "avg_accept_to_arrival_minutes"
+              }
+            },
+            "x": {
+              "field": "hour",
+              "values": [
+                "2025-01-02T14:00:00.000",
+                "2025-01-03T08:00:00.000",
+                "2025-01-03T09:00:00.000",
+                "2025-01-03T10:00:00.000",
+                "2025-01-03T11:00:00.000",
+                "2025-01-03T12:00:00.000",
+                "2025-01-03T13:00:00.000",
+                "2025-01-03T14:00:00.000",
+                "2025-01-03T15:00:00.000",
+                "2025-01-03T16:00:00.000",
+                "2025-01-03T17:00:00.000",
+                "2025-01-03T18:00:00.000",
+                "2025-01-03T19:00:00.000",
+                "2025-01-03T20:00:00.000",
+                "2025-01-03T21:00:00.000",
+                "2025-01-03T22:00:00.000",
+                "2025-01-03T23:00:00.000",
+                "2025-01-04T00:00:00.000",
+                "2025-01-04T01:00:00.000",
+                "2025-01-04T02:00:00.000",
+                "2025-01-04T03:00:00.000",
+                "2025-01-04T04:00:00.000",
+                "2025-01-04T06:00:00.000",
+                "2025-01-04T07:00:00.000",
+                "2025-01-04T08:00:00.000",
+                "2025-01-04T09:00:00.000",
+                "2025-01-04T10:00:00.000",
+                "2025-01-04T11:00:00.000",
+                "2025-01-04T12:00:00.000",
+                "2025-01-04T13:00:00.000",
+                "2025-01-04T14:00:00.000",
+                "2025-01-04T15:00:00.000",
+                "2025-01-04T16:00:00.000",
+                "2025-01-04T17:00:00.000",
+                "2025-01-04T18:00:00.000",
+                "2025-01-04T19:00:00.000",
+                "2025-01-04T20:00:00.000",
+                "2025-01-04T21:00:00.000",
+                "2025-01-04T22:00:00.000",
+                "2025-01-04T23:00:00.000",
+                "2025-01-05T00:00:00.000",
+                "2025-01-05T01:00:00.000",
+                "2025-01-05T02:00:00.000",
+                "2025-01-05T03:00:00.000",
+                "2025-01-05T04:00:00.000",
+                "2025-01-05T06:00:00.000",
+                "2025-01-05T07:00:00.000",
+                "2025-01-05T08:00:00.000",
+                "2025-01-05T09:00:00.000",
+                "2025-01-05T10:00:00.000"
+              ],
+              "type": "categorical"
+            },
+            "y": {
+              "field": "avg_accept_to_arrival_minutes",
+              "values": [
+                1.8166666667,
+                2.0633333333,
+                2.1359375,
+                2.0695121951,
+                2.5252252252,
+                1.8347826087,
+                2.0722222222,
+                2.23984375,
+                2.3326923077,
+                2.375862069,
+                2.2443548387,
+                2.3424242424,
+                2.930952381,
+                2.9452380952,
+                3.030952381,
+                2.2549019608,
+                1.9989583333,
+                1.8955555556,
+                2.3435897436,
+                1.0458333333,
+                1.425,
+                2.7,
+                1.7666666667,
+                4.5083333333,
+                2.9119047619,
+                2.5152777778,
+                2.5029166667,
+                2.3823529412,
+                2.4233333333,
+                2.05,
+                2.4016949153,
+                2.3289855072,
+                2.5008130081,
+                2.1623655914,
+                1.7378600823,
+                1.9903225806,
+                2.5728571429,
+                1.8730994152,
+                2.375,
+                2.6446969697,
+                2.4677083333,
+                3.3333333333,
+                2.575,
+                2.64,
+                3.2722222222,
+                2.9277777778,
+                2.7404761905,
+                3.012962963,
+                2.25,
+                2.9066666667
+              ],
+              "unit": null
+            },
+            "stacked": false
+          },
+          "variant": "single_series",
+          "explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "reason": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+          "rule_id": "CASCADE_LINE",
+          "confidence": 0.9,
+          "semantic_intent": "trend",
+          "analysis_mode": "trend",
+          "visual_goal": "show_change_over_time",
+          "time_role": "primary",
+          "comparison_goal": "absolute",
+          "preferred_mark": "line",
+          "alternatives": [
+            "table"
+          ],
+          "candidates": [
+            {
+              "type": "line",
+              "score": 0.9,
+              "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+            },
+            {
+              "type": "table",
+              "score": 0.88,
+              "why": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+            }
+          ],
+          "constraints_applied": [],
+          "visual_load": 50,
+          "query_interpretation": {
+            "user_goal": "Track avg_accept_to_arrival_minutes by hour",
+            "intent": "trend",
+            "analysis_mode": "trend",
+            "entities": [],
+            "metrics": [
+              {
+                "name": "avg_accept_to_arrival_minutes",
+                "aggregation": null,
+                "format": "number_compact"
+              }
+            ],
+            "dimensions": [
+              {
+                "name": "hour",
+                "role": "time"
+              }
+            ],
+            "time_dimension": "hour",
+            "series_dimension": null,
+            "requested_output": "chart",
+            "assumptions": [],
+            "ambiguities": [],
+            "confidence": 0.9,
+            "short_explanation": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики."
+          },
+          "decision_summary": {
+            "selected_chart": "line",
+            "why": "Есть временная ось и одна серия, поэтому линия лучше всего сохраняет форму динамики.",
+            "reason_codes": [
+              "INTENT_TREND",
+              "HAS_TIME_AXIS",
+              "TREND_PRIMARY_GOAL",
+              "MANY_TIME_BUCKETS",
+              "VISUAL_LOAD_HIGH"
+            ],
+            "alternatives": [
+              {
+                "type": "table",
+                "why_not": "Визуальная плотность слишком высокая для надежного графика, поэтому таблица становится полноценным fallback."
+              }
+            ],
+            "confidence": 0.9
+          },
+          "reason_codes": [
+            "INTENT_TREND",
+            "HAS_TIME_AXIS",
+            "TREND_PRIMARY_GOAL",
+            "MANY_TIME_BUCKETS",
+            "VISUAL_LOAD_HIGH"
+          ]
+        },
+        "ai_chart_spec": null
+      }
+    },
+    "scores": {
+      "understanding": 1.0,
+      "sql": 0.8667,
+      "chart": 1.0,
+      "overall": 0.9556
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Clarification expectation matched."
+      },
+      {
+        "bucket": "understanding",
+        "code": "state_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected state SQL_READY, got SQL_READY."
+      },
+      {
+        "bucket": "understanding",
+        "code": "actions_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "All required actions are present."
+      },
+      {
+        "bucket": "understanding",
+        "code": "dimension_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Resolved dimensions: ['hour']"
+      },
+      {
+        "bucket": "understanding",
+        "code": "filter_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected filter {'field': 'status_order', 'operator': '=', 'value': 'done', 'value_any_of': [], 'value_contains': []}; actual filters=[{'field': 'driverdone_timestamp', 'operator': 'IS NOT NULL', 'value': None}, {'field': 'driveraccept_timestamp', 'operator': 'IS NOT NULL', 'value': None}, {'field': 'driverarrived_timestamp', 'operator': 'IS NOT NULL', 'value': None}, {'field': 'driverstarttheride_timestamp', 'operator': 'IS NOT NULL', 'value': None}, {'field': 'status_order', 'operator': '=', 'value': 'done'}]"
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_parse_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "SQL parsed successfully."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `2026-04-14` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `group by` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `status_order` missing."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driveraccept_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driverarrived_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driverstarttheride_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_required_substring_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required SQL substring `driverdone_timestamp` found."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_table_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Required table `train` found; actual tables=['train']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_status_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 2.0,
+        "message": "Execution succeeded; error=None"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_row_count_min_ok",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "row_count=50, expected at least 1"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['hour', 'hour_bucket', 'order_hour', 'bucket']; actual columns=['avg_accept_to_arrival_minutes', 'avg_start_to_done_minutes', 'hour']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_pickup_time', 'avg_accept_to_arrival_minutes', 'avg_time_to_accept_minutes']; actual columns=['avg_accept_to_arrival_minutes', 'avg_start_to_done_minutes', 'hour']"
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_required_column_group_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Expected one of columns ['avg_ride_minutes', 'ride_minutes', 'avg_ride_time', 'avg_start_to_done_minutes', 'avg_ride_duration_minutes']; actual columns=['avg_accept_to_arrival_minutes', 'avg_start_to_done_minutes', 'hour']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_type_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart type=line, acceptable=['line']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_x_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart x=hour, acceptable=['hour', 'hour_bucket', 'order_hour', 'bucket']"
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_y_match",
+        "passed": true,
+        "score": 1.0,
+        "weight": 1.0,
+        "message": "Chart y=avg_accept_to_arrival_minutes, acceptable=['avg_pickup_minutes', 'pickup_minutes', 'avg_time_to_arrival', 'avg_ride_minutes', 'ride_minutes', 'avg_accept_to_arrival_minutes', 'avg_start_to_done_minutes', 'avg_time_to_accept_minutes', 'avg_ride_duration_minutes']"
+      }
+    ]
+  }
+]

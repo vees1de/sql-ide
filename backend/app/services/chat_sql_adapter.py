@@ -214,7 +214,7 @@ class ChatSqlAdapter:
                 assistant_message=plan.error or (
                     plan.validation_errors[0] if plan.validation_errors else "Не удалось безопасно подготовить SQL."
                 ),
-                actions=plan_actions,
+                actions=plan_actions or None,
             )
             assistant_text = payload.assistant_message or "Не удалось безопасно подготовить SQL."
             return self._persist_result(
@@ -242,7 +242,7 @@ class ChatSqlAdapter:
             mode_warnings=mode_warnings,
             llm_model_alias=normalized_model_alias,
             assistant_message=self._build_assistant_text(query_mode, complexity),
-            actions=plan_actions,
+            actions=None if plan.sql else (plan_actions or None),
         )
         assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
@@ -346,7 +346,7 @@ class ChatSqlAdapter:
                 llm_model_alias=llm_model_alias,
                 assistant_message=plan.error or "Не удалось безопасно подготовить SQL после уточнения.",
                 answered_clarification_id=clarification_id,
-                actions=plan_actions,
+                actions=plan_actions or None,
             )
             assistant_text = payload.assistant_message or "Не удалось подготовить SQL."
             return self._persist_result(
@@ -374,7 +374,7 @@ class ChatSqlAdapter:
             mode_warnings=[],
             llm_model_alias=llm_model_alias,
             assistant_message=self._build_assistant_text(query_mode, complexity),
-            actions=list(getattr(plan, "actions", []) or []),
+            actions=list(getattr(plan, "actions", []) or []) or None,
             answered_clarification_id=clarification_id,
         )
         assistant_text = payload.assistant_message or "SQL готов."
@@ -536,7 +536,7 @@ class ChatSqlAdapter:
             mode_warnings=mode_warnings,
             llm_model_alias=llm_model_alias,
             assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
-            actions=list(getattr(plan, "actions", []) or []),
+            actions=None if validation.sql else (list(getattr(plan, "actions", []) or []) or None),
         )
         assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(

@@ -262,6 +262,31 @@ function buildChartCellContentFromPayload(
   }
 
   if (payload.kind === 'multi_series') {
+    const hasSeries = (payload.series ?? []).some(
+      (series) => (series.data ?? []).length > 0 || Boolean(series.name)
+    );
+
+    if (!hasSeries) {
+      return {
+        chartType: meta.chartType === 'bar' ? 'bar' : 'line',
+        title: meta.title,
+        subtitle: meta.subtitle,
+        explanation: meta.explanation,
+        ruleId: meta.ruleId,
+        confidence: meta.confidence,
+        variant: meta.variant,
+        valueFormat: meta.valueFormat,
+        xAxis: (payload.x?.values ?? []).map((value) => String(value ?? '—')),
+        series: [
+          {
+            name: String(payload.y?.field ?? execution.chart_recommendation?.y ?? 'Value'),
+            data: (payload.y?.values ?? []).map((value) => toNumber(value))
+          }
+        ],
+        stacked: Boolean(payload.stacked || payload.stackable)
+      };
+    }
+
     return {
       chartType: meta.chartType === 'bar' ? 'bar' : 'line',
       title: meta.title,
