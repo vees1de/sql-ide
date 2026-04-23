@@ -284,6 +284,8 @@ class ExecutionExpectation(BaseModel):
 
 class StepExpectations(BaseModel):
     should_clarify: bool | None = None
+    expected_state: str | None = None
+    required_actions: list[str] = Field(default_factory=list)
     clarification: ClarificationExpectation | None = None
     interpretation: InterpretationExpectation | None = None
     sql: SQLExpectation | None = None
@@ -701,6 +703,8 @@ def evaluate_step(
             "dialect": database.get("dialect"),
         },
         "needs_clarification": _needs_clarification(initial_send_payload),
+        "state": structured.get("state"),
+        "actions": [str((action or {}).get("type") or "") for action in (structured.get("actions") or [])],
         "clarification_question": initial_structured.get("clarification_question"),
         "clarification_options": initial_structured.get("clarification_options") or [],
         "message_kind": structured.get("message_kind"),
@@ -745,6 +749,33 @@ def _evaluate_understanding(expectations: StepExpectations, actual: dict[str, An
             checks.append(CheckOutcome("understanding", "clarification_expected", False, 0.0, 2.0, "Expected a clarification question, but the system tried to answer directly."))
         else:
             checks.append(CheckOutcome("understanding", "clarification_unexpected", False, 0.0, 2.0, "Expected a direct answer, but the system asked for clarification."))
+
+    if expectations.expected_state:
+        actual_state = str(actual.get("state") or "")
+        checks.append(
+            CheckOutcome(
+                "understanding",
+                "state_match" if actual_state == expectations.expected_state else "state_mismatch",
+                actual_state == expectations.expected_state,
+                1.0 if actual_state == expectations.expected_state else 0.0,
+                1.0,
+                f"Expected state {expectations.expected_state}, got {actual_state or 'none'}.",
+            )
+        )
+
+    if expectations.required_actions:
+        actual_actions = {str(item) for item in actual.get("actions") or []}
+        missing_actions = [action for action in expectations.required_actions if action not in actual_actions]
+        checks.append(
+            CheckOutcome(
+                "understanding",
+                "actions_match" if not missing_actions else "actions_missing",
+                not missing_actions,
+                1.0 if not missing_actions else 0.0,
+                1.0,
+                "All required actions are present." if not missing_actions else f"Missing actions: {', '.join(missing_actions)}.",
+            )
+        )
 
     clarification = expectations.clarification
     if clarification is not None:
@@ -1261,7 +1292,8 @@ def _resolve_clarification_answer(send_payload: dict[str, Any], preferred_reply:
 def _needs_clarification(send_payload: dict[str, Any]) -> bool:
     structured = _structured_payload(send_payload)
     return bool(
-        structured.get("needs_clarification")
+        structured.get("state") == "CLARIFYING"
+        or structured.get("needs_clarification")
         or structured.get("message_kind") == "clarification"
         or structured.get("clarification_question")
     )

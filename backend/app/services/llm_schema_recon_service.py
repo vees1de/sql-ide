@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.agents.validation import SQLValidationAgent
 from app.core.config import settings
 from app.schemas.metadata import SchemaMetadataResponse, TableMetadata
 from app.schemas.semantic_catalog import SemanticCatalog, SemanticTable
@@ -34,6 +35,7 @@ class LLMSchemaReconToolbox:
     database_id: str
     schema_provider: SchemaContextProvider = field(default_factory=SchemaContextProvider)
     semantic_catalog_service: SemanticCatalogService = field(default_factory=SemanticCatalogService)
+    validation_agent: SQLValidationAgent = field(default_factory=SQLValidationAgent)
     _schema: SchemaMetadataResponse | None = None
     _catalog: SemanticCatalog | None = None
 
@@ -62,6 +64,20 @@ class LLMSchemaReconToolbox:
                 "function": {
                     "name": "describe_table",
                     "description": "Describe one table: business meaning, columns, direct relationships, and example values from the semantic catalog.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "table_name": {"type": "string"},
+                        },
+                        "required": ["table_name"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_columns",
+                    "description": "List columns for a table together with types, descriptions, and allowed joins.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -106,6 +122,35 @@ class LLMSchemaReconToolbox:
                     },
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "validate_sql",
+                    "description": "Validate a draft SQL query for read-only safety, allowed tables, and semantic consistency before returning it.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "sql": {"type": "string"},
+                        },
+                        "required": ["sql"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "explain_join_path",
+                    "description": "Explain how two tables can be joined using allowed relationships from the semantic catalog.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "from_table": {"type": "string"},
+                            "to_table": {"type": "string"},
+                        },
+                        "required": ["from_table", "to_table"],
+                    },
+                },
+            },
         ]
 
     def execute_tool(self, name: str, arguments: str | dict[str, Any] | None) -> dict[str, Any]:
@@ -123,8 +168,11 @@ class LLMSchemaReconToolbox:
         handlers = {
             "list_tables": self.list_tables,
             "describe_table": self.describe_table,
+            "list_columns": self.list_columns,
             "sample_rows": self.sample_rows,
             "distinct_values": self.distinct_values,
+            "validate_sql": self.validate_sql,
+            "explain_join_path": self.explain_join_path,
         }
         handler = handlers.get(name)
         if handler is None:
@@ -222,6 +270,38 @@ class LLMSchemaReconToolbox:
             ],
         }
 
+    def list_columns(self, table_name: str) -> dict[str, Any]:
+        table = self._resolve_table(table_name)
+        schema_table = self.schema_provider.describe_table(self.db, self.database_id, table.table_name)
+        if schema_table is None:
+            return {"table_name": table.table_name, "columns": [], "allowed_joins": []}
+        return {
+            "table_name": table.table_name,
+            "columns": [
+                {
+                    "name": column.name,
+                    "type": column.type,
+                    "description": column.description,
+                    "nullable": column.nullable,
+                    "is_pk": column.is_pk,
+                    "is_fk": column.is_fk,
+                    "referenced_table": column.referenced_table,
+                    "referenced_column": column.referenced_column,
+                    "example_values": [_json_safe(value) for value in column.example_values[:5]],
+                }
+                for column in schema_table.columns
+            ],
+            "allowed_joins": [
+                {
+                    "from_table": join.from_table,
+                    "to_table": join.to_table,
+                    "via": join.via,
+                    "reason": join.reason,
+                }
+                for join in schema_table.allowed_joins
+            ],
+        }
+
     def sample_rows(
         self,
         table_name: str,
@@ -265,6 +345,58 @@ class LLMSchemaReconToolbox:
             "column_name": column_name,
             "values": rows,
             "limit": actual_limit,
+        }
+
+    def validate_sql(self, sql: str) -> dict[str, Any]:
+        schema = self._load_schema()
+        validation = self.validation_agent.run(
+            sql,
+            schema.dialect,
+            allowed_tables=[table.name for table in schema.tables],
+            schema=schema,
+            semantic_catalog=self._load_catalog(),
+        )
+        return validation.model_dump(mode="json")
+
+    def explain_join_path(self, from_table: str, to_table: str) -> dict[str, Any]:
+        catalog = self._load_catalog()
+        direct_matches = self.semantic_catalog_service.find_relationships(catalog, from_table, to_table)
+        if direct_matches:
+            return {
+                "from_table": from_table,
+                "to_table": to_table,
+                "relationships": [
+                    {
+                        "from_table": relationship.from_table,
+                        "from_column": relationship.from_column,
+                        "to_table": relationship.to_table,
+                        "to_column": relationship.to_column,
+                        "business_meaning": relationship.business_meaning,
+                    }
+                    for relationship in direct_matches[:5]
+                ],
+            }
+
+        path = next(
+            (
+                item for item in catalog.join_paths
+                if {item.from_table, item.to_table} == {from_table, to_table}
+            ),
+            None,
+        )
+        if path is None:
+            return {
+                "from_table": from_table,
+                "to_table": to_table,
+                "relationships": [],
+                "message": "No approved join path found in the semantic catalog.",
+            }
+        return {
+            "from_table": from_table,
+            "to_table": to_table,
+            "joins": list(path.joins),
+            "tables": list(path.tables),
+            "business_use_case": path.business_use_case,
         }
 
     def _load_schema(self) -> SchemaMetadataResponse:

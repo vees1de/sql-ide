@@ -11,11 +11,18 @@ from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_al
 from app.db.models import ChatMessageModel, ChatSessionModel
 from app.schemas.analytics import AnalyticsContext, AnalyticsQueryRequest
 from app.schemas.chat import (
+    CreateSqlAction,
+    ClarificationAnswerRequest,
     ClarificationBlock,
     ClarificationOption,
     DebugTraceStep,
-    ErrorBlock,
     Interpretation,
+    SaveReportAction,
+    SemanticParse,
+    SemanticTermBinding,
+    ShowChartPreviewAction,
+    ShowRunButtonAction,
+    ShowSqlAction,
     StructuredPayload,
     TableUsage,
 )
@@ -30,7 +37,6 @@ from app.schemas.query import (
 )
 from app.services.chat_service import ChatService
 from app.services.clarification_policy import ClarificationPolicy
-from app.services.clarification_resolver import apply_answers
 from app.services.llm_service import LLMQueryPlan, LLMService
 from app.services.llm_schema_recon_service import LLMSchemaReconService
 from app.services.schema_truth_guard import SchemaTruthGuard
@@ -166,8 +172,9 @@ class ChatSqlAdapter:
                 query_mode=query_mode,
                 complexity=complexity,
                 llm_model_alias=normalized_model_alias,
+                dialect=plan.dialect,
             )
-            assistant_text = payload.clarification_question or "Нужны дополнительные детали."
+            assistant_text = payload.assistant_message or payload.clarification_question or "Нужны дополнительные детали."
             return self._persist_result(
                 db=db,
                 session=session,
@@ -181,21 +188,23 @@ class ChatSqlAdapter:
 
         if plan.status == "error" or plan.sql is None:
             payload = self._build_structured_payload(
+                state=plan.state,
                 intent=plan.intent,
                 semantic=plan.semantic,
                 sql=None,
                 validation_warnings=plan.validation_warnings,
                 validation_errors=plan.validation_errors,
                 validation=plan.validation,
-                dialect="postgresql",
+                dialect=plan.dialect,
                 query_mode=query_mode,
                 complexity=complexity,
                 mode_warnings=mode_warnings,
                 llm_model_alias=normalized_model_alias,
+                assistant_message=plan.error or (
+                    plan.validation_errors[0] if plan.validation_errors else "Не удалось безопасно подготовить SQL."
+                ),
             )
-            assistant_text = plan.error or (
-                plan.validation_errors[0] if plan.validation_errors else "Не удалось безопасно подготовить SQL."
-            )
+            assistant_text = payload.assistant_message or "Не удалось безопасно подготовить SQL."
             return self._persist_result(
                 db=db,
                 session=session,
@@ -208,23 +217,155 @@ class ChatSqlAdapter:
             )
 
         payload = self._build_structured_payload(
+            state=plan.state,
             intent=plan.intent,
             semantic=plan.semantic,
             sql=plan.sql,
             validation_warnings=plan.validation_warnings,
             validation_errors=plan.validation_errors,
             validation=plan.validation,
-            dialect="postgresql",
+            dialect=plan.dialect,
             query_mode=query_mode,
             complexity=complexity,
             mode_warnings=mode_warnings,
             llm_model_alias=normalized_model_alias,
+            assistant_message=self._build_assistant_text(query_mode, complexity),
         )
-        assistant_text = self._build_assistant_text(query_mode, complexity)
+        assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
             db=db,
             session=session,
             user_text=user_text,
+            intent=plan.intent,
+            payload=payload,
+            sql_draft=plan.sql,
+            assistant_text=assistant_text,
+            commit_updates=True,
+        )
+
+    def answer_clarification(
+        self,
+        db: Session,
+        session_id: str,
+        clarification_id: str,
+        answer: ClarificationAnswerRequest,
+    ) -> AdapterResult:
+        session = self.chat_service.get_session(db, session_id)
+        if session is None:
+            raise ValueError("Chat session not found.")
+
+        previous_intent = self._load_previous_intent(session.last_intent_json)
+        if previous_intent is None:
+            raise ValueError("No clarification context found for this chat session.")
+
+        last_payload = self._latest_assistant_payload(session.messages)
+        clarification_payload = last_payload.get("clarification") or {}
+        raw_options = clarification_payload.get("options") or last_payload.get("clarification_options") or []
+        selected_option = next(
+            (
+                option for option in raw_options
+                if str((option or {}).get("id") or "").strip() == str(answer.selected_option_id or "").strip()
+            ),
+            None,
+        )
+        selected_label = str((selected_option or {}).get("label") or "").strip() or None
+        ambiguity_type = str(clarification_payload.get("ambiguity_type") or "other")
+        answer_record = ClarificationAnswerRecord(
+            clarification_id=clarification_id,
+            ambiguity_type=ambiguity_type,
+            option_id=answer.selected_option_id,
+            option_label=selected_label,
+            text_answer=answer.text_answer,
+        )
+
+        query_mode = normalize_query_mode(last_payload.get("query_mode"))
+        llm_model_alias = normalize_llm_model_alias(last_payload.get("llm_model_alias"))
+        complexity = self._classify_prompt_complexity(previous_intent.raw_prompt, previous_intent)
+        plan = self.analytics_agent.prepare_query(
+            db,
+            AnalyticsQueryRequest(
+                query=previous_intent.raw_prompt,
+                context=AnalyticsContext(
+                    previous_intent=previous_intent,
+                    database=session.database_connection_id,
+                    notebook_id=None,
+                ),
+            ),
+            answers=[answer_record],
+        )
+
+        if plan.state == "CLARIFYING":
+            payload = self._build_clarification_payload(
+                intent=plan.intent,
+                clarification=plan.clarification,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
+                dialect=self._resolve_dialect_from_payload(last_payload),
+                answered_clarification_id=clarification_id,
+            )
+            assistant_text = payload.assistant_message or payload.clarification_question or "Нужно дополнительное уточнение."
+            return self._persist_result(
+                db=db,
+                session=session,
+                user_text=answer.text_answer or selected_label or answer.selected_option_id or "",
+                intent=plan.intent,
+                payload=payload,
+                sql_draft=None,
+                assistant_text=assistant_text,
+                commit_updates=True,
+            )
+
+        if plan.state == "ERROR" or plan.sql is None:
+            payload = self._build_structured_payload(
+                state=plan.state,
+                intent=plan.intent,
+                semantic=plan.semantic,
+                sql=None,
+                validation_warnings=plan.validation_warnings,
+                validation_errors=plan.validation_errors,
+                validation=plan.validation,
+                dialect=self._resolve_dialect_from_payload(last_payload),
+                query_mode=query_mode,
+                complexity=complexity,
+                mode_warnings=[],
+                llm_model_alias=llm_model_alias,
+                assistant_message=plan.error or "Не удалось безопасно подготовить SQL после уточнения.",
+                answered_clarification_id=clarification_id,
+            )
+            assistant_text = payload.assistant_message or "Не удалось подготовить SQL."
+            return self._persist_result(
+                db=db,
+                session=session,
+                user_text=answer.text_answer or selected_label or answer.selected_option_id or "",
+                intent=plan.intent,
+                payload=payload,
+                sql_draft=None,
+                assistant_text=assistant_text,
+                commit_updates=True,
+            )
+
+        payload = self._build_structured_payload(
+            state=plan.state,
+            intent=plan.intent,
+            semantic=plan.semantic,
+            sql=plan.sql,
+            validation_warnings=plan.validation_warnings,
+            validation_errors=plan.validation_errors,
+            validation=plan.validation,
+            dialect=self._resolve_dialect_from_payload(last_payload),
+            query_mode=query_mode,
+            complexity=complexity,
+            mode_warnings=[],
+            llm_model_alias=llm_model_alias,
+            assistant_message=self._build_assistant_text(query_mode, complexity),
+            answered_clarification_id=clarification_id,
+        )
+        assistant_text = payload.assistant_message or "SQL готов."
+        return self._persist_result(
+            db=db,
+            session=session,
+            user_text=answer.text_answer or selected_label or answer.selected_option_id or "",
             intent=plan.intent,
             payload=payload,
             sql_draft=plan.sql,
@@ -330,6 +471,7 @@ class ChatSqlAdapter:
         if validation is None or not validation.valid:
             return None
         payload = self._build_structured_payload(
+            state=plan.state or ("SQL_READY" if validation.sql else "ERROR"),
             intent=intent,
             semantic=semantic,
             sql=validation.sql,
@@ -341,8 +483,9 @@ class ChatSqlAdapter:
             complexity=complexity,
             mode_warnings=mode_warnings,
             llm_model_alias=llm_model_alias,
+            assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
         )
-        assistant_text = self._build_assistant_text(query_mode, complexity)
+        assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
             db=db,
             session=session,
@@ -417,12 +560,16 @@ class ChatSqlAdapter:
     ) -> AdapterResult:
         llm_options = list(intent.clarification_options or [])
         if llm_options:
+            ambiguity_type = self._infer_clarification_ambiguity(intent)
             options = [
-                ClarificationOption(
-                    id=(option.id or option.label or f"option-{index + 1}"),
-                    label=option.label or option.id or f"Вариант {index + 1}",
-                    detail=getattr(option, "detail", None),
-                    reason=getattr(option, "reason", None),
+                self._normalize_clarification_option(
+                    ClarificationOption(
+                        id=(option.id or option.label or f"option-{index + 1}"),
+                        label=option.label or option.id or f"Вариант {index + 1}",
+                        detail=getattr(option, "detail", None),
+                        reason=getattr(option, "reason", None),
+                    ),
+                    ambiguity_type=ambiguity_type,
                 )
                 for index, option in enumerate(llm_options)
             ]
@@ -440,6 +587,10 @@ class ChatSqlAdapter:
                 llm_model_alias=llm_model_alias,
             )
         payload = StructuredPayload(
+            state="CLARIFYING",
+            assistant_message=intent.clarification_question or "Нужны дополнительные детали.",
+            semantic_parse=self._build_semantic_parse(intent=intent, semantic=None),
+            actions=self._build_actions(state="CLARIFYING", sql=None),
             interpretation=self._build_interpretation(intent),
             tables_used=[],
             sql=None,
@@ -453,6 +604,12 @@ class ChatSqlAdapter:
                 )
             ],
             message_kind="clarification",
+            clarification=self._build_clarification_block(
+                clarification_id="clarification:pending",
+                question=intent.clarification_question,
+                ambiguity_type=ambiguity_type,
+                options=options,
+            ),
             needs_clarification=True,
             clarification_question=intent.clarification_question,
             clarification_options=options or None,
@@ -463,7 +620,7 @@ class ChatSqlAdapter:
             mode_suggestion=None,
             mode_suggestion_reason=None,
         )
-        assistant_text = payload.clarification_question or "Нужны дополнительные детали."
+        assistant_text = payload.assistant_message or payload.clarification_question or "Нужны дополнительные детали."
         return self._persist_result(
             db=db,
             session=session,
@@ -482,17 +639,27 @@ class ChatSqlAdapter:
         query_mode: QueryMode,
         complexity: str,
         llm_model_alias: str | None,
+        dialect: str,
+        answered_clarification_id: str | None = None,
     ) -> StructuredPayload:
         first_question = clarification.questions[0] if getattr(clarification, "questions", None) else None
+        ambiguity_type = self._infer_clarification_ambiguity(intent, first_question=getattr(first_question, "id", None))
         options = [
-            ClarificationOption(
-                id=option if isinstance(option, str) else option.label,
-                label=option if isinstance(option, str) else option.label,
-                detail=None,
+            self._normalize_clarification_option(
+                ClarificationOption(
+                    id=option if isinstance(option, str) else option.label,
+                    label=option if isinstance(option, str) else option.label,
+                    detail=None,
+                ),
+                ambiguity_type=ambiguity_type,
             )
             for option in getattr(first_question, "options", [])[:6]
         ] if first_question else []
         return StructuredPayload(
+            state="CLARIFYING",
+            assistant_message=getattr(first_question, "text", None) or intent.clarification_question or "Нужны дополнительные детали.",
+            semantic_parse=self._build_semantic_parse(intent=intent, semantic=None),
+            actions=self._build_actions(state="CLARIFYING", sql=None),
             interpretation=self._build_interpretation(intent),
             tables_used=[],
             sql=None,
@@ -506,10 +673,18 @@ class ChatSqlAdapter:
                 )
             ],
             message_kind="clarification",
+            clarification=self._build_clarification_block(
+                clarification_id=getattr(first_question, "id", None) or "clarification:pending",
+                question=getattr(first_question, "text", None) or intent.clarification_question,
+                ambiguity_type=ambiguity_type,
+                options=options,
+                answered_clarification_id=answered_clarification_id,
+            ),
             needs_clarification=True,
             clarification_question=getattr(first_question, "text", None) or intent.clarification_question,
             clarification_options=options or None,
-            dialect="postgresql",
+            answered_clarification_id=answered_clarification_id,
+            dialect=dialect,
             query_mode=query_mode,
             llm_model_alias=llm_model_alias,
             complexity=complexity,
@@ -534,16 +709,24 @@ class ChatSqlAdapter:
         clarification = self.clarification_agent.run(intent, schema=schema)
         question = self._clarification_value(clarification, "question") or intent.clarification_question
         raw_options = self._clarification_value(clarification, "options", []) or []
+        ambiguity_type = self._infer_clarification_ambiguity(intent)
         options = [
-            ClarificationOption(
-                id=self._clarification_value(option, "id") or f"option-{index + 1}",
-                label=self._clarification_value(option, "label") or str(option),
-                detail=self._clarification_value(option, "detail"),
-                reason=self._clarification_value(option, "reason"),
+            self._normalize_clarification_option(
+                ClarificationOption(
+                    id=self._clarification_value(option, "id") or f"option-{index + 1}",
+                    label=self._clarification_value(option, "label") or str(option),
+                    detail=self._clarification_value(option, "detail"),
+                    reason=self._clarification_value(option, "reason"),
+                ),
+                ambiguity_type=ambiguity_type,
             )
             for index, option in enumerate(raw_options)
         ]
         payload = StructuredPayload(
+            state="CLARIFYING",
+            assistant_message=question or "Нужны дополнительные детали.",
+            semantic_parse=self._build_semantic_parse(intent=intent, semantic=None),
+            actions=self._build_actions(state="CLARIFYING", sql=None),
             interpretation=self._build_interpretation(intent),
             tables_used=[],
             sql=None,
@@ -557,6 +740,12 @@ class ChatSqlAdapter:
                 )
             ],
             message_kind="clarification",
+            clarification=self._build_clarification_block(
+                clarification_id="clarification:pending",
+                question=question,
+                ambiguity_type=ambiguity_type,
+                options=options,
+            ),
             needs_clarification=True,
             clarification_question=question,
             clarification_options=options or None,
@@ -567,7 +756,7 @@ class ChatSqlAdapter:
             mode_suggestion=None,
             mode_suggestion_reason=None,
         )
-        assistant_text = payload.clarification_question or "Нужны дополнительные детали."
+        assistant_text = payload.assistant_message or payload.clarification_question or "Нужны дополнительные детали."
         return self._persist_result(
             db=db,
             session=session,
@@ -623,6 +812,9 @@ class ChatSqlAdapter:
         session.last_intent_json = intent.model_dump(mode="json")
         if sql_draft is not None:
             session.current_sql_draft = sql_draft
+            session.sql_draft_version = (session.sql_draft_version or 0) + 1
+        elif payload.state in {"CLARIFYING", "ERROR"} and session.current_sql_draft is not None:
+            session.current_sql_draft = None
             session.sql_draft_version = (session.sql_draft_version or 0) + 1
         db.flush()
         if commit_updates:
@@ -701,6 +893,7 @@ class ChatSqlAdapter:
 
     def _build_structured_payload(
         self,
+        state: str,
         intent: IntentPayload,
         semantic: SemanticMappingPayload | None,
         sql: str | None,
@@ -712,6 +905,8 @@ class ChatSqlAdapter:
         complexity: str,
         mode_warnings: list[str] | None = None,
         llm_model_alias: str | None = None,
+        assistant_message: str | None = None,
+        answered_clarification_id: str | None = None,
     ) -> StructuredPayload:
         semantic_warnings = list(getattr(semantic, "warnings", []) or [])
         tables_used = self._derive_table_usage(semantic) if semantic is not None else []
@@ -745,6 +940,10 @@ class ChatSqlAdapter:
                 )
             )
         return StructuredPayload(
+            state="SQL_READY" if state == "success" else state,  # backward-compat safety
+            assistant_message=assistant_message or self._build_default_assistant_message(state=state, sql=sql),
+            semantic_parse=self._build_semantic_parse(intent=intent, semantic=semantic),
+            actions=self._build_actions(state=state, sql=sql),
             interpretation=self._build_interpretation(intent),
             tables_used=tables_used,
             sql=sql,
@@ -762,6 +961,7 @@ class ChatSqlAdapter:
             needs_clarification=False,
             clarification_question=None,
             clarification_options=None,
+            answered_clarification_id=answered_clarification_id,
             dialect=dialect,
             query_mode=query_mode,
             llm_model_alias=llm_model_alias,
@@ -837,6 +1037,162 @@ class ChatSqlAdapter:
             ambiguities=list(intent.ambiguities or []),
             confidence=float(intent.confidence or 0.0),
         )
+
+    def _build_semantic_parse(
+        self,
+        *,
+        intent: IntentPayload,
+        semantic: SemanticMappingPayload | None,
+    ) -> SemanticParse:
+        resolved_terms: list[SemanticTermBinding] = []
+        unresolved_terms: list[SemanticTermBinding] = []
+
+        if intent.metric:
+            resolved_terms.append(
+                SemanticTermBinding(
+                    term=intent.metric,
+                    kind="metric",
+                    match=getattr(semantic, "metric_expression", None) or intent.metric,
+                    source="semantic_catalog" if semantic else "unknown",
+                    confidence=float(intent.confidence or 0.0),
+                )
+            )
+        for dimension in intent.dimensions:
+            resolved_terms.append(
+                SemanticTermBinding(
+                    term=dimension,
+                    kind="dimension",
+                    match=dimension,
+                    source="semantic_catalog" if semantic else "unknown",
+                    confidence=float(intent.confidence or 0.0),
+                )
+            )
+        for ambiguity in intent.ambiguities:
+            unresolved_terms.append(
+                SemanticTermBinding(
+                    term=ambiguity,
+                    kind="term",
+                    source="unknown",
+                    confidence=float(intent.confidence or 0.0),
+                    note="Requires user clarification before SQL drafting.",
+                )
+            )
+
+        notes: list[str] = []
+        if semantic is not None and getattr(semantic, "base_table", None):
+            notes.append(f"Base table: {semantic.base_table}")
+        if semantic is not None and getattr(semantic, "warnings", None):
+            notes.extend(list(semantic.warnings[:3]))
+
+        return SemanticParse(
+            intent_summary=self._semantic_intent_summary(intent),
+            metric=intent.metric,
+            dimensions=list(intent.dimensions or []),
+            date_range=intent.date_range,
+            filters=list(intent.filters or []),
+            comparison=intent.comparison,
+            resolved_terms=resolved_terms,
+            unresolved_terms=unresolved_terms,
+            candidate_tables=list(dict.fromkeys(getattr(semantic, "tables", []) or [])),
+            notes=notes,
+            confidence=float(intent.confidence or 0.0),
+        )
+
+    def _semantic_intent_summary(self, intent: IntentPayload) -> str | None:
+        parts: list[str] = []
+        if intent.metric:
+            parts.append(f"metric={intent.metric}")
+        if intent.dimensions:
+            parts.append(f"dimensions={', '.join(intent.dimensions)}")
+        if intent.date_range:
+            parts.append(f"time={intent.date_range.kind}")
+        if intent.comparison:
+            parts.append(f"comparison={intent.comparison}")
+        return "; ".join(parts) or None
+
+    def _build_actions(self, *, state: str, sql: str | None) -> list[Any]:
+        normalized_state = "SQL_READY" if state == "success" else state
+        if normalized_state == "CLARIFYING":
+            return [
+                CreateSqlAction(
+                    primary=False,
+                    disabled=True,
+                    payload={"reason": "SQL drafting is blocked until the clarification is answered."},
+                ),
+            ]
+        if normalized_state == "SQL_READY" and sql:
+            return [
+                ShowRunButtonAction(),
+                ShowSqlAction(),
+                ShowChartPreviewAction(),
+                SaveReportAction(
+                    primary=False,
+                    disabled=True,
+                    payload={"title_suggestion": "SQL draft report"},
+                ),
+            ]
+        return [
+            CreateSqlAction(
+                primary=False,
+                disabled=not bool(sql),
+                payload={"reason": "Agent is still preparing a valid SQL draft."},
+            )
+        ]
+
+    def _build_default_assistant_message(self, *, state: str, sql: str | None) -> str:
+        normalized_state = "SQL_READY" if state == "success" else state
+        if normalized_state == "CLARIFYING":
+            return "Нужны дополнительные детали, прежде чем готовить SQL."
+        if normalized_state == "SQL_READY" and sql:
+            return "SQL готов. Он не будет выполнен автоматически."
+        return "Не удалось подготовить безопасный SQL."
+
+    def _build_clarification_block(
+        self,
+        *,
+        clarification_id: str | None,
+        question: str | None,
+        ambiguity_type: str,
+        options: list[ClarificationOption],
+        answered_clarification_id: str | None = None,
+    ) -> ClarificationBlock:
+        return ClarificationBlock(
+            clarification_id=clarification_id or "clarification:pending",
+            question=question or "Нужны дополнительные детали.",
+            ambiguity_type=ambiguity_type if ambiguity_type in {"metric", "dimension", "time_range", "aggregation", "other"} else "other",
+            answer_type="single_select",
+            options=options,
+            status="answered" if answered_clarification_id else "pending",
+        )
+
+    def _normalize_clarification_option(
+        self,
+        option: ClarificationOption,
+        *,
+        ambiguity_type: str,
+    ) -> ClarificationOption:
+        raw_id = str(option.id or "").strip()
+        if ":" not in raw_id and ambiguity_type in {"metric", "dimension", "time_range"}:
+            slug = re.sub(r"[^a-z0-9_]+", "_", raw_id.lower() or option.label.lower()).strip("_")
+            option = option.model_copy(update={"id": f"{ambiguity_type}:{slug or 'option'}"})
+        return option
+
+    def _infer_clarification_ambiguity(
+        self,
+        intent: IntentPayload,
+        *,
+        first_question: str | None = None,
+    ) -> str:
+        if first_question in {"metric", "dimension", "time_range", "aggregation"}:
+            return first_question
+        ambiguities = {item.lower() for item in (intent.ambiguities or [])}
+        if "metric" in ambiguities or intent.metric is None:
+            return "metric"
+        if "dimension" in ambiguities or not intent.dimensions:
+            return "dimension"
+        if "time_range" in ambiguities or intent.date_range is None:
+            return "time_range"
+        return "other"
 
     def _confidence_level(
         self,
@@ -920,6 +1276,18 @@ class ChatSqlAdapter:
             role = "user" if message.role == "user" else "assistant"
             lines.append(f"[{role}] {message.text.strip()}")
         return "\n".join(lines)
+
+    def _latest_assistant_payload(self, messages: list[ChatMessageModel]) -> dict[str, Any]:
+        for message in reversed(messages):
+            if message.role != "assistant":
+                continue
+            payload = getattr(message, "structured_payload", None)
+            if isinstance(payload, dict):
+                return payload
+        return {}
+
+    def _resolve_dialect_from_payload(self, payload: dict[str, Any]) -> str:
+        return str(payload.get("dialect") or "postgresql")
 
     def _load_dictionary_entries(self, db: Session) -> list[DictionaryEntryRead]:
         return [

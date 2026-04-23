@@ -68,12 +68,14 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useWidgetsStore } from '@/stores/widgets';
-import type { ApiChatExecutionRead, ApiVisualizationType } from '@/api/types';
+import type { ApiChatChartSpec, ApiChatExecutionRead, ApiVisualizationType } from '@/api/types';
+import { buildVisualizationConfigFromSpec } from '@/utils/chartPreview';
 
 const props = defineProps<{
   execution: ApiChatExecutionRead;
   sqlText: string;
   databaseConnectionId?: string | null;
+  chartSpec?: ApiChatChartSpec | null;
 }>();
 
 const emit = defineEmits<{
@@ -87,10 +89,20 @@ const router = useRouter();
 const title = ref('');
 const description = ref('');
 const vizType = ref<ApiVisualizationType>(
-  props.execution.chart_recommendation?.recommended_view === 'chart'
-    ? (props.execution.chart_recommendation?.chart_type as ApiVisualizationType) ?? 'bar'
-    : 'table'
+  props.chartSpec?.chart_type === 'metric_card'
+    ? 'metric'
+    : props.chartSpec?.chart_type === 'table'
+      ? 'table'
+      : (props.chartSpec?.chart_type as ApiVisualizationType) ??
+        (props.execution.chart_recommendation?.recommended_view === 'chart'
+          ? (props.execution.chart_recommendation?.chart_type as ApiVisualizationType) ?? 'bar'
+          : 'table')
 );
+const resolvedChartSpec = props.chartSpec ?? props.execution.chart_recommendation?.chart_spec ?? null;
+const rec = props.execution.chart_recommendation;
+const fallbackVizConfig = rec
+  ? { x: rec.x, y: rec.y, series: rec.series, chart_type: rec.chart_type }
+  : null;
 const saving = ref(false);
 const errorMsg = ref<string | null>(null);
 
@@ -108,10 +120,7 @@ async function submit() {
   saving.value = true;
   errorMsg.value = null;
   try {
-    const rec = props.execution.chart_recommendation;
-    const vizConfig = rec
-      ? { x: rec.x, y: rec.y, series: rec.series, chart_type: rec.chart_type }
-      : null;
+    const vizConfig = buildVisualizationConfigFromSpec(resolvedChartSpec) ?? fallbackVizConfig ?? null;
 
     const widget = await widgetsStore.createWidget({
       title: title.value.trim(),

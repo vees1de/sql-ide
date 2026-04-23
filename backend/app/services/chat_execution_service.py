@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_alias
 from app.agents.validation import SQLValidationAgent
 from app.core.config import settings
-from app.db.models import ChatMessageModel, ChatSessionModel, QueryExecutionModel
+from app.db.models import ChatMessageModel, ChatSessionModel, DatabaseConnectionModel, QueryExecutionModel
 from app.schemas.chat import ChartRecommendation
 from app.schemas.query import IntentPayload
-from app.services.chart_data_adapter import ChartDataAdapter
+from app.services.ai_chart_suggestion_service import AIChartSuggestionService
 from app.services.chart_decision_service import ChartDecisionService
-from app.services.database_resolution import resolve_dialect, resolve_engine
+from app.services.chart_spec_service import ChartSpecService
+from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
 from app.services.llm_schema_recon_service import LLMSchemaReconService
 from app.services.llm_service import LLMService
 from app.services.schema_context_provider import SchemaContextProvider
@@ -31,7 +32,8 @@ class ChatExecutionService:
     def __init__(self) -> None:
         self.validation_agent = SQLValidationAgent()
         self.chart_service = ChartDecisionService()
-        self.chart_data_adapter = ChartDataAdapter()
+        self.chart_spec_service = ChartSpecService()
+        self.ai_chart_suggestion_service = AIChartSuggestionService()
         self.schema_provider = SchemaContextProvider()
         self.llm_service = LLMService()
         self.schema_recon_service = LLMSchemaReconService()
@@ -39,8 +41,11 @@ class ChatExecutionService:
 
     def execute(self, db: Session, session_id: str, sql: str) -> QueryExecutionModel:
         session = self._get_session(db, session_id)
+        database_connection = self._get_database_connection(db, session.database_connection_id)
         dialect = resolve_dialect(db, session.database_connection_id)
         engine = resolve_engine(db, session.database_connection_id)
+        allowed_tables = resolve_allowed_tables(db, session.database_connection_id, engine)
+        self._check_execution_permissions(database_connection)
         try:
             schema = self.schema_provider.get_schema_for_llm(db, session.database_connection_id)
         except Exception:  # noqa: BLE001
@@ -57,6 +62,7 @@ class ChatExecutionService:
             validation = self.validation_agent.run(
                 attempted_sql,
                 dialect,
+                allowed_tables=allowed_tables,
                 schema=schema,
                 semantic_catalog=semantic_catalog,
             )
@@ -79,6 +85,7 @@ class ChatExecutionService:
 
             started_at = time.perf_counter()
             try:
+                self._dry_run_query(engine, validation.sql, dialect)
                 dataframe = self._read_dataframe(engine, validation.sql, dialect)
                 execution_time_ms = int((time.perf_counter() - started_at) * 1000)
                 columns = self._serialize_columns(dataframe)
@@ -104,7 +111,12 @@ class ChatExecutionService:
 
                 execution_result = self._build_execution_result(validation.sql, rows_preview, columns, row_count, execution_time_ms)
                 decision = self.chart_service.decide(None, execution_result)
-                chart_payload = self.chart_data_adapter.build(execution_result, decision)
+                chart_spec = self.chart_spec_service.from_decision(
+                    execution_result,
+                    decision,
+                    title="Автоматическая визуализация",
+                )
+                chart_payload = chart_spec.data
                 chart_recommendation = ChartRecommendation(
                     recommended_view="chart" if decision.chart_type != "table" else "table",
                     chart_type=decision.chart_type if decision.chart_type != "table" else None,
@@ -136,6 +148,8 @@ class ChatExecutionService:
                     query_interpretation=decision.query_interpretation,
                     decision_summary=decision.decision_summary,
                     reason_codes=list(decision.reason_codes),
+                    chart_spec=chart_spec,
+                    ai_chart_spec=None,
                 )
 
                 execution = QueryExecutionModel(
@@ -190,6 +204,50 @@ class ChatExecutionService:
                 db.refresh(execution)
                 return execution
 
+    def execute_prepared(self, db: Session, session_id: str, sql: str | None = None) -> QueryExecutionModel:
+        session = self._get_session(db, session_id)
+        latest_payload = self._latest_assistant_payload(session.messages)
+        prepared_sql = str(sql or session.current_sql_draft or "").strip()
+        if not prepared_sql:
+            raise ValueError("No prepared SQL found for this session.")
+
+        state = str(latest_payload.get("state") or "")
+        actions = latest_payload.get("actions") or []
+        has_run_action = any(str((action or {}).get("type") or "") == "show_run_button" for action in actions)
+        if state != "SQL_READY" and not has_run_action:
+            raise ValueError("Prepared SQL is not ready to run yet.")
+
+        return self.execute(db, session_id, prepared_sql)
+
+    def suggest_chart(self, db: Session, session_id: str, execution_id: str, goal: str = "best_chart") -> QueryExecutionModel:
+        execution = self._get_execution(db, session_id, execution_id)
+        if execution.error_message:
+            raise ValueError("Chart suggestion is unavailable for failed executions.")
+        if not execution.rows_preview_json or not execution.columns_json:
+            raise ValueError("Chart suggestion requires a successful query result.")
+
+        execution_result = self._build_execution_result(
+            execution.sql_text,
+            execution.rows_preview_json,
+            execution.columns_json,
+            execution.row_count,
+            execution.execution_time_ms,
+        )
+        chart_spec = self.ai_chart_suggestion_service.suggest(
+            goal=goal,
+            sql=execution.sql_text,
+            columns=execution.columns_json,
+            execution=execution_result,
+        )
+
+        chart_recommendation_json = dict(execution.chart_recommendation_json or {})
+        chart_recommendation_json["ai_chart_spec"] = chart_spec.model_dump(mode="json")
+        execution.chart_recommendation_json = chart_recommendation_json
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+        return execution
+
     def _get_session(self, db: Session, session_id: str) -> ChatSessionModel:
         session = (
             db.query(ChatSessionModel)
@@ -203,6 +261,26 @@ class ChatExecutionService:
         if session is None:
             raise ValueError("Chat session not found.")
         return session
+
+    def _get_database_connection(self, db: Session, database_connection_id: str) -> DatabaseConnectionModel | None:
+        return (
+            db.query(DatabaseConnectionModel)
+            .filter(DatabaseConnectionModel.id == database_connection_id)
+            .first()
+        )
+
+    def _get_execution(self, db: Session, session_id: str, execution_id: str) -> QueryExecutionModel:
+        execution = (
+            db.query(QueryExecutionModel)
+            .filter(
+                QueryExecutionModel.id == execution_id,
+                QueryExecutionModel.session_id == session_id,
+            )
+            .first()
+        )
+        if execution is None:
+            raise ValueError("Query execution not found.")
+        return execution
 
     def _build_repair_context(self, db: Session, session: ChatSessionModel, schema: Any | None) -> dict[str, Any]:
         assistant_payload = self._latest_assistant_payload(session.messages)
@@ -317,6 +395,18 @@ class ChatExecutionService:
                 connection.exec_driver_sql("SET readonly = 1")
             except Exception:  # noqa: BLE001
                 pass
+
+    def _check_execution_permissions(self, database_connection: DatabaseConnectionModel | None) -> None:
+        if database_connection is None:
+            return
+        read_only_value = str(database_connection.read_only or "").strip().lower()
+        if read_only_value in {"false", "0", "no"}:
+            raise ValueError("Chat execution is allowed only for read-only database connections.")
+
+    def _dry_run_query(self, engine: Any, sql: str, dialect: str) -> None:
+        with engine.begin() as connection:
+            self._apply_read_only_guards(connection, dialect)
+            connection.execute(text(f"SELECT * FROM ({sql}) AS __codex_dry_run LIMIT 0"))
 
     def _serialize_columns(self, dataframe: pd.DataFrame) -> list[dict[str, str]]:
         columns: list[dict[str, str]] = []

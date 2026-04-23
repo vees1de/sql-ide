@@ -9,6 +9,8 @@
           :message="message"
           @apply-sql="$emit('apply-sql', $event)"
           @clarification="$emit('clarification', $event)"
+          @run-prepared="$emit('run-prepared')"
+          @show-chart-preview="$emit('show-chart-preview')"
           @switch-mode="$emit('set-query-mode', $event)"
         />
       </template>
@@ -67,7 +69,9 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'send', text: string, mode: ApiQueryMode): void;
   (event: 'apply-sql', sql: string): void;
-  (event: 'clarification', answer: string): void;
+  (event: 'clarification', payload: { clarificationId: string; optionId?: string | null; text?: string | null }): void;
+  (event: 'run-prepared'): void;
+  (event: 'show-chart-preview'): void;
   (event: 'set-query-mode', mode: ApiQueryMode): void;
   (event: 'set-llm-model-alias', alias: string): void;
 }>();

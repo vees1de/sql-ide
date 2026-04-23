@@ -32,6 +32,7 @@ const props = defineProps<{
   modelValue: string;
   busy: boolean;
   status: 'idle' | 'executing' | 'error' | 'generating';
+  state?: 'CLARIFYING' | 'SQL_DRAFTING' | 'SQL_READY' | 'ERROR';
 }>();
 
 const emit = defineEmits<{
@@ -40,6 +41,12 @@ const emit = defineEmits<{
 }>();
 
 const statusLabel = computed(() => {
+  if (props.state === 'SQL_READY') {
+    return 'SQL ready';
+  }
+  if (props.state === 'CLARIFYING') {
+    return 'Ждём уточнение';
+  }
   switch (props.status) {
     case 'executing':
       return 'Выполняю';
@@ -53,6 +60,12 @@ const statusLabel = computed(() => {
 });
 
 const statusClass = computed(() => {
+  if (props.state === 'SQL_READY') {
+    return 'chat-sql-editor__status--success';
+  }
+  if (props.state === 'CLARIFYING') {
+    return 'chat-sql-editor__status--warning';
+  }
   switch (props.status) {
     case 'executing':
       return 'chat-sql-editor__status--info';
@@ -65,7 +78,7 @@ const statusClass = computed(() => {
   }
 });
 
-const canRun = computed(() => props.modelValue.trim().length > 0 && !props.busy);
+const canRun = computed(() => props.modelValue.trim().length > 0 && !props.busy && props.state !== 'CLARIFYING');
 
 function onInput(event: Event) {
   const target = event.target as HTMLTextAreaElement;
@@ -122,6 +135,18 @@ async function copy() {
   border-color: rgba(255, 107, 107, 0.6);
   background: rgba(255, 107, 107, 0.15);
   color: #ffb3b3;
+}
+
+.chat-sql-editor__status--success {
+  border-color: rgba(67, 176, 42, 0.6);
+  background: rgba(67, 176, 42, 0.15);
+  color: #c4f0b8;
+}
+
+.chat-sql-editor__status--warning {
+  border-color: rgba(255, 184, 77, 0.6);
+  background: rgba(255, 184, 77, 0.12);
+  color: #ffd79a;
 }
 
 .chat-sql-editor__actions {

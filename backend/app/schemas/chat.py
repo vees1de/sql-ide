@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.query import ChartCandidate, DateRange, DecisionSummary, FilterCondition, QueryInterpretation, QueryMode
+from app.schemas.query import ChartCandidate, ChartSpec, DateRange, DecisionSummary, FilterCondition, QueryInterpretation, QueryMode
 
 
 class Interpretation(BaseModel):
@@ -35,6 +35,10 @@ ClarificationAnswerType = Literal["single_select", "multi_select", "free_text"]
 ClarificationStatus = Literal["pending", "answered"]
 MessageKind = Literal["answer", "clarification", "error"]
 DebugTraceStatus = Literal["success", "warning", "error", "info"]
+AgentState = Literal["CLARIFYING", "SQL_DRAFTING", "SQL_READY", "ERROR"]
+ActionType = Literal["create_sql", "show_run_button", "show_chart_preview", "show_sql", "save_report"]
+SemanticTermKind = Literal["metric", "dimension", "filter", "table", "column", "relationship", "term"]
+SemanticTermSource = Literal["semantic_catalog", "schema", "dictionary", "user_input", "unknown"]
 
 
 class ClarificationBlock(BaseModel):
@@ -66,7 +70,101 @@ class ClarificationAnswerRequest(BaseModel):
     text_answer: str | None = None
 
 
+class SemanticTermBinding(BaseModel):
+    term: str
+    kind: SemanticTermKind = "term"
+    match: str | None = None
+    source: SemanticTermSource = "unknown"
+    confidence: float | None = None
+    note: str | None = None
+
+
+class SemanticParse(BaseModel):
+    intent_summary: str | None = None
+    metric: str | None = None
+    dimensions: list[str] = Field(default_factory=list)
+    date_range: DateRange | None = None
+    filters: list[FilterCondition] = Field(default_factory=list)
+    comparison: str | None = None
+    resolved_terms: list[SemanticTermBinding] = Field(default_factory=list)
+    unresolved_terms: list[SemanticTermBinding] = Field(default_factory=list)
+    candidate_tables: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+
+
+class CreateSqlActionPayload(BaseModel):
+    reason: str | None = None
+
+
+class ShowRunButtonActionPayload(BaseModel):
+    sql_ready: bool = True
+    require_user_confirmation: bool = True
+
+
+class ShowChartPreviewActionPayload(BaseModel):
+    reason: str | None = None
+
+
+class ShowSqlActionPayload(BaseModel):
+    expanded: bool = True
+
+
+class SaveReportActionPayload(BaseModel):
+    title_suggestion: str | None = None
+
+
+class CreateSqlAction(BaseModel):
+    type: Literal["create_sql"]
+    label: str = "Подготовить SQL"
+    primary: bool = False
+    disabled: bool = False
+    payload: CreateSqlActionPayload = Field(default_factory=CreateSqlActionPayload)
+
+
+class ShowRunButtonAction(BaseModel):
+    type: Literal["show_run_button"]
+    label: str = "Запустить SQL"
+    primary: bool = True
+    disabled: bool = False
+    payload: ShowRunButtonActionPayload = Field(default_factory=ShowRunButtonActionPayload)
+
+
+class ShowChartPreviewAction(BaseModel):
+    type: Literal["show_chart_preview"]
+    label: str = "Показать график"
+    primary: bool = False
+    disabled: bool = False
+    payload: ShowChartPreviewActionPayload = Field(default_factory=ShowChartPreviewActionPayload)
+
+
+class ShowSqlAction(BaseModel):
+    type: Literal["show_sql"]
+    label: str = "Показать SQL"
+    primary: bool = False
+    disabled: bool = False
+    payload: ShowSqlActionPayload = Field(default_factory=ShowSqlActionPayload)
+
+
+class SaveReportAction(BaseModel):
+    type: Literal["save_report"]
+    label: str = "Сохранить отчёт"
+    primary: bool = False
+    disabled: bool = False
+    payload: SaveReportActionPayload = Field(default_factory=SaveReportActionPayload)
+
+
+AgentAction = Annotated[
+    CreateSqlAction | ShowRunButtonAction | ShowChartPreviewAction | ShowSqlAction | SaveReportAction,
+    Field(discriminator="type"),
+]
+
+
 class StructuredPayload(BaseModel):
+    state: AgentState = "SQL_DRAFTING"
+    assistant_message: str | None = None
+    semantic_parse: SemanticParse | None = None
+    actions: list[AgentAction] = Field(default_factory=list)
     interpretation: Interpretation
     tables_used: list[TableUsage] = Field(default_factory=list)
     sql: str | None = None
@@ -114,6 +212,24 @@ class ExecuteRequest(BaseModel):
     sql: str = Field(min_length=1)
 
 
+class RunPreparedSqlRequest(BaseModel):
+    sql: str | None = None
+
+
+ChartSuggestionGoal = Literal["best_chart", "explain_visualization", "dashboard_ready"]
+
+
+class ChartSuggestionRequest(BaseModel):
+    goal: ChartSuggestionGoal = "best_chart"
+
+
+class ExecutionDatasetRead(BaseModel):
+    dataset_id: str
+    query_execution_id: str
+    row_count: int = 0
+    columns: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class ChartRecommendation(BaseModel):
     recommended_view: Literal["table", "chart"]
     chart_type: str | None = None
@@ -145,6 +261,8 @@ class ChartRecommendation(BaseModel):
     query_interpretation: QueryInterpretation | None = None
     decision_summary: DecisionSummary | None = None
     reason_codes: list[str] = Field(default_factory=list)
+    chart_spec: ChartSpec | None = None
+    ai_chart_spec: ChartSpec | None = None
 
 
 class ChatMessageRead(BaseModel):
@@ -189,6 +307,7 @@ class QueryExecutionRead(BaseModel):
     rows_preview_truncated: bool = False
     row_count: int = 0
     execution_time_ms: int = 0
+    dataset: ExecutionDatasetRead | None = None
     chart_recommendation: ChartRecommendation | None = None
     error_message: str | None = None
     created_at: datetime
