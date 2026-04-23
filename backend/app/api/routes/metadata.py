@@ -35,7 +35,7 @@ def get_schema() -> SchemaMetadataResponse:
 
 @router.get("/metadata/semantic-catalog", response_model=SemanticCatalog)
 def get_semantic_catalog(
-    database_id: str = settings.demo_database_id,
+    database_id: str = settings.analytics_database_id,
     refresh: bool = False,
     db: Session = Depends(get_db),
 ) -> SemanticCatalog:
@@ -52,6 +52,9 @@ def activate_semantic_catalog(
         payload.database_id,
         refresh=payload.refresh,
         database_description=payload.database_description,
+        table_descriptions=payload.table_descriptions,
+        relationship_descriptions=payload.relationship_descriptions,
+        column_descriptions=payload.column_descriptions,
     )
 
 

@@ -161,6 +161,28 @@ class SemanticCatalogActivationRequest(BaseModel):
     database_id: str
     refresh: bool = False
     database_description: str | None = None
+    table_descriptions: list["SemanticTableDescription"] = Field(default_factory=list)
+    relationship_descriptions: list["SemanticRelationshipDescription"] = Field(default_factory=list)
+    column_descriptions: list["SemanticColumnDescription"] = Field(default_factory=list)
+
+
+class SemanticTableDescription(BaseModel):
+    table_name: str
+    business_description: str
+
+
+class SemanticRelationshipDescription(BaseModel):
+    from_table: str
+    from_column: str
+    to_table: str
+    to_column: str
+    business_meaning: str
+
+
+class SemanticColumnDescription(BaseModel):
+    table_name: str
+    column_name: str
+    business_description: str
 
 
 class SemanticTablePatch(BaseModel):

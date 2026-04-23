@@ -17,7 +17,7 @@ from app.evals.chat_text_to_sql_eval import (
 
 
 def _database() -> dict[str, str]:
-    return {"id": "demo_analytics", "name": "Demo Analytics DB", "dialect": "sqlite"}
+    return {"id": "analytics", "name": "Analytics DB", "dialect": "sqlite"}
 
 
 def test_evaluate_step_scores_perfect_sql_and_chart() -> None:

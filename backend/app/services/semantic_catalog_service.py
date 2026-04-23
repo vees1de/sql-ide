@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import Counter, defaultdict, deque
 from statistics import mean
@@ -15,9 +16,12 @@ from app.schemas.metadata import ColumnMetadata, RelationshipGraphEdge, Relation
 from app.schemas.semantic_catalog import (
     AnalyticsRole,
     ColumnProfile,
+    SemanticColumnDescription,
     SemanticCatalog,
+    SemanticCatalogActivationRequest,
     SemanticColumn,
     SemanticColumnPatch,
+    SemanticRelationshipDescription,
     SemanticJoinPath,
     SemanticRelationship,
     SemanticRetrievalContext,
@@ -26,6 +30,7 @@ from app.schemas.semantic_catalog import (
     SemanticTablePatch,
     SemanticType,
     TableRole,
+    SemanticTableDescription,
 )
 from app.db.models import (
     SemanticCatalogColumnModel,
@@ -92,13 +97,43 @@ class SemanticCatalogService:
         *,
         refresh: bool = False,
         database_description: str | None = None,
+        table_descriptions: list[SemanticTableDescription] | None = None,
+        relationship_descriptions: list[SemanticRelationshipDescription] | None = None,
+        column_descriptions: list[SemanticColumnDescription] | None = None,
     ) -> SemanticCatalog:
-        return self.get_catalog(
+        has_manual_input = any(
+            [
+                (database_description or "").strip(),
+                bool(table_descriptions),
+                bool(relationship_descriptions),
+                bool(column_descriptions),
+            ]
+        )
+        cached = self._load_active_catalog(db, database_id)
+        if cached is not None and not refresh and not has_manual_input:
+            return cached
+        catalog = self.build_catalog(
             db,
             database_id,
-            refresh=refresh,
             database_description=database_description,
         )
+        effective_overrides = self._merge_descriptions(
+            cached if cached is not None else catalog,
+            table_descriptions=[],
+            relationship_descriptions=[],
+            column_descriptions=[],
+        )
+        overrides = self._merge_descriptions(
+            catalog,
+            table_descriptions=table_descriptions or [],
+            relationship_descriptions=relationship_descriptions or [],
+            column_descriptions=column_descriptions or [],
+        )
+        for section in ("tables", "relationships", "columns"):
+            effective_overrides[section].update(overrides[section])
+        if any(effective_overrides.values()):
+            catalog = self._apply_manual_descriptions(catalog, effective_overrides)
+        return self.save_catalog(db, catalog, database_description=database_description)
 
     def save_catalog(
         self,
@@ -676,6 +711,112 @@ class SemanticCatalogService:
             relationship_graph=[RelationshipGraphEdge.model_validate(edge) for edge in list(catalog_model.relationship_graph or [])],
         )
 
+    def _merge_descriptions(
+        self,
+        catalog: SemanticCatalog,
+        *,
+        table_descriptions: list[SemanticTableDescription],
+        relationship_descriptions: list[SemanticRelationshipDescription],
+        column_descriptions: list[SemanticColumnDescription],
+    ) -> dict[str, dict[str, str]]:
+        merged: dict[str, dict[str, str]] = {
+            "tables": {},
+            "relationships": {},
+            "columns": {},
+        }
+        for table in catalog.tables:
+            merged["tables"][table.table_name] = table.business_description
+            for column in table.columns:
+                merged["columns"][f"{table.table_name}.{column.column_name}"] = column.business_description
+        for relationship in catalog.relationships:
+            key = self._relationship_key(
+                relationship.from_table,
+                relationship.from_column,
+                relationship.to_table,
+                relationship.to_column,
+            )
+            merged["relationships"][key] = relationship.business_meaning
+
+        for item in table_descriptions:
+            merged["tables"][item.table_name.strip()] = item.business_description.strip()
+        for item in relationship_descriptions:
+            merged["relationships"][
+                self._relationship_key(
+                    item.from_table,
+                    item.from_column,
+                    item.to_table,
+                    item.to_column,
+                )
+            ] = item.business_meaning.strip()
+        for item in column_descriptions:
+            merged["columns"][f"{item.table_name.strip()}.{item.column_name.strip()}"] = item.business_description.strip()
+        return merged
+
+    def _apply_manual_descriptions(
+        self,
+        catalog: SemanticCatalog,
+        overrides: dict[str, dict[str, str]],
+    ) -> SemanticCatalog:
+        updated_tables: list[SemanticTable] = []
+        for table in catalog.tables:
+            updated_columns = []
+            for column in table.columns:
+                key = f"{table.table_name}.{column.column_name}"
+                updated_columns.append(
+                    column.model_copy(
+                        update={
+                            "business_description": overrides["columns"].get(key, column.business_description),
+                        }
+                    )
+                )
+            updated_relationships = []
+            for relationship in table.relationships:
+                key = self._relationship_key(
+                    relationship.from_table,
+                    relationship.from_column,
+                    relationship.to_table,
+                    relationship.to_column,
+                )
+                updated_relationships.append(
+                    relationship.model_copy(
+                        update={
+                            "business_meaning": overrides["relationships"].get(key, relationship.business_meaning),
+                        }
+                    )
+                )
+            updated_tables.append(
+                table.model_copy(
+                    update={
+                        "business_description": overrides["tables"].get(table.table_name, table.business_description),
+                        "columns": updated_columns,
+                        "relationships": updated_relationships,
+                    }
+                )
+            )
+
+        updated_relationships = []
+        for relationship in catalog.relationships:
+            key = self._relationship_key(
+                relationship.from_table,
+                relationship.from_column,
+                relationship.to_table,
+                relationship.to_column,
+            )
+            updated_relationships.append(
+                relationship.model_copy(
+                    update={
+                        "business_meaning": overrides["relationships"].get(key, relationship.business_meaning),
+                    }
+                )
+            )
+
+        return catalog.model_copy(
+            update={
+                "tables": updated_tables,
+                "relationships": updated_relationships,
+            }
+        )
+
     def _deactivate_catalogs(self, db: Session, database_id: str) -> None:
         db.query(SemanticCatalogModel).filter(SemanticCatalogModel.database_id == database_id).update(
             {SemanticCatalogModel.active: False},
@@ -692,6 +833,9 @@ class SemanticCatalogService:
             if table.table_name == table_name:
                 return table.schema_name
         return "public"
+
+    def _relationship_key(self, from_table: str, from_column: str, to_table: str, to_column: str) -> str:
+        return f"{from_table}.{from_column}->{to_table}.{to_column}"
 
     def _catalog_notes(
         self,
@@ -1104,9 +1248,9 @@ class SemanticCatalogService:
         top_values = [value for value, _count in Counter(distinct).most_common(5)]
         uniqueness_ratio = None if total == 0 else round(len(set(distinct)) / total, 4)
         numeric_values = self._coerce_numeric(values)
-        numeric_mean = round(mean(numeric_values), 4) if numeric_values else None
-        numeric_min = round(min(numeric_values), 4) if numeric_values else None
-        numeric_max = round(max(numeric_values), 4) if numeric_values else None
+        numeric_mean = self._finite_float(round(mean(numeric_values), 4)) if numeric_values else None
+        numeric_min = self._finite_float(round(min(numeric_values), 4)) if numeric_values else None
+        numeric_max = self._finite_float(round(max(numeric_values), 4)) if numeric_values else None
         return ColumnProfile(
             distinct_count=len(set(distinct)),
             null_ratio=null_ratio,
@@ -1783,15 +1927,24 @@ class SemanticCatalogService:
             if isinstance(value, bool) or value is None:
                 continue
             try:
-                numeric.append(float(value))
+                candidate = float(value)
+                if math.isfinite(candidate):
+                    numeric.append(candidate)
                 continue
             except Exception:
                 pass
             try:
-                numeric.append(float(str(value).replace(",", ".")))
+                candidate = float(str(value).replace(",", "."))
+                if math.isfinite(candidate):
+                    numeric.append(candidate)
             except Exception:
                 continue
         return numeric
+
+    def _finite_float(self, value: float | None) -> float | None:
+        if value is None or not math.isfinite(value):
+            return None
+        return value
 
     def _all_comparable(self, values: list[Any]) -> bool:
         try:

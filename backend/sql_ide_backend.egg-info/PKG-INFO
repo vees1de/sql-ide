@@ -83,7 +83,7 @@ Backend читает и `backend/.env`, и корневой `.env`, поэтом
 ```bash
 SERVICE_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5432/sqlide_service
 ANALYTICS_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5432/sqlide_analytics
-BOOTSTRAP_DEMO_ANALYTICS=true
+EMBEDDED_ANALYTICS_ENABLED=true
 ```
 
 Для локального `dvdrental` и Yandex AI из тестов:

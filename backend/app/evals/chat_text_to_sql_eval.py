@@ -5,7 +5,7 @@ import json
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime, date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -471,7 +471,7 @@ class ChatTextToSqlEvaluator:
         query_mode_override: QueryMode | None = None,
         model_alias_override: str | None = None,
     ) -> dict[str, Any]:
-        started_at = datetime.now(UTC)
+        started_at = datetime.now(timezone.utc)
         databases = self.api.list_databases()
         case_results: list[dict[str, Any]] = []
 
@@ -490,7 +490,7 @@ class ChatTextToSqlEvaluator:
                 )
             )
 
-        finished_at = datetime.now(UTC)
+        finished_at = datetime.now(timezone.utc)
         summary = _build_suite_summary(
             suite_name=suite.suite_name,
             api_base=self.api.api_base,
@@ -1163,7 +1163,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--cases",
         type=Path,
-        default=Path("backend/evals/chat_text_to_sql_demo_suite.json"),
+        default=Path("backend/evals/chat_text_to_sql_suite.json"),
         help="Path to a JSON suite definition.",
     )
     parser.add_argument(
@@ -1182,7 +1182,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     suite = parse_suite(args.cases)
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output_dir = args.output_dir or Path("backend/evals/runs") / timestamp
 
     judge = OptionalLLMJudge(enabled=bool(args.with_judge), model_alias=args.judge_model_alias)

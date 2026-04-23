@@ -776,10 +776,10 @@ class KnowledgeService:
         return summary
 
     def _resolve_target(self, db: Session, database_id: str) -> _ResolvedTarget:
-        if database_id == settings.demo_database_id:
+        if database_id == settings.analytics_database_id:
             return _ResolvedTarget(
-                database_id=settings.demo_database_id,
-                database_label=settings.demo_database_name,
+                database_id=settings.analytics_database_id,
+                database_label=settings.analytics_database_name,
                 dialect=analytics_engine.dialect.name,
                 allowed_tables=set(settings.allowed_tables) if settings.allowed_tables else None,
                 engine=analytics_engine,

@@ -53,6 +53,8 @@ COLUMNS = (
     "price_order_local,price_tender_local,price_start_local"
 )
 
+EXPECTED_COLUMNS = len(COLUMNS.split(","))
+
 
 def rows_to_tsv(path: str) -> io.BytesIO:
     """Convert CSV to TSV buffer compatible with PostgreSQL COPY."""
@@ -61,6 +63,10 @@ def rows_to_tsv(path: str) -> io.BytesIO:
         reader = csv.reader(f)
         next(reader)  # skip header
         for row in reader:
+            if len(row) < EXPECTED_COLUMNS:
+                row = row + [""] * (EXPECTED_COLUMNS - len(row))
+            elif len(row) > EXPECTED_COLUMNS:
+                row = row[:EXPECTED_COLUMNS]
             # Replace empty strings with \N (NULL in COPY format)
             tsv_row = "\t".join(v if v != "" else r"\N" for v in row)
             buf.write((tsv_row + "\n").encode())

@@ -40,7 +40,7 @@ import type {
   ApiDashboardWidgetPatch
 } from '@/api/types';
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+const apiBaseUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? import.meta.env.BASE_URL ?? '').replace(/\/$/, '');
 
 function toUrl(path: string) {
   return `${apiBaseUrl}${path}`;

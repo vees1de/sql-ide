@@ -215,7 +215,7 @@ export interface ApiDatabaseDescriptor {
   dialect: string;
   description: string;
   read_only: boolean;
-  is_demo: boolean;
+  is_builtin: boolean;
   host?: string | null;
   port?: number | null;
   database?: string | null;
@@ -296,6 +296,22 @@ export interface ApiSemanticCatalogActivationRequest {
   database_id: string;
   refresh?: boolean;
   database_description?: string | null;
+  table_descriptions?: Array<{
+    table_name: string;
+    business_description: string;
+  }>;
+  relationship_descriptions?: Array<{
+    from_table: string;
+    from_column: string;
+    to_table: string;
+    to_column: string;
+    business_meaning: string;
+  }>;
+  column_descriptions?: Array<{
+    table_name: string;
+    column_name: string;
+    business_description: string;
+  }>;
 }
 
 export interface ApiSemanticTablePatch {

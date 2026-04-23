@@ -143,7 +143,7 @@ class AnalyticsAgentService:
         context = request.context
         base_dictionary_entries = self._load_dictionary_entries(db)
         normalized_query = self._normalize_with_dictionary(request.query, base_dictionary_entries)
-        database_id = context.database or settings.demo_database_id
+        database_id = context.database or settings.analytics_database_id
         fallback_schema, fallback_dialect, fallback_allowed_tables = self._resolve_schema_context(db, context)
         catalog_context = None
         semantic_catalog = None
@@ -254,7 +254,7 @@ class AnalyticsAgentService:
     def list_metadata(self, db: Session, context: AnalyticsContext | None = None) -> dict[str, Any]:
         context = context or AnalyticsContext()
         base_dictionary_entries = self._load_dictionary_entries(db)
-        database_id = context.database or settings.demo_database_id
+        database_id = context.database or settings.analytics_database_id
         catalog_context = self.semantic_catalog_service.build_retrieval_context(
             db,
             database_id,
@@ -304,7 +304,7 @@ class AnalyticsAgentService:
         db: Session,
         context: AnalyticsContext,
     ) -> tuple[SchemaMetadataResponse, str, list[str]]:
-        database_id = context.database or settings.demo_database_id
+        database_id = context.database or settings.analytics_database_id
         schema = self.schema_provider.get_schema_for_llm(db, database_id)
         dialect = schema.dialect
         allowed_tables = [table.name for table in schema.tables]

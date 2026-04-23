@@ -293,7 +293,7 @@
                   type="button"
                   title="Переименовать"
                   aria-label="Переименовать"
-                  :disabled="database.is_demo"
+                  :disabled="database.isBuiltin"
                   @click.stop="renameDatabase(database)"
                 >
                   ✎
@@ -303,7 +303,7 @@
                   type="button"
                   title="Удалить"
                   aria-label="Удалить"
-                  :disabled="database.is_demo"
+                  :disabled="database.isBuiltin"
                   @click.stop="remove(database)"
                 >
                   ×

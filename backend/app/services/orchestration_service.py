@@ -310,7 +310,7 @@ class QueryOrchestrationService:
 
         validation = self.validation_agent.run(plan.sql, schema.dialect, allowed_tables=allowed_tables, schema=schema)
         if not validation.valid:
-            if settings.analytics_uses_demo_data:
+            if settings.embedded_analytics_enabled:
                 return None
             return self._persist_error_run(
                 db=db,
@@ -327,7 +327,7 @@ class QueryOrchestrationService:
         try:
             execution = self.analytics_service.execute(validation.sql)
         except Exception as exc:  # noqa: BLE001
-            if settings.analytics_uses_demo_data:
+            if settings.embedded_analytics_enabled:
                 return None
             return self._persist_error_run(
                 db=db,
@@ -910,7 +910,7 @@ class QueryOrchestrationService:
         )
 
     def _resolve_dialect(self, db: Session, notebook: NotebookModel) -> str:
-        if notebook.database_id == settings.demo_database_id:
+        if notebook.database_id == settings.analytics_database_id:
             return analytics_engine.dialect.name
 
         connection = (
@@ -923,7 +923,7 @@ class QueryOrchestrationService:
         return analytics_engine.dialect.name
 
     def _resolve_allowed_tables(self, db: Session, notebook: NotebookModel) -> list[str]:
-        if notebook.database_id == settings.demo_database_id:
+        if notebook.database_id == settings.analytics_database_id:
             return self.metadata_service.list_table_names()
 
         connection = (

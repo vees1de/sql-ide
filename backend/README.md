@@ -65,7 +65,7 @@ Backend читает и `backend/.env`, и корневой `.env`, поэтом
 ```bash
 SERVICE_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5432/sqlide_service
 ANALYTICS_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5432/sqlide_analytics
-BOOTSTRAP_DEMO_ANALYTICS=true
+EMBEDDED_ANALYTICS_ENABLED=true
 ```
 
 Для локального `dvdrental` и Yandex AI из тестов:
@@ -110,7 +110,7 @@ YANDEX_AI_MODEL_ALIAS=qwen
 
 ```bash
 python backend/scripts/eval_chat_text_to_sql.py \
-  --cases backend/evals/chat_text_to_sql_demo_suite.json \
+  --cases backend/evals/chat_text_to_sql_suite.json \
   --api-base http://127.0.0.1:8000/api \
   --fail-under 0.85
 ```

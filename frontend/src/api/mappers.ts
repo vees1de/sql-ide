@@ -813,7 +813,7 @@ function buildDatabaseConnections(
       database.database ?? undefined
     ].filter((part): part is string => Boolean(part));
     const tables =
-      database.is_demo || !database.table_count
+      database.is_builtin || !database.table_count
         ? schema?.tables.length ?? database.table_count ?? 0
         : database.table_count;
     const status: DatabaseConnection['status'] =
@@ -828,7 +828,7 @@ function buildDatabaseConnections(
       status,
       knowledgeStatus: database.knowledge_status ?? 'not_scanned',
       lastScanAt: database.last_scan_at ?? undefined,
-      isDemo: database.is_demo,
+      isBuiltin: database.is_builtin,
       allowedTables: database.allowed_tables ?? null
     };
   });
@@ -958,7 +958,7 @@ export function buildWorkspaceData(params: {
   const notebooks = params.notebookDetails.map((detail) =>
     mapNotebookDetail(
       detail,
-      params.workspace?.name ?? 'Demo Workspace',
+      params.workspace?.name ?? 'Workspace',
       params.defaultModelAlias
     )
   );
@@ -966,7 +966,7 @@ export function buildWorkspaceData(params: {
 
   return {
     id: params.workspace?.id ?? 'workspace',
-    name: params.workspace?.name ?? 'Demo Workspace',
+    name: params.workspace?.name ?? 'Workspace',
     tagline: 'Notebook-first self-service analytics connected to a live backend',
     databases: buildDatabaseConnections(params.databases, params.schema),
     notebooks,

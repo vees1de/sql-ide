@@ -33,7 +33,7 @@ def healthcheck() -> dict:
         "status": "ok" if service_ok and analytics_ok else "degraded",
         "app": settings.app_name,
         "environment": settings.environment,
-        "demoAnalytics": settings.analytics_uses_demo_data,
+        "embeddedAnalytics": settings.embedded_analytics_enabled,
         "llm": {
             "configured": bool(settings.llm_api_base_url and settings.llm_api_key and settings.llm_model),
             "baseUrl": settings.llm_api_base_url,

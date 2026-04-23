@@ -1,16 +1,33 @@
 from __future__ import annotations
 
-import random
-from datetime import date, timedelta
-
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, MetaData, String, Table, inspect, select, text
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.base import Base
-from app.db.models import NotebookModel, SavedReportModel, SemanticDictionaryModel, WorkspaceModel
-from app.db.session import analytics_engine, service_engine
+from app.db.models import (
+    ChatMessageModel,
+    ChatSessionModel,
+    CellModel,
+    DatabaseConnectionModel,
+    DatabaseKnowledgeColumnModel,
+    DatabaseKnowledgeRelationshipModel,
+    DatabaseKnowledgeScanRunModel,
+    DatabaseKnowledgeTableModel,
+    NotebookModel,
+    QueryExecutionModel,
+    QueryRunModel,
+    SavedReportModel,
+    SemanticCatalogColumnModel,
+    SemanticCatalogJoinPathModel,
+    SemanticCatalogModel,
+    SemanticCatalogRelationshipModel,
+    SemanticCatalogTableModel,
+    SemanticDictionaryModel,
+    WorkspaceModel,
+)
+from app.db.session import service_engine
 
 
 def _ensure_database_connections_allowed_tables_column(engine: Engine) -> None:
@@ -94,9 +111,8 @@ def bootstrap_application() -> None:
     _ensure_semantic_dictionary_context_columns(service_engine)
     _ensure_semantic_catalog_relationship_graph_column(service_engine)
     _ensure_dashboard_hidden_column(service_engine)
-    if settings.analytics_uses_demo_data:
-        ensure_demo_analytics_database(analytics_engine)
     with Session(service_engine) as session:
+        _cleanup_legacy_demo_data(session)
         seed_service_data(session)
 
 
@@ -104,11 +120,10 @@ def seed_service_data(session: Session) -> None:
     workspace = session.query(WorkspaceModel).first()
     if workspace is None:
         workspace = WorkspaceModel(
-            name=settings.demo_workspace_name,
-            databases=[settings.demo_database_id],
+            name=settings.workspace_name,
+            databases=[settings.analytics_database_id],
         )
         session.add(workspace)
-        session.flush()
 
     if session.query(SemanticDictionaryModel).count() == 0:
         session.add_all(
@@ -135,176 +150,90 @@ def seed_service_data(session: Session) -> None:
         )
 
     session.commit()
-    if settings.analytics_uses_demo_data:
-        seed_demo_notebooks(session, workspace.id)
 
 
-def seed_demo_notebooks(session: Session, workspace_id: str) -> None:
-    if session.query(NotebookModel).count() > 0:
-        return
+def _cleanup_legacy_demo_data(session: Session) -> None:
+    legacy_database_ids = {"".join(["demo", "_", "analytics"])}
 
-    from app.services.orchestration_service import QueryOrchestrationService
+    for workspace in session.query(WorkspaceModel).all():
+        current_databases = list(workspace.databases or [])
+        filtered_databases = [database_id for database_id in current_databases if database_id not in legacy_database_ids]
+        if filtered_databases != current_databases:
+            workspace.databases = filtered_databases
 
-    orchestrator = QueryOrchestrationService()
-    notebook_specs = [
-        {
-            "title": "Q1 Revenue Analysis",
-            "prompts": [
-                "Покажи выручку по месяцам за последние 6 месяцев",
-                "Теперь только по Москве",
-                "Сравни с аналогичным периодом прошлого года",
-            ],
-            "report_title": "Moscow Revenue Snapshot",
-            "report_schedule": "First day of month, 10:00",
-        },
-        {
-            "title": "Campaign Performance",
-            "prompts": [
-                "Покажи продажи и рекламу по последней кампании",
-            ],
-            "report_title": None,
-            "report_schedule": None,
-        },
-    ]
-
-    for spec in notebook_specs:
-        notebook = NotebookModel(
-            workspace_id=workspace_id,
-            title=spec["title"],
-            database_id=settings.demo_database_id,
-            status="draft",
+    legacy_session_ids = [row[0] for row in session.query(ChatSessionModel.id).filter(
+        ChatSessionModel.database_connection_id.in_(legacy_database_ids)
+    ).all()]
+    if legacy_session_ids:
+        session.query(ChatMessageModel).filter(ChatMessageModel.session_id.in_(legacy_session_ids)).delete(
+            synchronize_session=False
         )
-        session.add(notebook)
-        session.commit()
-        session.refresh(notebook)
+        session.query(QueryExecutionModel).filter(QueryExecutionModel.session_id.in_(legacy_session_ids)).delete(
+            synchronize_session=False
+        )
+        session.query(ChatSessionModel).filter(ChatSessionModel.id.in_(legacy_session_ids)).delete(
+            synchronize_session=False
+        )
 
-        for prompt in spec["prompts"]:
-            orchestrator.run_prompt(session, notebook, prompt)
-            session.refresh(notebook)
+    legacy_notebook_ids = [row[0] for row in session.query(NotebookModel.id).filter(
+        NotebookModel.database_id.in_(legacy_database_ids)
+    ).all()]
+    legacy_query_run_ids = [row[0] for row in session.query(QueryRunModel.id).filter(
+        QueryRunModel.notebook_id.in_(legacy_notebook_ids)
+    ).all()]
+    if legacy_query_run_ids:
+        session.query(CellModel).filter(CellModel.query_run_id.in_(legacy_query_run_ids)).update(
+            {CellModel.query_run_id: None}, synchronize_session=False
+        )
+    if legacy_query_run_ids:
+        session.query(QueryRunModel).filter(QueryRunModel.id.in_(legacy_query_run_ids)).delete(
+            synchronize_session=False
+        )
+    if legacy_notebook_ids:
+        session.query(CellModel).filter(CellModel.notebook_id.in_(legacy_notebook_ids)).delete(
+            synchronize_session=False
+        )
+        session.query(SavedReportModel).filter(SavedReportModel.notebook_id.in_(legacy_notebook_ids)).delete(
+            synchronize_session=False
+        )
+        session.query(NotebookModel).filter(NotebookModel.id.in_(legacy_notebook_ids)).delete(
+            synchronize_session=False
+        )
 
-        if spec["report_title"]:
-            session.add(
-                SavedReportModel(
-                    notebook_id=notebook.id,
-                    title=str(spec["report_title"]),
-                    schedule=str(spec["report_schedule"]),
-                )
-            )
-            notebook.status = "saved"
-            session.commit()
+    session.query(DatabaseKnowledgeColumnModel).filter(
+        DatabaseKnowledgeColumnModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(DatabaseKnowledgeRelationshipModel).filter(
+        DatabaseKnowledgeRelationshipModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(DatabaseKnowledgeTableModel).filter(
+        DatabaseKnowledgeTableModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(DatabaseKnowledgeScanRunModel).filter(
+        DatabaseKnowledgeScanRunModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
 
-
-def ensure_demo_analytics_database(engine: Engine) -> None:
-    metadata = MetaData()
-    customers = Table(
-        "customers",
-        metadata,
-        Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False),
-        Column("city", String(255), nullable=False),
-        Column("region", String(255), nullable=False),
-        Column("segment", String(64), nullable=False),
+    session.query(SemanticCatalogColumnModel).filter(
+        SemanticCatalogColumnModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(SemanticCatalogRelationshipModel).filter(
+        SemanticCatalogRelationshipModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(SemanticCatalogTableModel).filter(
+        SemanticCatalogTableModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(SemanticCatalogJoinPathModel).filter(
+        SemanticCatalogJoinPathModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(SemanticCatalogModel).filter(SemanticCatalogModel.database_id.in_(legacy_database_ids)).delete(
+        synchronize_session=False
     )
-    campaigns = Table(
-        "campaigns",
-        metadata,
-        Column("id", Integer, primary_key=True),
-        Column("name", String(255), nullable=False),
-        Column("channel", String(64), nullable=False),
-    )
-    orders = Table(
-        "orders",
-        metadata,
-        Column("id", Integer, primary_key=True),
-        Column("order_date", Date, nullable=False),
-        Column("customer_id", Integer, ForeignKey("customers.id"), nullable=False),
-        Column("campaign_id", Integer, ForeignKey("campaigns.id"), nullable=False),
-        Column("status", String(64), nullable=False),
-        Column("quantity", Integer, nullable=False),
-        Column("revenue", Float, nullable=False),
-    )
 
-    metadata.create_all(engine)
-    inspector = inspect(engine)
-    if "orders" not in inspector.get_table_names():
-        metadata.create_all(engine)
+    session.query(DatabaseConnectionModel).filter(
+        DatabaseConnectionModel.id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
+    session.query(SemanticDictionaryModel).filter(
+        SemanticDictionaryModel.source_database.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
 
-    with engine.begin() as connection:
-        existing_orders = connection.execute(select(orders.c.id).limit(1)).first()
-        if existing_orders is not None:
-            return
-
-        city_to_region = {
-            "Moscow": "Central",
-            "Saint Petersburg": "North-West",
-            "Kazan": "Volga",
-            "Novosibirsk": "Siberia",
-            "Yekaterinburg": "Ural",
-            "Yakutsk": "Far East",
-        }
-        segments = ["Enterprise", "SMB", "Retail"]
-        customer_rows = []
-        customer_id = 1
-        for city, region in city_to_region.items():
-            for segment in segments:
-                for index in range(1, 7):
-                    customer_rows.append(
-                        {
-                            "id": customer_id,
-                            "name": f"{segment} {city} {index}",
-                            "city": city,
-                            "region": region,
-                            "segment": segment,
-                        }
-                    )
-                    customer_id += 1
-        connection.execute(customers.insert(), customer_rows)
-
-        campaign_rows = [
-            {"id": 1, "name": "Brand Search", "channel": "SEO"},
-            {"id": 2, "name": "Performance Ads", "channel": "Paid Ads"},
-            {"id": 3, "name": "CRM Email", "channel": "Email"},
-            {"id": 4, "name": "Social Boost", "channel": "Social"},
-            {"id": 5, "name": "Partner Referral", "channel": "Referral"},
-        ]
-        connection.execute(campaigns.insert(), campaign_rows)
-
-        rng = random.Random(42)
-        order_rows = []
-        current_date = date.today() - timedelta(days=540)
-        end_date = date.today()
-        order_id = 1
-
-        customer_ids = [item["id"] for item in customer_rows]
-        while current_date <= end_date:
-            daily_orders = rng.randint(4, 10)
-            for _ in range(daily_orders):
-                customer_ref = rng.choice(customer_rows)
-                campaign_ref = rng.choice(campaign_rows)
-                quantity = rng.randint(1, 6)
-                segment_multiplier = {"Enterprise": 2.4, "SMB": 1.3, "Retail": 0.9}[customer_ref["segment"]]
-                channel_multiplier = {
-                    "SEO": 1.25,
-                    "Paid Ads": 1.45,
-                    "Email": 0.95,
-                    "Social": 1.1,
-                    "Referral": 1.35,
-                }[campaign_ref["channel"]]
-                seasonal_multiplier = 1.0 + ((current_date.month % 6) * 0.05)
-                base_value = rng.uniform(90, 420)
-                revenue = round(base_value * quantity * segment_multiplier * channel_multiplier * seasonal_multiplier, 2)
-                order_rows.append(
-                    {
-                        "id": order_id,
-                        "order_date": current_date,
-                        "customer_id": customer_ref["id"],
-                        "campaign_id": campaign_ref["id"],
-                        "status": "completed",
-                        "quantity": quantity,
-                        "revenue": revenue,
-                    }
-                )
-                order_id += 1
-            current_date += timedelta(days=1)
-
-        connection.execute(orders.insert(), order_rows)
+    session.commit()

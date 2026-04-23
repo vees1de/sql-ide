@@ -79,7 +79,7 @@
                 :disabled="
                   isDeletingDatabase ||
                   !selectedDatabaseId ||
-                  selectedDatabase?.isDemo
+                  selectedDatabase?.isBuiltin
                 "
                 @click="deleteSelectedDatabase"
               >
@@ -814,6 +814,17 @@
       @close="showAddDatabase = false"
       @submit="submitDatabase"
     />
+    <SemanticActivationModal
+      :open="showSemanticActivationModal"
+      :database-name="selectedDatabase?.name ?? ''"
+      :database-description="semanticDescription"
+      :table-descriptions-text="semanticActivationTableDescriptionsText"
+      :relationship-descriptions-text="semanticActivationRelationshipDescriptionsText"
+      :column-descriptions-text="semanticActivationColumnDescriptionsText"
+      :submitting="semanticActivationSubmitting"
+      @close="closeSemanticActivationModal"
+      @submit="submitSemanticActivation"
+    />
   </main>
 </template>
 
@@ -823,6 +834,7 @@ import VChart from "vue-echarts";
 
 import { api } from "@/api/client";
 import AddDatabaseModal from "@/components/layout/AddDatabaseModal.vue";
+import SemanticActivationModal from "@/components/layout/SemanticActivationModal.vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
 import type {
   ApiDictionaryEntryRead,
@@ -866,6 +878,11 @@ const isDeletingDatabase = ref(false);
 const isDeletingSemantic = ref(false);
 const isSavingSemanticTable = ref(false);
 const isSavingSemanticColumn = ref(false);
+const showSemanticActivationModal = ref(false);
+const semanticActivationSubmitting = ref(false);
+const semanticActivationTableDescriptionsText = ref("");
+const semanticActivationRelationshipDescriptionsText = ref("");
+const semanticActivationColumnDescriptionsText = ref("");
 
 const expandedTables = ref<Set<string>>(new Set());
 const editingTable = ref<string | null>(null);
@@ -1411,6 +1428,122 @@ function buildSemanticDatabaseDescription() {
   return `База данных «${databaseName}». Пиши все label, business_description и synonyms на русском языке.`;
 }
 
+function formatTableDescriptions() {
+  return (semanticCatalog.value?.tables ?? [])
+    .map((table) => `${table.table_name}: ${table.business_description ?? ""}`.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatRelationshipDescriptions() {
+  return (semanticCatalog.value?.relationships ?? [])
+    .map(
+      (relationship) =>
+        `${relationship.from_table}.${relationship.from_column} -> ${relationship.to_table}.${relationship.to_column}: ${relationship.business_meaning ?? ""}`.trim(),
+    )
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatColumnDescriptions() {
+  const lines: string[] = [];
+  for (const table of semanticCatalog.value?.tables ?? []) {
+    for (const column of table.columns) {
+      lines.push(
+        `${table.table_name}.${column.column_name}: ${column.business_description ?? ""}`.trim(),
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+function parseTableDescriptions(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^([^:=]+?)\s*[:=]\s*(.+)$/);
+      if (!match) return null;
+      return {
+        table_name: match[1].trim(),
+        business_description: match[2].trim(),
+      };
+    })
+    .filter((item): item is { table_name: string; business_description: string } => Boolean(item));
+}
+
+function parseRelationshipDescriptions(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(
+        /^([^.]+?)\.([^\s]+?)\s*->\s*([^.]+?)\.([^\s]+?)\s*[:=]\s*(.+)$/,
+      );
+      if (!match) return null;
+      return {
+        from_table: match[1].trim(),
+        from_column: match[2].trim(),
+        to_table: match[3].trim(),
+        to_column: match[4].trim(),
+        business_meaning: match[5].trim(),
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        from_table: string;
+        from_column: string;
+        to_table: string;
+        to_column: string;
+        business_meaning: string;
+      } => Boolean(item),
+    );
+}
+
+function parseColumnDescriptions(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^([^.]+?)\.([^\s]+?)\s*[:=]\s*(.+)$/);
+      if (!match) return null;
+      return {
+        table_name: match[1].trim(),
+        column_name: match[2].trim(),
+        business_description: match[3].trim(),
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        table_name: string;
+        column_name: string;
+        business_description: string;
+      } => Boolean(item),
+    );
+}
+
+function openSemanticActivationModal() {
+  semanticActivationTableDescriptionsText.value = formatTableDescriptions();
+  semanticActivationRelationshipDescriptionsText.value =
+    formatRelationshipDescriptions();
+  semanticActivationColumnDescriptionsText.value = formatColumnDescriptions();
+  if (!semanticDescription.value.trim()) {
+    semanticDescription.value = selectedDatabase.value?.description ?? "";
+  }
+  showSemanticActivationModal.value = true;
+}
+
+function closeSemanticActivationModal() {
+  showSemanticActivationModal.value = false;
+}
+
 async function refreshSemanticCatalog(
   options: { auto?: boolean; force?: boolean } = {},
 ) {
@@ -1588,7 +1721,42 @@ async function runScan(mode: "full" | "incremental") {
 }
 
 async function activateSemantic() {
-  await refreshSemanticCatalog({ force: true });
+  openSemanticActivationModal();
+}
+
+async function submitSemanticActivation(payload: {
+  databaseDescription: string;
+  tableDescriptionsText: string;
+  relationshipDescriptionsText: string;
+  columnDescriptionsText: string;
+}) {
+  if (!selectedDatabaseId.value) {
+    return;
+  }
+  semanticActivationSubmitting.value = true;
+  try {
+    semanticDescription.value = payload.databaseDescription;
+    semanticCatalog.value = await api.activateSemanticCatalog({
+      database_id: selectedDatabaseId.value,
+      refresh: true,
+      database_description: payload.databaseDescription || null,
+      table_descriptions: parseTableDescriptions(payload.tableDescriptionsText),
+      relationship_descriptions: parseRelationshipDescriptions(
+        payload.relationshipDescriptionsText,
+      ),
+      column_descriptions: parseColumnDescriptions(payload.columnDescriptionsText),
+    });
+    semanticAutoRefreshKey.value = `${selectedDatabaseId.value}::manual::${payload.databaseDescription}`;
+    semanticFeedback.value = `Семантический каталог активирован для ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
+    showSemanticActivationModal.value = false;
+  } catch (error) {
+    semanticFeedback.value =
+      error instanceof Error
+        ? error.message
+        : "Не удалось активировать семантику.";
+  } finally {
+    semanticActivationSubmitting.value = false;
+  }
 }
 
 async function deleteSelectedDatabase(databaseId?: string) {
@@ -1598,7 +1766,7 @@ async function deleteSelectedDatabase(databaseId?: string) {
     store.workspace.databases.find((database) => database.id === targetId) ??
     selectedDatabase.value ??
     null;
-  if (!targetDatabase || targetDatabase.isDemo || !targetId) {
+  if (!targetDatabase || targetDatabase.isBuiltin || !targetId) {
     return;
   }
   const confirmed = window.confirm(
