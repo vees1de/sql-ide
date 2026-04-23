@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pandas as pd
@@ -160,5 +160,5 @@ def test_dashboard_service_send_schedule_digest_sets_last_sent_at(monkeypatch) -
 
     assert result is True
     assert schedule.last_sent_at is not None
-    assert schedule.last_sent_at.tzinfo == UTC
-    assert schedule.last_sent_at <= datetime.now(UTC)
+    assert schedule.last_sent_at.tzinfo == timezone.utc
+    assert schedule.last_sent_at <= datetime.now(timezone.utc)

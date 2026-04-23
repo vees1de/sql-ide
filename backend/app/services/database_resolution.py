@@ -24,14 +24,14 @@ def invalidate_engine_cache(database_connection_id: str) -> None:
 
 
 def resolve_dialect(db: Session, database_connection_id: str) -> str:
-    if database_connection_id == settings.demo_database_id:
+    if database_connection_id == settings.analytics_database_id:
         return normalize_dialect(analytics_engine.dialect.name)
     connection = _get_connection(db, database_connection_id)
     return normalize_dialect(connection.dialect or analytics_engine.dialect.name)
 
 
 def resolve_engine(db: Session, database_connection_id: str):
-    if database_connection_id == settings.demo_database_id:
+    if database_connection_id == settings.analytics_database_id:
         return analytics_engine
 
     cached = _ENGINE_CACHE.get(database_connection_id)
@@ -58,7 +58,7 @@ def resolve_allowed_tables(db: Session, database_connection_id: str, engine: Any
         engine = resolve_engine(db, database_connection_id)
 
     discovered_tables = _list_table_names(engine)
-    if database_connection_id == settings.demo_database_id:
+    if database_connection_id == settings.analytics_database_id:
         configured = [str(table) for table in settings.allowed_tables if str(table)]
         if configured and discovered_tables:
             allowed = [table for table in discovered_tables if table in set(configured)]

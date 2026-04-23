@@ -109,14 +109,14 @@ class Settings:
     data_dir: Path
     service_database_url: str
     analytics_database_url: str
-    analytics_uses_demo_data: bool
+    embedded_analytics_enabled: bool
     allowed_tables: tuple[str, ...]
     default_row_limit: int
     max_row_limit: int
     query_timeout_seconds: int
-    demo_workspace_name: str
-    demo_database_id: str
-    demo_database_name: str
+    workspace_name: str
+    analytics_database_id: str
+    analytics_database_name: str
     llm_api_base_url: str | None
     llm_api_key: str | None
     llm_model: str | None
@@ -136,15 +136,15 @@ def get_settings() -> Settings:
     data_dir = base_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    demo_analytics_path = data_dir / "analytics_demo.db"
+    analytics_path = data_dir / "analytics.db"
     service_db_path = data_dir / "service.db"
 
     analytics_database_url = os.getenv("ANALYTICS_DATABASE_URL", "").strip()
-    uses_demo_data = not analytics_database_url
-    if uses_demo_data:
-        analytics_database_url = f"sqlite:///{demo_analytics_path}"
+    uses_embedded_data = not analytics_database_url
+    if uses_embedded_data:
+        analytics_database_url = f"sqlite:///{analytics_path}"
 
-    analytics_uses_demo_data = uses_demo_data or _read_bool("BOOTSTRAP_DEMO_ANALYTICS", False)
+    embedded_analytics_enabled = uses_embedded_data
 
     service_database_url = os.getenv("SERVICE_DATABASE_URL", "").strip()
     if not service_database_url:
@@ -164,20 +164,14 @@ def get_settings() -> Settings:
         data_dir=data_dir,
         service_database_url=service_database_url,
         analytics_database_url=analytics_database_url,
-        analytics_uses_demo_data=analytics_uses_demo_data,
+        embedded_analytics_enabled=embedded_analytics_enabled,
         allowed_tables=allowed_tables,
         default_row_limit=int(os.getenv("DEFAULT_ROW_LIMIT", "50")),
         max_row_limit=int(os.getenv("MAX_ROW_LIMIT", "1000")),
         query_timeout_seconds=int(os.getenv("QUERY_TIMEOUT_SECONDS", "15")),
-        demo_workspace_name=os.getenv("DEMO_WORKSPACE_NAME", "Demo Workspace"),
-        demo_database_id=os.getenv("DEMO_DATABASE_ID", "demo_analytics"),
-        demo_database_name=os.getenv(
-            "ANALYTICS_DATABASE_NAME",
-            os.getenv(
-                "DEMO_DATABASE_NAME",
-                "Demo Analytics DB" if analytics_uses_demo_data else "Analytics DB",
-            ),
-        ),
+        workspace_name=os.getenv("WORKSPACE_NAME", "Workspace"),
+        analytics_database_id=os.getenv("ANALYTICS_DATABASE_ID", "analytics"),
+        analytics_database_name=os.getenv("ANALYTICS_DATABASE_NAME", "Analytics DB"),
         llm_api_base_url=_resolve_llm_api_base_url(),
         llm_api_key=_resolve_llm_api_key(),
         llm_model=_resolve_llm_model(),

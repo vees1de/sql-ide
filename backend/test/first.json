@@ -1,0 +1,7 @@
+{
+  "metric": "revenue",
+  "time_period": "2025",
+  "group_by": ["month", "region"],
+  "filters": [],
+  "task_type": "aggregation"
+}

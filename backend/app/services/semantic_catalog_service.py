@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import Counter, defaultdict, deque
 from statistics import mean
@@ -12,20 +13,28 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.schemas.dictionary import DictionaryEntryRead
 from app.schemas.metadata import ColumnMetadata, RelationshipGraphEdge, RelationshipMetadata, SchemaMetadataResponse, TableMetadata
+from app.schemas.query import IntentPayload
 from app.schemas.semantic_catalog import (
     AnalyticsRole,
     ColumnProfile,
+    SemanticColumnDescription,
     SemanticCatalog,
+    SemanticCatalogActivationRequest,
     SemanticColumn,
     SemanticColumnPatch,
+    SemanticRelationshipDescription,
     SemanticJoinPath,
     SemanticRelationship,
+    SemanticIntentResolution,
     SemanticRetrievalContext,
     SemanticTable,
+    SemanticTermCandidate,
+    SemanticTermResolutionItem,
     SemanticTableEnrichment,
     SemanticTablePatch,
     SemanticType,
     TableRole,
+    SemanticTableDescription,
 )
 from app.db.models import (
     SemanticCatalogColumnModel,
@@ -92,13 +101,43 @@ class SemanticCatalogService:
         *,
         refresh: bool = False,
         database_description: str | None = None,
+        table_descriptions: list[SemanticTableDescription] | None = None,
+        relationship_descriptions: list[SemanticRelationshipDescription] | None = None,
+        column_descriptions: list[SemanticColumnDescription] | None = None,
     ) -> SemanticCatalog:
-        return self.get_catalog(
+        has_manual_input = any(
+            [
+                (database_description or "").strip(),
+                bool(table_descriptions),
+                bool(relationship_descriptions),
+                bool(column_descriptions),
+            ]
+        )
+        cached = self._load_active_catalog(db, database_id)
+        if cached is not None and not refresh and not has_manual_input:
+            return cached
+        catalog = self.build_catalog(
             db,
             database_id,
-            refresh=refresh,
             database_description=database_description,
         )
+        effective_overrides = self._merge_descriptions(
+            cached if cached is not None else catalog,
+            table_descriptions=[],
+            relationship_descriptions=[],
+            column_descriptions=[],
+        )
+        overrides = self._merge_descriptions(
+            catalog,
+            table_descriptions=table_descriptions or [],
+            relationship_descriptions=relationship_descriptions or [],
+            column_descriptions=column_descriptions or [],
+        )
+        for section in ("tables", "relationships", "columns"):
+            effective_overrides[section].update(overrides[section])
+        if any(effective_overrides.values()):
+            catalog = self._apply_manual_descriptions(catalog, effective_overrides)
+        return self.save_catalog(db, catalog, database_description=database_description)
 
     def save_catalog(
         self,
@@ -476,6 +515,235 @@ class SemanticCatalogService:
             self.build_retrieval_context(db, database_id, intent_text, dictionary_entries).schema
         )
 
+    def resolve_intent_terms(
+        self,
+        intent: IntentPayload,
+        catalog: SemanticCatalog | None,
+        dictionary_entries: list[DictionaryEntryRead] | None = None,
+    ) -> SemanticIntentResolution:
+        resolution = SemanticIntentResolution()
+        if catalog is None:
+            return resolution
+
+        dictionary_entries = dictionary_entries or []
+        term_index = self._semantic_term_index(catalog, dictionary_entries)
+
+        metric_candidate = self._resolve_term(intent.metric, "metric", term_index)
+        if metric_candidate is not None:
+            if metric_candidate.resolved:
+                resolution.resolved_terms.append(metric_candidate)
+            else:
+                resolution.unresolved_terms.append(metric_candidate)
+
+        for dimension in intent.dimensions:
+            dimension_candidate = self._resolve_term(dimension, "dimension", term_index)
+            if dimension_candidate.resolved:
+                resolution.resolved_terms.append(dimension_candidate)
+            else:
+                resolution.unresolved_terms.append(dimension_candidate)
+
+        for filter_item in intent.filters:
+            filter_candidate = self._resolve_term(filter_item.field, "filter", term_index)
+            if filter_candidate.resolved:
+                resolution.resolved_terms.append(filter_candidate)
+            else:
+                resolution.unresolved_terms.append(filter_candidate)
+
+        resolution.requires_clarification = bool(resolution.unresolved_terms)
+        if resolution.requires_clarification:
+            resolution.notes.append("Semantic catalog could not confidently resolve one or more business terms.")
+        return resolution
+
+    def find_relationships(
+        self,
+        catalog: SemanticCatalog | None,
+        from_term: str,
+        to_term: str,
+    ) -> list[SemanticRelationship]:
+        if catalog is None:
+            return []
+        from_tokens = set(self._tokenize(from_term))
+        to_tokens = set(self._tokenize(to_term))
+        matches: list[SemanticRelationship] = []
+        for relationship in catalog.relationships:
+            left_haystack = " ".join(
+                [
+                    relationship.from_table,
+                    relationship.from_column,
+                    relationship.business_meaning,
+                    relationship.description or "",
+                ]
+            ).lower()
+            right_haystack = " ".join(
+                [
+                    relationship.to_table,
+                    relationship.to_column,
+                    relationship.business_meaning,
+                    relationship.description or "",
+                ]
+            ).lower()
+            if (all(token in left_haystack for token in from_tokens) and all(token in right_haystack for token in to_tokens)) or (
+                all(token in left_haystack for token in to_tokens) and all(token in right_haystack for token in from_tokens)
+            ):
+                matches.append(relationship)
+        return matches
+
+    def _semantic_term_index(
+        self,
+        catalog: SemanticCatalog,
+        dictionary_entries: list[DictionaryEntryRead],
+    ) -> dict[str, list[SemanticTermCandidate]]:
+        index: dict[str, list[SemanticTermCandidate]] = defaultdict(list)
+
+        def add(raw_term: str | None, candidate: SemanticTermCandidate) -> None:
+            normalized = str(raw_term or "").strip().lower()
+            if not normalized:
+                return
+            bucket = index.setdefault(normalized, [])
+            if not any(
+                existing.kind == candidate.kind
+                and existing.match == candidate.match
+                and existing.source == candidate.source
+                for existing in bucket
+            ):
+                bucket.append(candidate)
+
+        for table in catalog.tables:
+            for term in [table.table_name, table.label, *table.synonyms]:
+                add(
+                    term,
+                    SemanticTermCandidate(
+                        term=str(term),
+                        kind="table",
+                        match=table.table_name,
+                        source="semantic_catalog",
+                        confidence=0.9,
+                        note=table.business_description or None,
+                    ),
+                )
+            for term in table.important_metrics:
+                add(
+                    term,
+                    SemanticTermCandidate(
+                        term=str(term),
+                        kind="metric",
+                        match=table.table_name,
+                        source="semantic_catalog",
+                        confidence=0.88,
+                        note=table.business_description or None,
+                    ),
+                )
+            for term in table.important_dimensions:
+                add(
+                    term,
+                    SemanticTermCandidate(
+                        term=str(term),
+                        kind="dimension",
+                        match=table.table_name,
+                        source="semantic_catalog",
+                        confidence=0.88,
+                        note=table.business_description or None,
+                    ),
+                )
+            for column in table.columns:
+                base_note = column.business_description or table.business_description or None
+                column_terms = [
+                    column.column_name,
+                    column.label,
+                    *column.synonyms,
+                    *[str(value) for value in column.example_values[:3]],
+                ]
+                for term in column_terms:
+                    kind = "metric" if "metric" in column.semantic_types or "primary_metric" in column.analytics_roles else "dimension"
+                    if kind == "dimension" and "default_filter" in column.analytics_roles:
+                        kind = "filter"
+                    add(
+                        str(term),
+                        SemanticTermCandidate(
+                            term=str(term),
+                            kind=kind,
+                            match=f"{table.table_name}.{column.column_name}",
+                            source="semantic_catalog",
+                            confidence=0.92,
+                            note=base_note,
+                        ),
+                    )
+
+        for entry in dictionary_entries:
+            mapped = entry.mapped_expression or entry.term
+            add(
+                entry.term,
+                SemanticTermCandidate(
+                    term=entry.term,
+                    kind="term",
+                    match=mapped,
+                    source="dictionary",
+                    confidence=0.75,
+                    note=entry.description or None,
+                ),
+            )
+            for synonym in entry.synonyms:
+                add(
+                    str(synonym),
+                    SemanticTermCandidate(
+                        term=str(synonym),
+                        kind="term",
+                        match=mapped,
+                        source="dictionary",
+                        confidence=0.7,
+                        note=entry.description or None,
+                    ),
+                )
+
+        return index
+
+    def _resolve_term(
+        self,
+        term: str | None,
+        kind: str,
+        term_index: dict[str, list[SemanticTermCandidate]],
+    ) -> SemanticTermResolutionItem | None:
+        normalized = str(term or "").strip().lower()
+        if not normalized:
+            return None
+
+        direct_matches = list(term_index.get(normalized, []))
+        preferred_matches = [item for item in direct_matches if item.kind in {kind, "term"}]
+        if preferred_matches:
+            best = preferred_matches[0]
+            return SemanticTermResolutionItem(
+                term=str(term),
+                kind=kind,
+                resolved=True,
+                match=best.match,
+                source=best.source,
+                confidence=best.confidence,
+                candidates=preferred_matches[:5],
+                note=best.note,
+            )
+
+        token_matches: list[SemanticTermCandidate] = []
+        for token in self._tokenize(normalized):
+            token_matches.extend(term_index.get(token, []))
+
+        deduped: list[SemanticTermCandidate] = []
+        seen: set[tuple[str | None, str, str]] = set()
+        for candidate in token_matches:
+            key = (candidate.match, candidate.kind, candidate.source)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(candidate)
+
+        return SemanticTermResolutionItem(
+            term=str(term),
+            kind=kind,
+            resolved=False,
+            question=f"Уточните, что означает «{term}».",
+            candidates=deduped[:5],
+            note="Term is not grounded in the semantic catalog.",
+        )
+
     def _build_retrieval_schema(
         self,
         db: Session,
@@ -676,6 +944,112 @@ class SemanticCatalogService:
             relationship_graph=[RelationshipGraphEdge.model_validate(edge) for edge in list(catalog_model.relationship_graph or [])],
         )
 
+    def _merge_descriptions(
+        self,
+        catalog: SemanticCatalog,
+        *,
+        table_descriptions: list[SemanticTableDescription],
+        relationship_descriptions: list[SemanticRelationshipDescription],
+        column_descriptions: list[SemanticColumnDescription],
+    ) -> dict[str, dict[str, str]]:
+        merged: dict[str, dict[str, str]] = {
+            "tables": {},
+            "relationships": {},
+            "columns": {},
+        }
+        for table in catalog.tables:
+            merged["tables"][table.table_name] = table.business_description
+            for column in table.columns:
+                merged["columns"][f"{table.table_name}.{column.column_name}"] = column.business_description
+        for relationship in catalog.relationships:
+            key = self._relationship_key(
+                relationship.from_table,
+                relationship.from_column,
+                relationship.to_table,
+                relationship.to_column,
+            )
+            merged["relationships"][key] = relationship.business_meaning
+
+        for item in table_descriptions:
+            merged["tables"][item.table_name.strip()] = item.business_description.strip()
+        for item in relationship_descriptions:
+            merged["relationships"][
+                self._relationship_key(
+                    item.from_table,
+                    item.from_column,
+                    item.to_table,
+                    item.to_column,
+                )
+            ] = item.business_meaning.strip()
+        for item in column_descriptions:
+            merged["columns"][f"{item.table_name.strip()}.{item.column_name.strip()}"] = item.business_description.strip()
+        return merged
+
+    def _apply_manual_descriptions(
+        self,
+        catalog: SemanticCatalog,
+        overrides: dict[str, dict[str, str]],
+    ) -> SemanticCatalog:
+        updated_tables: list[SemanticTable] = []
+        for table in catalog.tables:
+            updated_columns = []
+            for column in table.columns:
+                key = f"{table.table_name}.{column.column_name}"
+                updated_columns.append(
+                    column.model_copy(
+                        update={
+                            "business_description": overrides["columns"].get(key, column.business_description),
+                        }
+                    )
+                )
+            updated_relationships = []
+            for relationship in table.relationships:
+                key = self._relationship_key(
+                    relationship.from_table,
+                    relationship.from_column,
+                    relationship.to_table,
+                    relationship.to_column,
+                )
+                updated_relationships.append(
+                    relationship.model_copy(
+                        update={
+                            "business_meaning": overrides["relationships"].get(key, relationship.business_meaning),
+                        }
+                    )
+                )
+            updated_tables.append(
+                table.model_copy(
+                    update={
+                        "business_description": overrides["tables"].get(table.table_name, table.business_description),
+                        "columns": updated_columns,
+                        "relationships": updated_relationships,
+                    }
+                )
+            )
+
+        updated_relationships = []
+        for relationship in catalog.relationships:
+            key = self._relationship_key(
+                relationship.from_table,
+                relationship.from_column,
+                relationship.to_table,
+                relationship.to_column,
+            )
+            updated_relationships.append(
+                relationship.model_copy(
+                    update={
+                        "business_meaning": overrides["relationships"].get(key, relationship.business_meaning),
+                    }
+                )
+            )
+
+        return catalog.model_copy(
+            update={
+                "tables": updated_tables,
+                "relationships": updated_relationships,
+            }
+        )
+
     def _deactivate_catalogs(self, db: Session, database_id: str) -> None:
         db.query(SemanticCatalogModel).filter(SemanticCatalogModel.database_id == database_id).update(
             {SemanticCatalogModel.active: False},
@@ -692,6 +1066,9 @@ class SemanticCatalogService:
             if table.table_name == table_name:
                 return table.schema_name
         return "public"
+
+    def _relationship_key(self, from_table: str, from_column: str, to_table: str, to_column: str) -> str:
+        return f"{from_table}.{from_column}->{to_table}.{to_column}"
 
     def _catalog_notes(
         self,
@@ -1104,9 +1481,9 @@ class SemanticCatalogService:
         top_values = [value for value, _count in Counter(distinct).most_common(5)]
         uniqueness_ratio = None if total == 0 else round(len(set(distinct)) / total, 4)
         numeric_values = self._coerce_numeric(values)
-        numeric_mean = round(mean(numeric_values), 4) if numeric_values else None
-        numeric_min = round(min(numeric_values), 4) if numeric_values else None
-        numeric_max = round(max(numeric_values), 4) if numeric_values else None
+        numeric_mean = self._finite_float(round(mean(numeric_values), 4)) if numeric_values else None
+        numeric_min = self._finite_float(round(min(numeric_values), 4)) if numeric_values else None
+        numeric_max = self._finite_float(round(max(numeric_values), 4)) if numeric_values else None
         return ColumnProfile(
             distinct_count=len(set(distinct)),
             null_ratio=null_ratio,
@@ -1783,15 +2160,24 @@ class SemanticCatalogService:
             if isinstance(value, bool) or value is None:
                 continue
             try:
-                numeric.append(float(value))
+                candidate = float(value)
+                if math.isfinite(candidate):
+                    numeric.append(candidate)
                 continue
             except Exception:
                 pass
             try:
-                numeric.append(float(str(value).replace(",", ".")))
+                candidate = float(str(value).replace(",", "."))
+                if math.isfinite(candidate):
+                    numeric.append(candidate)
             except Exception:
                 continue
         return numeric
+
+    def _finite_float(self, value: float | None) -> float | None:
+        if value is None or not math.isfinite(value):
+            return None
+        return value
 
     def _all_comparable(self, values: list[Any]) -> bool:
         try:

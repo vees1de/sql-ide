@@ -1,8 +1,12 @@
 import { request } from '@/api/client';
 import type {
+  ApiChatChartSuggestionRequest,
+  ApiChatClarificationAnswerRequest,
   ApiChatExecuteRequest,
   ApiChatExecuteResponse,
+  ApiChatExecutionRead,
   ApiChatMessageCreate,
+  ApiChatRunPreparedSqlRequest,
   ApiChatSendMessageResponse,
   ApiChatSessionCreate,
   ApiChatSessionDetail,
@@ -57,6 +61,16 @@ export const chatApi = {
     });
   },
 
+  answerClarification(sessionId: string, clarificationId: string, payload: ApiChatClarificationAnswerRequest) {
+    return request<ApiChatSendMessageResponse>(
+      `/api/chat/sessions/${sessionId}/clarifications/${clarificationId}/answer`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }
+    );
+  },
+
   updateSqlDraft(sessionId: string, payload: ApiChatSqlDraftUpdate) {
     return request<ApiChatSessionRead>(`/api/chat/sessions/${sessionId}/sql-draft`, {
       method: 'PATCH',
@@ -69,5 +83,22 @@ export const chatApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  },
+
+  runPreparedSql(sessionId: string, payload?: ApiChatRunPreparedSqlRequest) {
+    return request<ApiChatExecuteResponse>(`/api/chat/sessions/${sessionId}/actions/run-sql`, {
+      method: 'POST',
+      ...(payload ? { body: JSON.stringify(payload) } : {})
+    });
+  },
+
+  suggestChart(sessionId: string, executionId: string, payload?: ApiChatChartSuggestionRequest) {
+    return request<ApiChatExecutionRead>(
+      `/api/chat/sessions/${sessionId}/executions/${executionId}/chart-suggestion`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload ?? {})
+      }
+    );
   }
 };

@@ -83,6 +83,7 @@ class SemanticRelationship(BaseModel):
     join_priority: Literal["high", "medium", "low"] = "medium"
     confidence: float = 0.0
     path_id: str | None = None
+    description: str | None = None
 
 
 class SemanticJoinPath(BaseModel):
@@ -134,6 +135,34 @@ class SemanticRetrievalContext(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class SemanticTermCandidate(BaseModel):
+    term: str
+    kind: Literal["metric", "dimension", "filter", "table", "column", "relationship", "term"] = "term"
+    match: str | None = None
+    source: Literal["semantic_catalog", "schema", "dictionary", "unknown"] = "unknown"
+    confidence: float | None = None
+    note: str | None = None
+
+
+class SemanticTermResolutionItem(BaseModel):
+    term: str
+    kind: Literal["metric", "dimension", "filter", "table", "column", "relationship", "term"] = "term"
+    resolved: bool = False
+    match: str | None = None
+    source: Literal["semantic_catalog", "schema", "dictionary", "unknown"] = "unknown"
+    confidence: float | None = None
+    question: str | None = None
+    candidates: list[SemanticTermCandidate] = Field(default_factory=list)
+    note: str | None = None
+
+
+class SemanticIntentResolution(BaseModel):
+    resolved_terms: list[SemanticTermResolutionItem] = Field(default_factory=list)
+    unresolved_terms: list[SemanticTermResolutionItem] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    requires_clarification: bool = False
+
+
 class SemanticColumnEnrichment(BaseModel):
     column_name: str
     label: str | None = None
@@ -161,6 +190,28 @@ class SemanticCatalogActivationRequest(BaseModel):
     database_id: str
     refresh: bool = False
     database_description: str | None = None
+    table_descriptions: list["SemanticTableDescription"] = Field(default_factory=list)
+    relationship_descriptions: list["SemanticRelationshipDescription"] = Field(default_factory=list)
+    column_descriptions: list["SemanticColumnDescription"] = Field(default_factory=list)
+
+
+class SemanticTableDescription(BaseModel):
+    table_name: str
+    business_description: str
+
+
+class SemanticRelationshipDescription(BaseModel):
+    from_table: str
+    from_column: str
+    to_table: str
+    to_column: str
+    business_meaning: str
+
+
+class SemanticColumnDescription(BaseModel):
+    table_name: str
+    column_name: str
+    business_description: str
 
 
 class SemanticTablePatch(BaseModel):

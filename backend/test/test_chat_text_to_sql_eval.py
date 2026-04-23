@@ -17,12 +17,14 @@ from app.evals.chat_text_to_sql_eval import (
 
 
 def _database() -> dict[str, str]:
-    return {"id": "demo_analytics", "name": "Demo Analytics DB", "dialect": "sqlite"}
+    return {"id": "analytics", "name": "Analytics DB", "dialect": "sqlite"}
 
 
 def test_evaluate_step_scores_perfect_sql_and_chart() -> None:
     expectations = StepExpectations(
         should_clarify=False,
+        expected_state="SQL_READY",
+        required_actions=["show_run_button", "show_sql"],
         interpretation=InterpretationExpectation(
             metric_any_of=["revenue"],
             dimensions_all_of=["month"],
@@ -59,6 +61,12 @@ def test_evaluate_step_scores_perfect_sql_and_chart() -> None:
         },
         "assistant_message": {
             "structured_payload": {
+                "state": "SQL_READY",
+                "assistant_message": "SQL готов. Он не будет выполнен автоматически.",
+                "actions": [
+                    {"type": "show_run_button", "label": "Запустить SQL", "primary": True, "disabled": False, "payload": {"sql_ready": True, "require_user_confirmation": True}},
+                    {"type": "show_sql", "label": "Показать SQL", "primary": False, "disabled": False, "payload": {"expanded": True}},
+                ],
                 "message_kind": "answer",
                 "needs_clarification": False,
                 "sql": "SELECT date(o.order_date, 'start of month') AS month, SUM(o.revenue) AS total_revenue FROM orders o GROUP BY 1",
@@ -108,6 +116,7 @@ def test_evaluate_step_scores_perfect_sql_and_chart() -> None:
 def test_evaluate_step_flags_missing_clarification() -> None:
     expectations = StepExpectations(
         should_clarify=True,
+        expected_state="CLARIFYING",
         clarification=ClarificationExpectation(
             question_should_contain=["выруч", "колич"],
             options_should_include=["выруч", "колич", "средний"],
@@ -118,6 +127,11 @@ def test_evaluate_step_flags_missing_clarification() -> None:
         "session": {"last_intent_json": {"dimensions": ["month"]}},
         "assistant_message": {
             "structured_payload": {
+                "state": "SQL_READY",
+                "assistant_message": "SQL готов.",
+                "actions": [
+                    {"type": "show_run_button", "label": "Запустить SQL", "primary": True, "disabled": False, "payload": {"sql_ready": True, "require_user_confirmation": True}},
+                ],
                 "message_kind": "answer",
                 "needs_clarification": False,
                 "clarification_question": None,
@@ -145,9 +159,52 @@ def test_evaluate_step_flags_missing_clarification() -> None:
     assert result["scores"]["understanding"] < 0.5
 
 
+def test_evaluate_step_tracks_sql_ready_actions_without_auto_execute() -> None:
+    expectations = StepExpectations(
+        should_clarify=False,
+        expected_state="SQL_READY",
+        required_actions=["show_run_button", "show_sql"],
+    )
+    send_payload = {
+        "session": {"last_intent_json": {"metric": "revenue", "dimensions": ["month"], "filters": []}},
+        "assistant_message": {
+            "structured_payload": {
+                "state": "SQL_READY",
+                "assistant_message": "SQL готов. Он не будет выполнен автоматически.",
+                "actions": [
+                    {"type": "show_run_button", "label": "Запустить SQL", "primary": True, "disabled": False, "payload": {"sql_ready": True, "require_user_confirmation": True}},
+                    {"type": "show_sql", "label": "Показать SQL", "primary": False, "disabled": False, "payload": {"expanded": True}},
+                ],
+                "needs_clarification": False,
+                "sql": "SELECT 1 AS total_revenue",
+            }
+        },
+        "sql_draft": "SELECT 1 AS total_revenue",
+    }
+
+    result = evaluate_step(
+        case_id="sql_ready_without_execute",
+        step_index=1,
+        database=_database(),
+        user_prompt="Подготовь SQL по выручке",
+        query_mode="thinking",
+        llm_model_alias="gpt120",
+        expectations=expectations,
+        initial_send_payload=send_payload,
+        final_send_payload=send_payload,
+        clarification_transcript=[],
+        execution_payload=None,
+    )
+
+    assert result["actual"]["state"] == "SQL_READY"
+    assert result["actual"]["actions"] == ["show_run_button", "show_sql"]
+    assert result["actual"]["execution"] is None
+
+
 def test_evaluate_step_flags_missing_limit_in_top_n_sql() -> None:
     expectations = StepExpectations(
         should_clarify=False,
+        expected_state="SQL_READY",
         sql=SQLExpectation(
             required_substrings=["count(", "limit 5"],
             required_tables=["orders", "customers"],
@@ -163,6 +220,12 @@ def test_evaluate_step_flags_missing_limit_in_top_n_sql() -> None:
         },
         "assistant_message": {
             "structured_payload": {
+                "state": "SQL_READY",
+                "assistant_message": "SQL готов. Он не будет выполнен автоматически.",
+                "actions": [
+                    {"type": "show_run_button", "label": "Запустить SQL", "primary": True, "disabled": False, "payload": {"sql_ready": True, "require_user_confirmation": True}},
+                    {"type": "show_sql", "label": "Показать SQL", "primary": False, "disabled": False, "payload": {"expanded": True}},
+                ],
                 "message_kind": "answer",
                 "needs_clarification": False,
             }

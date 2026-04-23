@@ -123,7 +123,7 @@ pip install -e .
 ```bash
 export SERVICE_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/sqlide_service
 export ANALYTICS_DATABASE_URL=postgresql+psycopg://sqlide:sqlide@127.0.0.1:5433/sqlide_analytics
-export BOOTSTRAP_DEMO_ANALYTICS=true
+export EMBEDDED_ANALYTICS_ENABLED=true
 ```
 
 Если хотите запускать backend против `dvdrental`, используйте:

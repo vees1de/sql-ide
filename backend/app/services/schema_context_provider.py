@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import analytics_engine
-from app.schemas.metadata import ColumnMetadata, RelationshipMetadata, SchemaMetadataResponse, TableMetadata
+from app.schemas.metadata import (
+    AllowedJoinMetadata,
+    ColumnMetadata,
+    RelationshipMetadata,
+    SchemaMetadataResponse,
+    TableMetadata,
+)
 from app.services.database_resolution import resolve_allowed_tables, resolve_dialect, resolve_engine
 from app.services.knowledge_service import KnowledgeService
 from app.services.relationship_graph import build_relationship_graph
@@ -17,14 +23,49 @@ SchemaContext = SchemaMetadataResponse
 
 
 class SchemaContextProvider:
+    SAMPLE_ROW_LIMIT = 3
+
     def __init__(self) -> None:
         self.knowledge_service = KnowledgeService()
 
     def get_schema_for_llm(self, db: Session, database_connection_id: str) -> SchemaContext:
         knowledge_schema = self._schema_from_knowledge(db, database_connection_id)
         if knowledge_schema is not None and knowledge_schema.tables:
-            return knowledge_schema
-        return self._schema_from_live_introspection(db, database_connection_id)
+            return self._with_allowed_joins(knowledge_schema)
+        return self._with_allowed_joins(self._schema_from_live_introspection(db, database_connection_id))
+
+    def list_tables(self, db: Session, database_connection_id: str) -> list[TableMetadata]:
+        return list(self.get_schema_for_llm(db, database_connection_id).tables)
+
+    def describe_table(self, db: Session, database_connection_id: str, table_name: str) -> TableMetadata | None:
+        normalized = str(table_name or "").strip().lower()
+        if not normalized:
+            return None
+        for table in self.get_schema_for_llm(db, database_connection_id).tables:
+            if table.name.lower() == normalized:
+                return table
+        return None
+
+    def list_columns(self, db: Session, database_connection_id: str, table_name: str) -> list[ColumnMetadata]:
+        table = self.describe_table(db, database_connection_id, table_name)
+        return list(table.columns) if table is not None else []
+
+    def sample_rows(self, db: Session, database_connection_id: str, table_name: str, limit: int | None = None) -> list[dict[str, Any]]:
+        table = self.describe_table(db, database_connection_id, table_name)
+        if table is None:
+            return []
+        try:
+            engine = resolve_engine(db, database_connection_id)
+        except Exception:  # noqa: BLE001
+            return list(table.sample_rows)
+        selected_columns = [column.name for column in table.columns[:6]]
+        return self._sample_rows(
+            engine,
+            table.schema_name or "public",
+            table.name,
+            selected_columns,
+            limit=limit or self.SAMPLE_ROW_LIMIT,
+        )
 
     def _schema_from_knowledge(self, db: Session, database_connection_id: str) -> SchemaContext | None:
         try:
@@ -55,6 +96,8 @@ class SchemaContextProvider:
                 pass
 
             columns: list[ColumnMetadata] = []
+            primary_key = set(getattr(table_model, "primary_key", []) or [])
+            prefetched_relationships = getattr(table_model, "_prefetched_relationships", [])
             for column in table_model.columns:
                 if column.status != "active" or column.hidden_for_llm:
                     continue
@@ -68,20 +111,52 @@ class SchemaContextProvider:
                 columns.append(ColumnMetadata(
                     name=column.column_name,
                     type=column.data_type,
+                    nullable=bool(column.is_nullable),
+                    is_pk=column.column_name in primary_key,
+                    is_fk=any(
+                        relationship.from_column_name == column.column_name or relationship.to_column_name == column.column_name
+                        for relationship in prefetched_relationships
+                    ),
+                    referenced_table=next(
+                        (
+                            relationship.to_table_name
+                            for relationship in prefetched_relationships
+                            if relationship.from_column_name == column.column_name
+                        ),
+                        None,
+                    ),
+                    referenced_column=next(
+                        (
+                            relationship.to_column_name
+                            for relationship in prefetched_relationships
+                            if relationship.from_column_name == column.column_name
+                        ),
+                        None,
+                    ),
                     min_value=min_val,
                     max_value=max_val,
                     description=col_desc,
+                    example_values=list(column.sample_values or [])[:5],
                 ))
 
             table_desc = table_model.description_manual or None
             if columns:
+                sample_rows = []
+                if engine is not None:
+                    sample_rows = self._sample_rows(
+                        engine,
+                        table.schema_name,
+                        table.table_name,
+                        [column.name for column in columns[:6]],
+                    )
                 tables.append(TableMetadata(
                     name=table.table_name,
+                    schema_name=table.schema_name,
                     columns=columns,
                     description=table_desc,
+                    sample_rows=sample_rows,
                 ))
 
-            prefetched_relationships = getattr(table_model, "_prefetched_relationships", [])
             for relationship in prefetched_relationships:
                 if relationship.status != "active" or relationship.is_disabled:
                     continue
@@ -93,6 +168,7 @@ class SchemaContextProvider:
                         to_column=relationship.to_column_name,
                         relation_type=relationship.relation_type,
                         cardinality=relationship.cardinality,
+                        description=relationship.description_manual,
                     )
                 )
 
@@ -174,8 +250,17 @@ class SchemaContextProvider:
         for table_name in sorted(table_names):
             if allowed_tables and table_name not in allowed_tables:
                 continue
+            foreign_keys: list[dict[str, Any]] = []
             try:
                 raw_columns = list(inspector.get_columns(table_name))
+                pk_columns = set((inspector.get_pk_constraint(table_name) or {}).get("constrained_columns") or [])
+                foreign_keys = list(inspector.get_foreign_keys(table_name))
+                fk_map = {
+                    str(column_name): (str(foreign_key.get("referred_table") or ""), str((foreign_key.get("referred_columns") or [None])[0]))
+                    for foreign_key in foreign_keys
+                    for column_name in (foreign_key.get("constrained_columns") or [])
+                    if column_name
+                }
                 columns: list[ColumnMetadata] = []
                 for column in raw_columns:
                     col_name = str(column["name"])
@@ -184,15 +269,33 @@ class SchemaContextProvider:
                     columns.append(ColumnMetadata(
                         name=col_name,
                         type=col_type,
+                        nullable=bool(column.get("nullable", True)),
+                        is_pk=col_name in pk_columns,
+                        is_fk=col_name in fk_map,
+                        referenced_table=fk_map.get(col_name, (None, None))[0],
+                        referenced_column=fk_map.get(col_name, (None, None))[1],
                         min_value=min_val,
                         max_value=max_val,
                     ))
             except Exception:  # noqa: BLE001
                 columns = []
             if columns:
-                tables.append(TableMetadata(name=str(table_name), columns=columns))
+                sample_rows = self._sample_rows(
+                    engine,
+                    "public" if dialect.startswith("postgres") else None,
+                    str(table_name),
+                    [column.name for column in columns[:6]],
+                )
+                tables.append(
+                    TableMetadata(
+                        name=str(table_name),
+                        schema_name="public" if dialect.startswith("postgres") else None,
+                        columns=columns,
+                        sample_rows=sample_rows,
+                    )
+                )
             try:
-                for foreign_key in inspector.get_foreign_keys(table_name):
+                for foreign_key in foreign_keys:
                     referred_table = foreign_key.get("referred_table")
                     if not referred_table:
                         continue
@@ -232,3 +335,53 @@ class SchemaContextProvider:
             ),
             relationship_graph=build_relationship_graph(relationships),
         )
+
+    def _with_allowed_joins(self, schema: SchemaContext) -> SchemaContext:
+        relationship_map: dict[str, list[AllowedJoinMetadata]] = {}
+        for relationship in schema.relationships:
+            relationship_map.setdefault(relationship.from_table, []).append(
+                AllowedJoinMetadata(
+                    from_table=relationship.from_table,
+                    to_table=relationship.to_table,
+                    via=f"{relationship.from_table}.{relationship.from_column} = {relationship.to_table}.{relationship.to_column}",
+                    reason=relationship.description,
+                )
+            )
+            relationship_map.setdefault(relationship.to_table, []).append(
+                AllowedJoinMetadata(
+                    from_table=relationship.to_table,
+                    to_table=relationship.from_table,
+                    via=f"{relationship.to_table}.{relationship.to_column} = {relationship.from_table}.{relationship.from_column}",
+                    reason=relationship.description,
+                )
+            )
+
+        enriched_tables = [
+            table.model_copy(update={"allowed_joins": relationship_map.get(table.name, [])})
+            for table in schema.tables
+        ]
+        return schema.model_copy(update={"tables": enriched_tables})
+
+    def _sample_rows(
+        self,
+        engine,
+        schema_name: str | None,
+        table_name: str,
+        columns: list[str],
+        *,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        if not columns:
+            return []
+        actual_limit = max(1, min(int(limit or self.SAMPLE_ROW_LIMIT), 5))
+        try:
+            schema_prefix = f'"{schema_name}".' if schema_name else ""
+            select_list = ", ".join(f'"{column}"' for column in columns)
+            query = text(
+                f'SELECT {select_list} FROM {schema_prefix}"{table_name}" LIMIT {actual_limit}'
+            )
+            with engine.connect() as conn:
+                rows = conn.execute(query).mappings().all()
+            return [{key: value for key, value in row.items()} for row in rows]
+        except Exception:  # noqa: BLE001
+            return []

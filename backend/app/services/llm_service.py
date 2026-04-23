@@ -7,9 +7,10 @@ from datetime import date
 from typing import TYPE_CHECKING
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.core.config import settings
+from app.schemas.chat import AgentAction, AgentState, SemanticParse
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import IntentPayload, QuerySemantics
 from app.schemas.semantic_catalog import SemanticCatalog, SemanticTable, SemanticTableEnrichment
@@ -28,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 
 class LLMQueryPlan(BaseModel):
+    state: AgentState | None = None
+    assistant_message: str | None = None
+    semantic_parse: SemanticParse | None = None
+    actions: list[AgentAction] = Field(default_factory=list)
     intent: IntentPayload
     semantics: QuerySemantics | None = None
     sql: str | None = None
@@ -38,12 +43,67 @@ class LLMQueryPlan(BaseModel):
     chart_title: str | None = None
     warnings: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_contract(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+
+        payload = dict(value)
+        intent = payload.get("intent") or {}
+        semantic_parse = payload.get("semantic_parse") or {}
+
+        if not payload.get("assistant_message"):
+            if payload.get("sql"):
+                payload["assistant_message"] = "SQL draft is ready."
+            elif intent.get("clarification_question"):
+                payload["assistant_message"] = intent.get("clarification_question")
+
+        if not payload.get("state"):
+            if intent.get("clarification_question") and not payload.get("sql"):
+                payload["state"] = "CLARIFYING"
+            elif payload.get("sql"):
+                payload["state"] = "SQL_READY"
+            else:
+                payload["state"] = "ERROR"
+
+        if not payload.get("intent") and semantic_parse:
+            semantic_notes = semantic_parse.get("notes") or []
+            payload["intent"] = {
+                "raw_prompt": "",
+                "metric": semantic_parse.get("metric"),
+                "dimensions": semantic_parse.get("dimensions") or [],
+                "filters": semantic_parse.get("filters") or [],
+                "comparison": semantic_parse.get("comparison"),
+                "date_range": semantic_parse.get("date_range"),
+                "ambiguities": [item.get("term") for item in semantic_parse.get("unresolved_terms") or [] if item.get("term")],
+                "clarification_question": semantic_notes[0] if semantic_parse.get("unresolved_terms") and semantic_notes else None,
+                "confidence": semantic_parse.get("confidence", 0.0),
+                "follow_up": False,
+            }
+        return payload
+
 
 class LLMSqlRepairPayload(BaseModel):
     sql: str | None = None
     reason: str | None = None
     retryable: bool = True
     warnings: list[str] = Field(default_factory=list)
+
+
+class LLMChartSuggestionPayload(BaseModel):
+    chart_type: str | None = None
+    variant: str | None = None
+    title: str | None = None
+    x_field: str | None = None
+    y_field: str | None = None
+    series_field: str | None = None
+    facet_field: str | None = None
+    normalize: str | None = None
+    sort: str | None = None
+    reason: str | None = None
+    explanation: str | None = None
+    confidence: float | None = None
 
 
 class LLMService:
@@ -85,13 +145,17 @@ class LLMService:
             "You are a senior analytics engineer. "
             "Return exactly one JSON object and no markdown. "
             "Your job is to understand the analytics request, decide whether clarification is needed, "
-            "and generate a single safe read-only SELECT query when possible.\n"
+            "and draft a single safe read-only SELECT query when possible.\n"
             "Rules:\n"
             "1. Use only tables, columns, and relationships from the schema.\n"
             "2. Never generate INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, GRANT or transaction statements.\n"
             "3. Prefer explicit JOINs and explicit aliases.\n"
             "4. Keep SQL compatible with the provided SQL dialect.\n"
-            "5. Clarifications are welcome when they genuinely help pin down user intent — e.g. "
+            "5. Never execute SQL or imply that it was executed. The user must explicitly press Run.\n"
+            "6. First clarify or explore schema semantics when needed, then draft SQL.\n"
+            "7. Treat the semantic layer and semantic catalog as the source of truth for business terms, metrics, dimensions, and allowed join paths.\n"
+            "8. If a business term is not grounded in the semantic layer, ask for clarification instead of guessing.\n"
+            "9. Clarifications are welcome when they genuinely help pin down user intent — e.g. "
             "choosing between plausible metric definitions (what counts as 'completed'?), join paths, "
             "status value semantics, or a missing time window. A well-grounded clarification beats a "
             "wrong SQL. That said, do NOT ask when the user already specified the relevant detail: "
@@ -103,11 +167,11 @@ class LLMService:
             "that produces all of them as separate columns; do NOT ask which metric to pick. Set "
             "clarification_question to null and populate sql whenever the request is specific enough "
             "to write a safe SELECT.\n"
-            "6. Keep warnings concise.\n"
-            "7. Match the user's language in clarification text.\n"
-            "8. Use conversation history when provided to resolve follow-up intent.\n"
-            "9. Prefer join paths that are present in relationship_graph when choosing table traversal.\n"
-            "10. When you set clarification_question, ALSO populate clarification_options with 3–5 concrete, "
+            "10. Keep warnings concise.\n"
+            "11. Match the user's language in clarification text.\n"
+            "12. Use conversation history when provided to resolve follow-up intent.\n"
+            "13. Prefer join paths that are present in relationship_graph when choosing table traversal.\n"
+            "14. When you set clarification_question, ALSO populate clarification_options with 3–5 concrete, "
             "actionable answer choices specific to the user's request and the actual schema. "
             "Each option must have a stable machine id (snake_case), a short human-readable label, and "
             "optionally a detail/reason explaining the choice. Do NOT use generic placeholder options — "
@@ -185,6 +249,15 @@ class LLMService:
             f"{self._alias_contract_guidance()}"
             f"{self._semantic_catalog_guidance(enabled=semantic_catalog is not None)}"
             "{"
+            '"state":"CLARIFYING|SQL_READY|ERROR",'
+            '"assistant_message":"string",'
+            '"semantic_parse":{"intent_summary":"string|null","metric":"string|null","dimensions":["string"],'
+            '"filters":[{"field":"string","operator":"string","value":"any"}],"comparison":"string|null",'
+            '"date_range":{"kind":"absolute|relative","start":"YYYY-MM-DD|null","end":"YYYY-MM-DD|null","lookback_value":"number|null","lookback_unit":"string|null"}|null,'
+            '"resolved_terms":[{"term":"string","kind":"string","match":"string|null","source":"semantic_catalog|schema|dictionary|user_input|unknown","confidence":"number|null","note":"string|null"}],'
+            '"unresolved_terms":[{"term":"string","kind":"string","match":"string|null","source":"semantic_catalog|schema|dictionary|user_input|unknown","confidence":"number|null","note":"string|null"}],'
+            '"candidate_tables":["string"],"notes":["string"],"confidence":"number"},'
+            '"actions":[{"type":"create_sql|show_run_button|show_chart_preview|show_sql|save_report","label":"string","primary":"boolean","disabled":"boolean","payload":"object"}],'
             '"intent":{"raw_prompt":"string","metric":"string|null","dimensions":["string"],'
             '"filters":[{"field":"string","operator":"string","value":"any"}],'
             '"comparison":"string|null","date_range":{"kind":"absolute|relative","start":"YYYY-MM-DD|null",'
@@ -470,6 +543,76 @@ class LLMService:
             return content.strip() or None
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM summarization request failed: %s", exc)
+            return None
+
+    def suggest_chart(
+        self,
+        *,
+        goal: str,
+        sql: str,
+        columns: list[dict[str, Any]],
+        rows: list[dict[str, Any]],
+        row_count: int,
+        default_chart: dict[str, Any] | None = None,
+        model: str | None = None,
+    ) -> LLMChartSuggestionPayload | None:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model) or not rows or not columns:
+            return None
+
+        system_prompt = (
+            "You are a BI chart copilot. "
+            "Return exactly one JSON object and no markdown. "
+            "You are improving a chart for an already-executed SQL result. "
+            "Do not change the SQL or invent columns. "
+            "Choose only from supported chart_type values: line, bar, pie, metric_card, table. "
+            "Use variant only when needed: single_series, multi_series, grouped, stacked, horizontal_sorted. "
+            "Select x_field, y_field, series_field, facet_field only from the provided columns. "
+            "Prefer the most dashboard-ready readable chart, but keep it truthful to the result shape. "
+            "If the data is too detailed or not suitable for charting, return chart_type='table'. "
+            "Return a short human-readable reason and explanation in the same language as the input context.\n"
+            "{"
+            '"chart_type":"line|bar|pie|metric_card|table",'
+            '"variant":"string|null",'
+            '"title":"string|null",'
+            '"x_field":"string|null",'
+            '"y_field":"string|null",'
+            '"series_field":"string|null",'
+            '"facet_field":"string|null",'
+            '"normalize":"none|percent|index_100|running_total|null",'
+            '"sort":"string|null",'
+            '"reason":"string|null",'
+            '"explanation":"string|null",'
+            '"confidence":"number|null"'
+            "}"
+        )
+        user_prompt = json.dumps(
+            {
+                "goal": goal,
+                "sql": sql,
+                "row_count": row_count,
+                "columns": columns,
+                "sample_rows": rows[:12],
+                "default_chart": default_chart,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        try:
+            content = self._chat_json(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=1200,
+                temperature=0.1,
+                model=target_model,
+            )
+            payload = json.loads(self._extract_json_object(content))
+            return LLMChartSuggestionPayload.model_validate(payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("LLM chart suggestion failed: %s", exc)
             return None
 
     def enrich_semantic_table(

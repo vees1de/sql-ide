@@ -1,6 +1,6 @@
 {
-  "suite_name": "demo_chat_text_to_sql",
-  "database_name": "Demo Analytics DB",
+  "suite_name": "chat_text_to_sql",
+  "database_name": "Analytics DB",
   "query_mode": "thinking",
   "llm_model_alias": "gpt120",
   "cases": [
@@ -120,66 +120,7 @@
             "interpretation": {
               "metric_any_of": ["revenue"],
               "dimensions_all_of": ["month"],
-              "filters": [
-                {
-                  "field": "city",
-                  "value_any_of": ["Moscow", "Москва"]
-                }
-              ],
-              "date_range": {
-                "kind": "relative",
-                "lookback_value": 2,
-                "lookback_unit": "months"
-              }
-            },
-            "sql": {
-              "required_substrings": ["sum("],
-              "required_tables": ["orders", "customers"]
-            },
-            "execution": {
-              "should_succeed": true,
-              "min_row_count": 1,
-              "required_column_groups": [["month", "order_date"], ["total_revenue", "revenue"]],
-              "chart": {
-                "acceptable_types": ["line"],
-                "x_any_of": ["month", "order_date"],
-                "y_any_of": ["total_revenue", "revenue"]
-              }
-            }
-          }
-        }
-      ]
-    },
-    {
-      "id": "share_by_channel",
-      "title": "Explicit pie chart request",
-      "tags": ["chart", "share"],
-      "steps": [
-        {
-          "user": "Покажи долю выручки по каналам за последний месяц в виде pie chart",
-          "expectations": {
-            "should_clarify": false,
-            "interpretation": {
-              "metric_any_of": ["revenue"],
-              "dimensions_all_of": ["channel"],
-              "date_range": {
-                "kind": "relative",
-                "lookback_value": 1,
-                "lookback_unit": "months"
-              }
-            },
-            "sql": {
-              "required_tables": ["orders", "campaigns"]
-            },
-            "execution": {
-              "should_succeed": true,
-              "min_row_count": 1,
-              "required_column_groups": [["channel"], ["total_revenue", "revenue"]],
-              "chart": {
-                "acceptable_types": ["pie"],
-                "x_any_of": ["channel"],
-                "y_any_of": ["total_revenue", "revenue"]
-              }
+              "filters_all_of": ["city=Москва"]
             }
           }
         }

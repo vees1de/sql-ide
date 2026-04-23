@@ -2,8 +2,11 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { chatApi } from '@/api/chat';
 import type {
+  ApiChatAction,
   ApiChatExecutionRead,
   ApiChatMessageRead,
+  ApiChatSemanticParse,
+  ApiChatAgentState,
   ApiQueryMode,
   ApiChatSessionDetail,
   ApiChatSessionRead,
@@ -19,9 +22,12 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ApiChatMessageRead[]>([]);
   const sqlDraft = ref('');
   const sqlDraftVersion = ref(0);
+  const preparedSql = ref<string | null>(null);
+  const state = ref<ApiChatAgentState>('SQL_DRAFTING');
+  const assistantActions = ref<ApiChatAction[]>([]);
+  const semanticParse = ref<ApiChatSemanticParse | null>(null);
   const executionResult = ref<ApiChatExecutionRead | null>(emptyExecution);
   const resultView = ref<'table' | 'chart'>('table');
-  const autoApplySql = ref(true);
   const queryMode = ref<ApiQueryMode>('fast');
   const llmModelAliases = ref<string[]>([]);
   const llmModelAlias = ref('gpt120');
@@ -31,6 +37,7 @@ export const useChatStore = defineStore('chat', () => {
   const pendingUserMessage = ref('');
   const generating = ref(false);
   const executing = ref(false);
+  const suggestingChart = ref(false);
   const loadingSessions = ref(false);
   const loadingMessages = ref(false);
   const errorMessage = ref<string | null>(null);
@@ -73,6 +80,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function setSessionDraft(sql: string | null | undefined, version: number) {
     sqlDraft.value = sql ?? '';
+    preparedSql.value = sqlDraft.value || null;
     lastSyncedSqlDraft.value = sqlDraft.value;
     sqlDraftVersion.value = version;
     clearDraftTimer();
@@ -91,7 +99,20 @@ export const useChatStore = defineStore('chat', () => {
 
   function setSessionResult(execution: ApiChatExecutionRead | null) {
     executionResult.value = execution;
+    const aiChartType = execution?.chart_recommendation?.ai_chart_spec?.chart_type;
+    if (aiChartType && aiChartType !== 'table') {
+      resultView.value = 'chart';
+      return;
+    }
     resultView.value = execution?.chart_recommendation?.recommended_view ?? 'table';
+  }
+
+  function applyAssistantState(message: ApiChatMessageRead | null) {
+    const payload = message?.structured_payload;
+    state.value = payload?.state ?? 'SQL_DRAFTING';
+    assistantActions.value = payload?.actions ?? [];
+    semanticParse.value = payload?.semantic_parse ?? null;
+    preparedSql.value = payload?.sql ?? currentSession.value?.current_sql_draft ?? null;
   }
 
   async function loadDatabases() {
@@ -103,6 +124,10 @@ export const useChatStore = defineStore('chat', () => {
         messages.value = [];
         sqlDraft.value = '';
         sqlDraftVersion.value = 0;
+        preparedSql.value = null;
+        state.value = 'SQL_DRAFTING';
+        assistantActions.value = [];
+        semanticParse.value = null;
         pendingUserMessage.value = '';
         setSessionResult(null);
         return;
@@ -195,6 +220,7 @@ export const useChatStore = defineStore('chat', () => {
       activeSessionId.value = session.id;
       messages.value = [];
       setSessionDraft(session.current_sql_draft, session.sql_draft_version);
+      applyAssistantState(null);
       setSessionResult(null);
       pendingUserMessage.value = '';
       setStatus(session.title === defaultSessionTitle ? 'Пустой чат открыт' : 'Новый чат создан');
@@ -218,6 +244,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = [];
     pendingUserMessage.value = '';
     setSessionDraft('', 0);
+    applyAssistantState(null);
     setSessionResult(null);
     await loadSessions(databaseId);
   }
@@ -236,6 +263,9 @@ export const useChatStore = defineStore('chat', () => {
       messages.value = detail.messages;
       pendingUserMessage.value = '';
       setSessionDraft(detail.current_sql_draft, detail.sql_draft_version);
+      applyAssistantState(
+        [...detail.messages].reverse().find((message) => message.role === 'assistant') ?? null
+      );
       setSessionResult(detail.last_execution);
       setStatus(detail.title || 'Чат готов');
     } catch (error) {
@@ -264,6 +294,7 @@ export const useChatStore = defineStore('chat', () => {
       activeSessionId.value = '';
       messages.value = [];
       setSessionDraft('', 0);
+      applyAssistantState(null);
       setSessionResult(null);
       if (nextSessions.length) {
         await selectSession(nextSessions[0].id);
@@ -305,6 +336,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function updateSqlDraft(nextSql: string) {
     sqlDraft.value = nextSql;
+    preparedSql.value = nextSql.trim() ? nextSql : null;
 
     clearDraftTimer();
     draftSaveTimer = window.setTimeout(() => {
@@ -317,6 +349,7 @@ export const useChatStore = defineStore('chat', () => {
       return;
     }
     sqlDraft.value = sql;
+    preparedSql.value = sql;
     lastSyncedSqlDraft.value = sql;
     if (typeof version === 'number') {
       sqlDraftVersion.value = version;
@@ -367,15 +400,17 @@ export const useChatStore = defineStore('chat', () => {
       });
       syncSession(response.session);
       messages.value = [...messages.value, response.user_message, response.assistant_message];
+      applyAssistantState(response.assistant_message);
       if (response.sql_draft) {
         applyAssistantSqlDraft(response.sql_draft, response.sql_draft_version);
       } else {
+        preparedSql.value = response.assistant_message.structured_payload?.sql ?? null;
         sqlDraftVersion.value = response.sql_draft_version;
       }
       setSessionResult(null);
-      if (response.assistant_message.structured_payload?.needs_clarification) {
+      if (response.assistant_message.structured_payload?.state === 'CLARIFYING' || response.assistant_message.structured_payload?.needs_clarification) {
         setStatus('Нужно уточнение');
-      } else if (response.sql_draft) {
+      } else if (response.assistant_message.structured_payload?.state === 'SQL_READY' || response.sql_draft) {
         setStatus('SQL готов');
       } else {
         setStatus('Ответ получен');
@@ -387,6 +422,44 @@ export const useChatStore = defineStore('chat', () => {
     } finally {
       generating.value = false;
       pendingUserMessage.value = '';
+    }
+  }
+
+  async function answerClarification(clarificationId: string, selectedOptionId?: string | null, textAnswer?: string | null) {
+    if (!currentSession.value) {
+      throw new Error('Сессия чата не выбрана.');
+    }
+
+    generating.value = true;
+    setError(null);
+    setStatus('Обрабатываю уточнение');
+    try {
+      const response = await chatApi.answerClarification(currentSession.value.id, clarificationId, {
+        selected_option_id: selectedOptionId ?? null,
+        text_answer: textAnswer ?? null
+      });
+      syncSession(response.session);
+      messages.value = [...messages.value, response.user_message, response.assistant_message];
+      applyAssistantState(response.assistant_message);
+      if (response.sql_draft) {
+        applyAssistantSqlDraft(response.sql_draft, response.sql_draft_version);
+      } else {
+        setSessionDraft('', response.sql_draft_version);
+      }
+      setSessionResult(null);
+      if (response.assistant_message.structured_payload?.state === 'CLARIFYING') {
+        setStatus('Нужно дополнительное уточнение');
+      } else if (response.assistant_message.structured_payload?.state === 'SQL_READY') {
+        setStatus('SQL готов');
+      } else {
+        setStatus('Ответ получен');
+      }
+      return response;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Не удалось обработать уточнение.');
+      throw error;
+    } finally {
+      generating.value = false;
     }
   }
 
@@ -418,12 +491,55 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function setResultMode(view: 'table' | 'chart') {
-    resultView.value = view;
+  async function runPreparedSql() {
+    if (!currentSession.value) {
+      throw new Error('Сессия чата не выбрана.');
+    }
+
+    await flushSqlDraftSave();
+    executing.value = true;
+    setError(null);
+    setStatus('Выполняю подготовленный SQL');
+    try {
+      const response = await chatApi.runPreparedSql(currentSession.value.id, preparedSql.value ? { sql: preparedSql.value } : undefined);
+      syncSession(response.session);
+      setSessionResult(response.execution);
+      setStatus(response.execution.error_message ? 'Выполнение завершилось с ошибкой' : 'Запрос выполнен');
+      return response;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Не удалось выполнить подготовленный SQL.');
+      throw error;
+    } finally {
+      executing.value = false;
+    }
   }
 
-  function setAutoApplySql(next: boolean) {
-    autoApplySql.value = next;
+  async function suggestChart(goal: 'best_chart' | 'explain_visualization' | 'dashboard_ready' = 'best_chart') {
+    if (!currentSession.value || !executionResult.value?.id) {
+      throw new Error('Нет результата SQL для AI-подсказки.');
+    }
+
+    suggestingChart.value = true;
+    setError(null);
+    setStatus('Получаю AI-подсказку для графика');
+    try {
+      const execution = await chatApi.suggestChart(currentSession.value.id, executionResult.value.id, { goal });
+      setSessionResult(execution);
+      if (execution.chart_recommendation?.ai_chart_spec?.chart_type && execution.chart_recommendation.ai_chart_spec.chart_type !== 'table') {
+        resultView.value = 'chart';
+      }
+      setStatus('AI-подсказка готова');
+      return execution;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Не удалось получить AI-подсказку.');
+      throw error;
+    } finally {
+      suggestingChart.value = false;
+    }
+  }
+
+  function setResultMode(view: 'table' | 'chart') {
+    resultView.value = view;
   }
 
   function setQueryMode(mode: ApiQueryMode) {
@@ -452,7 +568,8 @@ export const useChatStore = defineStore('chat', () => {
     activeDbId,
     activeSessionId,
     applyAssistantSqlDraft,
-    autoApplySql,
+    answerClarification,
+    assistantActions,
     clearExecutionResult,
     createSession,
     currentDatabase,
@@ -470,25 +587,30 @@ export const useChatStore = defineStore('chat', () => {
     llmModelAlias,
     llmModelAliases,
     pendingUserMessage,
+    preparedSql,
     loadSessions,
     messages,
     queryMode,
+    runPreparedSql,
     sessions,
+    semanticParse,
     renameSession,
     resultView,
     runSql,
+    suggestChart,
     selectDatabase,
     selectSession,
     sendMessage,
-    setAutoApplySql,
     setError,
     setLlmModelAlias,
     setResultMode,
+    state,
     setStatus,
     setQueryMode,
     statusLabel,
     sqlDraft,
     sqlDraftVersion,
+    suggestingChart,
     updateSqlDraft,
     errorMessage
   };

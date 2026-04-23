@@ -24,6 +24,7 @@
                   :busy="chat.generating || chat.executing"
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
+                  :state="chat.state"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -72,6 +73,7 @@
                   :busy="chat.generating || chat.executing"
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
+                  :state="chat.state"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -115,6 +117,8 @@
               "
               @apply-sql="applySql"
               @clarification="sendClarification"
+              @run-prepared="runPreparedSql"
+              @show-chart-preview="showChartPreview"
               @set-llm-model-alias="chat.setLlmModelAlias"
               @set-query-mode="chat.setQueryMode"
               @send="sendMessage"
@@ -138,6 +142,8 @@
               "
               @apply-sql="applySql"
               @clarification="sendClarification"
+              @run-prepared="runPreparedSql"
+              @show-chart-preview="showChartPreview"
               @set-llm-model-alias="chat.setLlmModelAlias"
               @set-query-mode="chat.setQueryMode"
               @send="sendMessage"
@@ -172,6 +178,7 @@
                   :busy="chat.generating || chat.executing"
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
+                  :state="chat.state"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -220,6 +227,7 @@
                   :busy="chat.generating || chat.executing"
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
+                  :state="chat.state"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -406,12 +414,20 @@ function sendMessage(text: string, mode: "fast" | "thinking") {
   void chat.sendMessage(text);
 }
 
-function sendClarification(answer: string) {
-  void chat.sendMessage(answer);
+function sendClarification(payload: { clarificationId: string; optionId?: string | null; text?: string | null }) {
+  void chat.answerClarification(payload.clarificationId, payload.optionId, payload.text);
 }
 
 function runSql() {
   void chat.runSql();
+}
+
+function runPreparedSql() {
+  void chat.runPreparedSql();
+}
+
+function showChartPreview() {
+  chat.setResultMode("chart");
 }
 
 function updateSqlDraft(value: string) {

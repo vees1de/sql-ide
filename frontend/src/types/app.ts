@@ -171,7 +171,7 @@ export interface DatabaseConnection {
   status: 'connected' | 'syncing';
   knowledgeStatus?: 'not_scanned' | 'queued' | 'running' | 'completed' | 'failed' | string;
   lastScanAt?: string;
-  isDemo?: boolean;
+  isBuiltin?: boolean;
   /** Whitelist таблиц для доступа; null — не ограничено отдельно (все из интроспекции при импорте). */
   allowedTables?: string[] | null;
 }

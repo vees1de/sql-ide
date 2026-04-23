@@ -8,15 +8,18 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.db.models import ChatMessageModel, ChatSessionModel, QueryExecutionModel
 from app.schemas.chat import (
+    ChartSuggestionRequest,
     ChatMessageCreate,
     ChatMessageRead,
     ChatSessionCreate,
     ChatSessionDetail,
     ChatSessionRead,
     ChatSessionUpdate,
+    ClarificationAnswerRequest,
     ExecuteRequest,
     ExecuteResponse,
     QueryExecutionRead,
+    RunPreparedSqlRequest,
     SendMessageResponse,
     SqlDraftUpdate,
 )
@@ -66,6 +69,12 @@ def _execution_to_read(execution: QueryExecutionModel) -> QueryExecutionRead:
         "rows_preview_truncated": execution.rows_preview_truncated,
         "row_count": execution.row_count,
         "execution_time_ms": execution.execution_time_ms,
+        "dataset": {
+            "dataset_id": f"query_execution:{execution.id}",
+            "query_execution_id": execution.id,
+            "row_count": execution.row_count,
+            "columns": execution.columns_json or [],
+        },
         "chart_recommendation": execution.chart_recommendation_json,
         "error_message": execution.error_message,
         "created_at": execution.created_at,
@@ -177,6 +186,39 @@ async def send_message(
         _release_session_busy(session_id)
 
 
+@router.post(
+    "/chat/sessions/{session_id}/clarifications/{clarification_id}/answer",
+    response_model=SendMessageResponse,
+    status_code=201,
+)
+async def answer_clarification(
+    session_id: str,
+    clarification_id: str,
+    payload: ClarificationAnswerRequest,
+    db: Session = Depends(get_db),
+) -> SendMessageResponse:
+    _get_session_or_404(db, session_id)
+    if not _try_mark_session_busy(session_id):
+        raise HTTPException(status_code=409, detail="Chat session is busy.")
+
+    try:
+        result = chat_adapter.answer_clarification(
+            db,
+            session_id,
+            clarification_id,
+            payload,
+        )
+        return SendMessageResponse(
+            session=_session_to_read(result.session),
+            user_message=_message_to_read(result.user_message),
+            assistant_message=_message_to_read(result.assistant_message),
+            sql_draft=result.sql_draft,
+            sql_draft_version=result.sql_draft_version,
+        )
+    finally:
+        _release_session_busy(session_id)
+
+
 @router.patch("/chat/sessions/{session_id}/sql-draft", response_model=ChatSessionRead)
 def update_sql_draft(
     session_id: str,
@@ -205,3 +247,44 @@ def execute_sql(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     session = _get_session_or_404(db, session_id)
     return ExecuteResponse(session=_session_to_read(session), execution=_execution_to_read(execution))
+
+
+@router.post("/chat/sessions/{session_id}/actions/run-sql", response_model=ExecuteResponse, status_code=201)
+def run_prepared_sql(
+    session_id: str,
+    payload: RunPreparedSqlRequest | None = None,
+    db: Session = Depends(get_db),
+) -> ExecuteResponse:
+    _get_session_or_404(db, session_id)
+    try:
+        execution = chat_execution_service.execute_prepared(db, session_id, payload.sql if payload else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    session = _get_session_or_404(db, session_id)
+    return ExecuteResponse(session=_session_to_read(session), execution=_execution_to_read(execution))
+
+
+@router.post(
+    "/chat/sessions/{session_id}/executions/{execution_id}/chart-suggestion",
+    response_model=QueryExecutionRead,
+    status_code=201,
+)
+def suggest_chart(
+    session_id: str,
+    execution_id: str,
+    payload: ChartSuggestionRequest | None = None,
+    db: Session = Depends(get_db),
+) -> QueryExecutionRead:
+    _get_session_or_404(db, session_id)
+    try:
+        execution = chat_execution_service.suggest_chart(
+            db,
+            session_id,
+            execution_id,
+            (payload.goal if payload else "best_chart"),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _execution_to_read(execution)

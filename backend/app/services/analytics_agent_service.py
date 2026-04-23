@@ -14,6 +14,7 @@ from app.agents.semantic import SemanticMappingAgent
 from app.agents.sql_generation import SQLGenerationAgent
 from app.agents.validation import SQLValidationAgent
 from app.core.config import settings
+from app.schemas.chat import AgentState
 from app.schemas.analytics import (
     AnalyticsContext,
     AnalyticsQueryRequest,
@@ -60,12 +61,14 @@ class AnalyticsPlan:
     intent: IntentPayload
     semantic: Any
     sql: str | None
+    dialect: str
     validation_errors: list[str]
     validation_warnings: list[str]
     validation: ValidationPayload | None
     clarification: ClarificationResponse | None
     dashboard_recommendation: DashboardRecommendationResponse | None
     status: str
+    state: AgentState
     error: str | None = None
 
 
@@ -143,7 +146,7 @@ class AnalyticsAgentService:
         context = request.context
         base_dictionary_entries = self._load_dictionary_entries(db)
         normalized_query = self._normalize_with_dictionary(request.query, base_dictionary_entries)
-        database_id = context.database or settings.demo_database_id
+        database_id = context.database or settings.analytics_database_id
         fallback_schema, fallback_dialect, fallback_allowed_tables = self._resolve_schema_context(db, context)
         catalog_context = None
         semantic_catalog = None
@@ -176,17 +179,40 @@ class AnalyticsAgentService:
         if answers:
             intent = apply_answers(intent, answers)
 
+        unresolved_terms = self.semantic_catalog_service.resolve_intent_terms(
+            intent,
+            semantic_catalog,
+            dictionary_entries,
+        )
+        if unresolved_terms.requires_clarification:
+            clarification = self._build_term_clarification(intent, unresolved_terms)
+            return AnalyticsPlan(
+                intent=intent,
+                semantic=None,
+                sql=None,
+                dialect=dialect,
+                validation_errors=[],
+                validation_warnings=[],
+                validation=None,
+                clarification=clarification,
+                dashboard_recommendation=self.dashboard_service.recommend(intent, context),
+                status="clarification_required",
+                state="CLARIFYING",
+            )
+
         if self._needs_clarification(intent, schema, skip_confidence_check=bool(answers)):
             return AnalyticsPlan(
                 intent=intent,
                 semantic=None,
                 sql=None,
+                dialect=dialect,
                 validation_errors=[],
                 validation_warnings=[],
                 validation=None,
                 clarification=ClarificationResponse(questions=self._build_clarification_questions(intent, schema)),
                 dashboard_recommendation=self.dashboard_service.recommend(intent, context),
                 status="clarification_required",
+                state="CLARIFYING",
             )
 
         semantic = self.semantic_agent.run(intent, dictionary_entries, dialect, schema)
@@ -198,12 +224,14 @@ class AnalyticsAgentService:
                 intent=intent,
                 semantic=semantic,
                 sql=None,
+                dialect=dialect,
                 validation_errors=[str(exc)],
                 validation_warnings=[],
                 validation=None,
                 clarification=None,
                 dashboard_recommendation=self.dashboard_service.recommend(intent, context),
                 status="error",
+                state="ERROR",
                 error=str(exc),
             )
 
@@ -219,12 +247,14 @@ class AnalyticsAgentService:
                 intent=intent,
                 semantic=semantic,
                 sql=None,
+                dialect=dialect,
                 validation_errors=validation.errors,
                 validation_warnings=validation.warnings,
                 validation=validation,
                 clarification=None,
                 dashboard_recommendation=self.dashboard_service.recommend(intent, context),
                 status="error",
+                state="ERROR",
                 error="; ".join(validation.errors) if validation.errors else "SQL validation failed.",
             )
 
@@ -232,12 +262,14 @@ class AnalyticsAgentService:
             intent=intent,
             semantic=semantic,
             sql=validation.sql,
+            dialect=dialect,
             validation_errors=validation.errors,
             validation_warnings=validation.warnings,
             validation=validation,
             clarification=None,
             dashboard_recommendation=self.dashboard_service.recommend(intent, context),
             status="success",
+            state="SQL_READY",
         )
 
     def recommend_dashboards(
@@ -254,7 +286,7 @@ class AnalyticsAgentService:
     def list_metadata(self, db: Session, context: AnalyticsContext | None = None) -> dict[str, Any]:
         context = context or AnalyticsContext()
         base_dictionary_entries = self._load_dictionary_entries(db)
-        database_id = context.database or settings.demo_database_id
+        database_id = context.database or settings.analytics_database_id
         catalog_context = self.semantic_catalog_service.build_retrieval_context(
             db,
             database_id,
@@ -304,7 +336,7 @@ class AnalyticsAgentService:
         db: Session,
         context: AnalyticsContext,
     ) -> tuple[SchemaMetadataResponse, str, list[str]]:
-        database_id = context.database or settings.demo_database_id
+        database_id = context.database or settings.analytics_database_id
         schema = self.schema_provider.get_schema_for_llm(db, database_id)
         dialect = schema.dialect
         allowed_tables = [table.name for table in schema.tables]
@@ -499,6 +531,33 @@ class AnalyticsAgentService:
                 )
             )
         return questions[:3]
+
+    def _build_term_clarification(
+        self,
+        intent: IntentPayload,
+        resolution: Any,
+    ) -> ClarificationResponse:
+        questions: list[ClarificationQuestion] = []
+        for missing in resolution.unresolved_terms[:3]:
+            options = [candidate.match or candidate.term for candidate in missing.candidates[:4] if candidate.match or candidate.term]
+            if not options:
+                options = ["Уточнить вручную"]
+            questions.append(
+                ClarificationQuestion(
+                    id=missing.kind,
+                    text=missing.question or f"Что означает «{missing.term}» в этом запросе?",
+                    options=options,
+                )
+            )
+        if not questions:
+            questions.append(
+                ClarificationQuestion(
+                    id="metric",
+                    text=intent.clarification_question or "Уточните, что именно нужно посчитать.",
+                    options=["Уточнить метрику", "Уточнить измерение", "Уточнить период"],
+                )
+            )
+        return ClarificationResponse(questions=questions[:3])
 
     def _dimension_options(self, schema: SchemaMetadataResponse) -> list[str]:
         options = ["Month", "Week", "Day"]

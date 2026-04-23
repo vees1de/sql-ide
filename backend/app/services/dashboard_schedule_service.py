@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, time
+from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -57,7 +57,7 @@ class DashboardScheduleService:
         if schedule.last_sent_at is not None:
             last_sent = schedule.last_sent_at
             if last_sent.tzinfo is None:
-                last_sent = last_sent.replace(tzinfo=UTC)
+                last_sent = last_sent.replace(tzinfo=timezone.utc)
             last_sent = last_sent.astimezone(tz)
             if last_sent.date() == now.date():
                 return False

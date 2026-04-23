@@ -69,19 +69,15 @@ class WorkspaceService:
     def list_databases(self, db: Session) -> list[DatabaseDescriptor]:
         descriptors: list[DatabaseDescriptor] = [
             DatabaseDescriptor(
-                id=settings.demo_database_id,
-                name=settings.demo_database_name,
+                id=settings.analytics_database_id,
+                name=settings.analytics_database_name,
                 dialect=analytics_engine.dialect.name,
-                description=(
-                    "Built-in demo analytics database."
-                    if settings.analytics_uses_demo_data
-                    else "Configured analytical database."
-                ),
+                description="Built-in analytical database.",
                 read_only=True,
-                is_demo=settings.analytics_uses_demo_data,
+                is_builtin=True,
                 status="connected",
-                knowledge_status=self._knowledge_status(db, settings.demo_database_id),
-                last_scan_at=self._last_scan_at(db, settings.demo_database_id),
+                knowledge_status=self._knowledge_status(db, settings.analytics_database_id),
+                last_scan_at=self._last_scan_at(db, settings.analytics_database_id),
             )
         ]
 
@@ -91,6 +87,8 @@ class WorkspaceService:
             .all()
         )
         for connection in connections:
+            if connection.id == settings.analytics_database_id:
+                continue
             allowed = connection.allowed_tables
             allowed_list = allowed if isinstance(allowed, list) else None
             descriptors.append(
@@ -100,7 +98,7 @@ class WorkspaceService:
                     dialect=connection.dialect,
                     description=connection.description or "",
                     read_only=(connection.read_only or "true").lower() == "true",
-                    is_demo=False,
+                    is_builtin=False,
                     host=connection.host,
                     port=connection.port,
                     database=connection.database,
@@ -206,7 +204,7 @@ class WorkspaceService:
     def update_database(
         self, db: Session, database_id: str, payload: DatabaseConnectionUpdate
     ) -> DatabaseConnectionModel | None:
-        if database_id == settings.demo_database_id:
+        if database_id == settings.analytics_database_id:
             return None
         connection = (
             db.query(DatabaseConnectionModel).filter(DatabaseConnectionModel.id == database_id).first()
@@ -224,7 +222,7 @@ class WorkspaceService:
         return connection
 
     def delete_database(self, db: Session, database_id: str) -> bool:
-        if database_id == settings.demo_database_id:
+        if database_id == settings.analytics_database_id:
             return False
         connection = (
             db.query(DatabaseConnectionModel)

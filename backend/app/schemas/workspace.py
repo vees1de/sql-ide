@@ -11,7 +11,7 @@ class DatabaseDescriptor(BaseModel):
     dialect: str
     description: str
     read_only: bool = True
-    is_demo: bool = False
+    is_builtin: bool = False
     host: str | None = None
     port: int | None = None
     database: str | None = None

@@ -43,7 +43,7 @@ class MetadataService:
 
         relationship_graph = build_relationship_graph(relationships)
         return SchemaMetadataResponse(
-            database_id=settings.demo_database_id,
+            database_id=settings.analytics_database_id,
             dialect=analytics_engine.dialect.name,
             tables=tables,
             relationships=relationships,

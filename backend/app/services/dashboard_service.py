@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -73,7 +73,7 @@ class DashboardService:
         if not self.mailer.send_dashboard_digest(schedule, dashboard, pdf_bytes, dashboard_url, filename):
             return False
 
-        schedule.last_sent_at = datetime.now(UTC)
+        schedule.last_sent_at = datetime.now(timezone.utc)
         return True
 
     def dispatch_due_schedules(self) -> int:

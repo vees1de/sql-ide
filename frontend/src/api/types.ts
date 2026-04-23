@@ -51,10 +51,98 @@ export interface ApiChatTableUsage {
 export interface ApiChatClarificationOption {
   id: string;
   label: string;
-  detail: string;
+  detail?: string | null;
+  reason?: string | null;
 }
 
+export type ApiChatAgentState = 'CLARIFYING' | 'SQL_DRAFTING' | 'SQL_READY' | 'ERROR';
+
+export interface ApiChatSemanticTermBinding {
+  term: string;
+  kind: 'metric' | 'dimension' | 'filter' | 'table' | 'column' | 'relationship' | 'term';
+  match?: string | null;
+  source: 'semantic_catalog' | 'schema' | 'dictionary' | 'user_input' | 'unknown';
+  confidence?: number | null;
+  note?: string | null;
+}
+
+export interface ApiChatSemanticParse {
+  intent_summary?: string | null;
+  metric: string | null;
+  dimensions: string[];
+  date_range: ApiChatDateRange | null;
+  filters: ApiChatFilterCondition[];
+  comparison: string | null;
+  resolved_terms: ApiChatSemanticTermBinding[];
+  unresolved_terms: ApiChatSemanticTermBinding[];
+  candidate_tables: string[];
+  notes: string[];
+  confidence: number;
+}
+
+export interface ApiChatCreateSqlAction {
+  type: 'create_sql';
+  label: string;
+  primary: boolean;
+  disabled: boolean;
+  payload: {
+    reason?: string | null;
+  };
+}
+
+export interface ApiChatShowRunButtonAction {
+  type: 'show_run_button';
+  label: string;
+  primary: boolean;
+  disabled: boolean;
+  payload: {
+    sql_ready: boolean;
+    require_user_confirmation: boolean;
+  };
+}
+
+export interface ApiChatShowChartPreviewAction {
+  type: 'show_chart_preview';
+  label: string;
+  primary: boolean;
+  disabled: boolean;
+  payload: {
+    reason?: string | null;
+  };
+}
+
+export interface ApiChatShowSqlAction {
+  type: 'show_sql';
+  label: string;
+  primary: boolean;
+  disabled: boolean;
+  payload: {
+    expanded: boolean;
+  };
+}
+
+export interface ApiChatSaveReportAction {
+  type: 'save_report';
+  label: string;
+  primary: boolean;
+  disabled: boolean;
+  payload: {
+    title_suggestion?: string | null;
+  };
+}
+
+export type ApiChatAction =
+  | ApiChatCreateSqlAction
+  | ApiChatShowRunButtonAction
+  | ApiChatShowChartPreviewAction
+  | ApiChatShowSqlAction
+  | ApiChatSaveReportAction;
+
 export interface ApiChatStructuredPayload {
+  state: ApiChatAgentState;
+  assistant_message?: string | null;
+  semantic_parse?: ApiChatSemanticParse | null;
+  actions?: ApiChatAction[];
   interpretation: ApiChatInterpretation;
   tables_used: ApiChatTableUsage[];
   sql: string | null;
@@ -64,12 +152,24 @@ export interface ApiChatStructuredPayload {
   debug_trace?: Array<{
     stage: string;
     status: 'success' | 'warning' | 'error' | 'info';
-    code?: string | null;
-    detail: string;
-  }>;
+      code?: string | null;
+      detail: string;
+    }>;
+  clarification?: {
+    clarification_id: string;
+    question: string;
+    ambiguity_type: 'metric' | 'dimension' | 'time_range' | 'aggregation' | 'other';
+    answer_type: 'single_select' | 'multi_select' | 'free_text';
+    options: ApiChatClarificationOption[];
+    recommended_option_id?: string | null;
+    status: 'pending' | 'answered';
+    answer_option_id?: string | null;
+    answer_text?: string | null;
+  } | null;
   needs_clarification: boolean;
   clarification_question: string | null;
   clarification_options: ApiChatClarificationOption[] | null;
+  answered_clarification_id?: string | null;
   dialect: string;
   query_mode: ApiQueryMode;
   llm_model_alias?: string | null;
@@ -151,6 +251,55 @@ export interface ApiChatExecutionRecommendation {
     confidence?: number;
   } | null;
   reason_codes?: string[] | null;
+  chart_spec?: ApiChatChartSpec | null;
+  ai_chart_spec?: ApiChatChartSpec | null;
+}
+
+export interface ApiChatChartEncoding {
+  x_field?: string | null;
+  y_field?: string | null;
+  series_field?: string | null;
+  facet_field?: string | null;
+  sort?: string | null;
+  normalize?: 'none' | 'percent' | 'index_100' | 'running_total' | null;
+  series_limit?: number | null;
+  category_limit?: number | null;
+  top_n_strategy?: string | null;
+  value_format?: string | null;
+  data_roles?: Record<string, unknown> | null;
+}
+
+export interface ApiChatChartSpec {
+  chart_type: 'line' | 'bar' | 'pie' | 'metric_card' | 'table';
+  title: string;
+  encoding: ApiChatChartEncoding;
+  options?: Record<string, unknown>;
+  data?: Record<string, unknown> | null;
+  variant?: string | null;
+  explanation?: string | null;
+  reason?: string | null;
+  rule_id?: string | null;
+  confidence?: number | null;
+  semantic_intent?: string | null;
+  analysis_mode?: string | null;
+  visual_goal?: string | null;
+  time_role?: string | null;
+  comparison_goal?: string | null;
+  preferred_mark?: string | null;
+  alternatives?: string[] | null;
+  candidates?: Array<{ type: string; score: number; why: string }> | null;
+  constraints_applied?: string[] | null;
+  visual_load?: number | null;
+  query_interpretation?: ApiChatExecutionRecommendation['query_interpretation'];
+  decision_summary?: ApiChatExecutionRecommendation['decision_summary'];
+  reason_codes?: string[] | null;
+}
+
+export interface ApiChatExecutionDataset {
+  dataset_id: string;
+  query_execution_id: string;
+  row_count: number;
+  columns: Array<{ name: string; type: string }>;
 }
 
 export interface ApiChatExecutionRead {
@@ -162,6 +311,7 @@ export interface ApiChatExecutionRead {
   rows_preview_truncated: boolean;
   row_count: number;
   execution_time_ms: number;
+  dataset?: ApiChatExecutionDataset | null;
   chart_recommendation: ApiChatExecutionRecommendation | null;
   error_message: string | null;
   created_at: string;
@@ -196,6 +346,19 @@ export interface ApiChatExecuteRequest {
   sql: string;
 }
 
+export interface ApiChatClarificationAnswerRequest {
+  selected_option_id?: string | null;
+  text_answer?: string | null;
+}
+
+export interface ApiChatRunPreparedSqlRequest {
+  sql?: string | null;
+}
+
+export interface ApiChatChartSuggestionRequest {
+  goal?: 'best_chart' | 'explain_visualization' | 'dashboard_ready';
+}
+
 export interface ApiChatSendMessageResponse {
   session: ApiChatSessionRead;
   user_message: ApiChatMessageRead;
@@ -215,7 +378,7 @@ export interface ApiDatabaseDescriptor {
   dialect: string;
   description: string;
   read_only: boolean;
-  is_demo: boolean;
+  is_builtin: boolean;
   host?: string | null;
   port?: number | null;
   database?: string | null;
@@ -296,6 +459,22 @@ export interface ApiSemanticCatalogActivationRequest {
   database_id: string;
   refresh?: boolean;
   database_description?: string | null;
+  table_descriptions?: Array<{
+    table_name: string;
+    business_description: string;
+  }>;
+  relationship_descriptions?: Array<{
+    from_table: string;
+    from_column: string;
+    to_table: string;
+    to_column: string;
+    business_meaning: string;
+  }>;
+  column_descriptions?: Array<{
+    table_name: string;
+    column_name: string;
+    business_description: string;
+  }>;
 }
 
 export interface ApiSemanticTablePatch {

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, selectinload
@@ -151,7 +151,7 @@ def update_dashboard(
 @router.delete("/dashboards/{dashboard_id}", status_code=204)
 def delete_dashboard(dashboard_id: str, db: Session = Depends(get_db)) -> Response:
     dashboard = _get_dashboard_or_404(db, dashboard_id)
-    dashboard.deleted_at = datetime.now(UTC)
+    dashboard.deleted_at = datetime.now(timezone.utc)
     db.commit()
     return Response(status_code=204)
 

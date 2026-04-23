@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:remote": "VITE_PROXY_TARGET=https://bims.su/x9p4k2q7 vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview"
   },

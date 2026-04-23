@@ -48,7 +48,7 @@
           ></span>
           <span class="db-folder__count">{{ notebooksOf(database.id).length }}</span>
           <span
-            v-if="!database.isDemo"
+            v-if="!database.isBuiltin"
             class="row-delete"
             role="button"
             tabindex="0"
