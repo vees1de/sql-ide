@@ -388,11 +388,7 @@ watch(
 }
 
 .chat-result-panel__section-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: none;
 }
 
 .chat-result-panel__section-head strong {

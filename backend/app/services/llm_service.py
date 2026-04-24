@@ -122,6 +122,7 @@ class LLMSqlExplanationPayload(BaseModel):
     summary: str
     blocks: list[LLMSqlExplanationBlock] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    table_choice_reasoning: str | None = None
 
 
 class LLMService:
@@ -643,6 +644,7 @@ class LLMService:
         *,
         sql: str,
         dialect: str | None = None,
+        user_question: str | None = None,
         model: str | None = None,
     ) -> SqlExplanationResponse | None:
         target_model = model or settings.llm_model
@@ -650,6 +652,12 @@ class LLMService:
             return self._fallback_sql_explanation(sql, dialect=dialect)
 
         line_map = self._numbered_sql(sql)
+        table_choice_instruction = (
+            ' If "user_question" is provided, also fill "table_choice_reasoning" with 1-3 sentences'
+            " explaining why exactly these tables (and joins) were used to answer that question —"
+            " what data each table contributes and why alternatives were not needed."
+            ' If no user question is given, set "table_choice_reasoning" to null.'
+        ) if user_question else ' Set "table_choice_reasoning" to null.'
         system_prompt = (
             "You are a senior SQL tutor. "
             "Return exactly one JSON object and no markdown. "
@@ -659,9 +667,11 @@ class LLMService:
             "If the query is simple, it is fine to produce fewer blocks. "
             "Each block must describe one clause or one logical part of the query and should include the "
             "exact SQL excerpt copied from the source. "
-            "Do not invent tables, columns, filters, or business meaning.\n"
+            "Do not invent tables, columns, filters, or business meaning."
+            + table_choice_instruction + "\n"
             "{"
             '"summary":"string",'
+            '"table_choice_reasoning":"string|null",'
             '"blocks":[{'
             '"index":"number",'
             '"kind":"cte|select|from|join|where|group_by|having|order_by|limit|compound|other",'
@@ -677,6 +687,7 @@ class LLMService:
         user_prompt = json.dumps(
             {
                 "dialect": dialect,
+                "user_question": user_question,
                 "sql": sql,
                 "numbered_sql": line_map,
             },
@@ -690,7 +701,7 @@ class LLMService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=1400,
+                max_tokens=1600,
                 temperature=0.1,
                 model=str(target_model),
             )
@@ -701,6 +712,7 @@ class LLMService:
                 return self._fallback_sql_explanation(sql, dialect=dialect)
             return SqlExplanationResponse(
                 summary=result.summary.strip(),
+                table_choice_reasoning=result.table_choice_reasoning.strip() if result.table_choice_reasoning else None,
                 blocks=blocks,
                 warnings=[warning.strip() for warning in result.warnings if str(warning).strip()],
                 generated_by_ai=True,

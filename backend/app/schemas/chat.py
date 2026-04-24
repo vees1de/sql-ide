@@ -133,6 +133,7 @@ class SqlExplanationBlock(BaseModel):
 
 class SqlExplanationResponse(BaseModel):
     summary: str
+    table_choice_reasoning: str | None = None
     blocks: list[SqlExplanationBlock] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     generated_by_ai: bool = False

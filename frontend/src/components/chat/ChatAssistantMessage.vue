@@ -9,7 +9,23 @@
     <p class="chat-assistant-message__text">{{ displayText }}</p>
 
     <section v-if="hasSemanticSummary" class="chat-assistant-message__semantic">
-      <div class="chat-assistant-message__semantic-head">Semantic summary</div>
+      <button
+        class="chat-assistant-message__semantic-head"
+        type="button"
+        @click="semanticOpen = !semanticOpen"
+      >
+        <span>Semantic summary</span>
+        <svg
+          class="chat-assistant-message__semantic-chevron"
+          :class="{ 'chat-assistant-message__semantic-chevron--open': semanticOpen }"
+          viewBox="0 0 16 16" width="12" height="12"
+          fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round"
+        >
+          <path d="M4 6l4 4 4-4"/>
+        </svg>
+      </button>
+      <template v-if="semanticOpen">
       <div class="chat-assistant-message__chips">
         <span v-if="payload?.semantic_parse?.metric" class="chat-assistant-message__chip">
           Метрика: {{ payload.semantic_parse.metric }}
@@ -36,6 +52,7 @@
       >
         {{ note }}
       </p>
+      </template>
     </section>
 
     <section v-if="clarificationQuestion" class="chat-assistant-message__clarification">
@@ -123,6 +140,7 @@ const emit = defineEmits<{
 const payload = computed<ApiChatStructuredPayload | null>(() => props.message.structured_payload);
 const sqlCollapsed = ref(false);
 const reasoningCollapsed = ref(true);
+const semanticOpen = ref(false);
 
 watch(
   () => props.message.id,
@@ -255,6 +273,8 @@ function handleAction(type: ApiChatAction['type']) {
 
 <style scoped lang="scss">
 .chat-assistant-message {
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 10px;
@@ -317,6 +337,7 @@ function handleAction(type: ApiChatAction['type']) {
 .chat-assistant-message__semantic,
 .chat-assistant-message__clarification,
 .chat-assistant-message__reasoning {
+  min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 10px;
@@ -326,10 +347,30 @@ function handleAction(type: ApiChatAction['type']) {
 }
 
 .chat-assistant-message__semantic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
   color: var(--muted);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  text-align: left;
+}
+
+.chat-assistant-message__semantic-chevron {
+  flex-shrink: 0;
+  transition: transform 180ms ease;
+  color: var(--muted);
+}
+
+.chat-assistant-message__semantic-chevron--open {
+  transform: rotate(180deg);
 }
 
 .chat-assistant-message__chips,
@@ -373,6 +414,7 @@ function handleAction(type: ApiChatAction['type']) {
 }
 
 .chat-assistant-message__reasoning-toggle {
+  width: 100%;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -380,10 +422,19 @@ function handleAction(type: ApiChatAction['type']) {
   align-items: center;
   justify-content: space-between;
   padding: 0;
+  cursor: pointer;
 }
 
 .chat-assistant-message__reasoning-body {
   display: grid;
   gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chat-assistant-message__reasoning-body p {
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 </style>

@@ -1,17 +1,5 @@
 <template>
   <div class="chart-cell">
-    <div v-if="showHeader" class="chart-cell__head">
-      <div>
-        <strong>{{ content.title }}</strong>
-        <p :title="content.explanation ?? content.subtitle ?? ''">
-          {{ content.subtitle }}
-        </p>
-      </div>
-      <div v-if="content.ruleId" class="chart-cell__pill" :title="content.explanation ?? ''">
-        {{ content.ruleId }} · {{ confidenceLabel }}
-      </div>
-    </div>
-
     <div v-if="content.chartType === 'metric_card'" class="chart-cell__metric">
       <div class="chart-cell__metric-value">{{ formatValue(content.value, content.valueFormat) }}</div>
       <div class="chart-cell__metric-label">{{ content.metricLabel ?? 'Value' }}</div>

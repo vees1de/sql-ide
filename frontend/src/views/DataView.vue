@@ -2161,6 +2161,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   min-height: 0;
   display: grid;
   grid-template-columns: var(--app-shell-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--app-shell-gap);
   padding: var(--app-shell-gap);
   background: var(--bg);

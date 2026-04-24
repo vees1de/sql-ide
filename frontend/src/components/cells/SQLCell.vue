@@ -43,6 +43,10 @@ const highlightedSql = computed(() => {
 </script>
 
 <style scoped lang="scss">
+.sql-cell {
+  min-width: 0;
+}
+
 .sql-cell__toolbar {
   display: flex;
   align-items: flex-start;
@@ -68,6 +72,7 @@ const highlightedSql = computed(() => {
 pre {
   margin: 0;
   padding: 0.75rem 0.9rem;
+  max-width: 100%;
   overflow-x: auto;
   border-radius: var(--radius);
   background: var(--canvas);

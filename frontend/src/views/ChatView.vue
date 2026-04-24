@@ -257,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { chatApi } from "@/api/chat";
 import type { ApiSqlExplanationResponse } from "@/api/types";
 import ChatAssistant from "@/components/chat/ChatAssistant.vue";
@@ -271,9 +271,7 @@ const chat = useChatStore();
 
 const LS_KEY = "chat-panel-layout";
 const CHAT_WIDTH_MIN = 240;
-const CHAT_WIDTH_MAX = 800;
 const CENTER_TOP_MIN = 180;
-const CENTER_TOP_MAX = 900;
 
 const chatWidth = ref(360);
 const centerTopHeight = ref(420);
@@ -368,23 +366,29 @@ function startCenterResize(e: MouseEvent) {
   document.body.style.userSelect = "none";
 }
 
+const CENTER_WIDTH_MIN = 280;
+
+function maxAllowedChatWidth(): number {
+  const containerWidth = panelsEl.value?.clientWidth ?? 0;
+  return Math.max(CHAT_WIDTH_MIN, containerWidth - 16 - CENTER_WIDTH_MIN);
+}
+
+function clampChatWidth() {
+  chatWidth.value = Math.max(CHAT_WIDTH_MIN, Math.min(maxAllowedChatWidth(), chatWidth.value));
+}
+
 function onResize(e: MouseEvent) {
   const delta = e.clientX - dragStartX;
-  // when chat is on the right (not swapped): move left = wider chat
-  // when chat is on the left (swapped): move right = wider chat
   const newWidth = dragSwapped
     ? dragStartWidth + delta
     : dragStartWidth - delta;
-  chatWidth.value = Math.max(
-    CHAT_WIDTH_MIN,
-    Math.min(CHAT_WIDTH_MAX, newWidth),
-  );
+  chatWidth.value = Math.max(CHAT_WIDTH_MIN, Math.min(maxAllowedChatWidth(), newWidth));
 }
 
 function onCenterResize(e: MouseEvent) {
   const delta = e.clientY - centerDragStartY;
   const newHeight = centerDragStartHeight + delta;
-  const availableHeight = centerPanelEl.value?.clientHeight ?? CENTER_TOP_MAX;
+  const availableHeight = centerPanelEl.value?.clientHeight ?? 900;
   const maxHeight = Math.max(CENTER_TOP_MIN, availableHeight - 220);
   centerTopHeight.value = Math.max(
     CENTER_TOP_MIN,
@@ -410,9 +414,16 @@ function stopCenterResize() {
 
 onMounted(() => {
   loadLayout();
+  // defer so panelsEl has its layout dimensions
+  requestAnimationFrame(clampChatWidth);
+  window.addEventListener("resize", clampChatWidth);
   void chat.initialize().catch(() => {
     /* store already captures the error */
   });
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", clampChatWidth);
 });
 
 function selectDatabase(databaseId: string) {

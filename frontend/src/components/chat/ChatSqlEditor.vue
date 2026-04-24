@@ -1,16 +1,5 @@
 <template>
   <section class="chat-sql-editor">
-    <button
-      class="chat-sql-editor__help"
-      type="button"
-      :disabled="busy"
-      aria-label="Объяснить SQL код"
-      @click="$emit('explain')"
-    >
-      ?
-      <span class="chat-sql-editor__help-tooltip">При нажатии ИИ объяснит SQL код</span>
-    </button>
-
     <div class="chat-sql-editor__toolbar">
       <span class="chat-sql-editor__status" :class="statusClass">{{ statusLabel }}</span>
       <div class="chat-sql-editor__actions">
@@ -19,6 +8,16 @@
         </button>
         <button class="chat-sql-editor__btn chat-sql-editor__btn--accent" type="button" :disabled="!canRun" @click="$emit('run')">
           {{ busy ? 'Выполняю…' : 'Запустить' }}
+        </button>
+        <button
+          class="chat-sql-editor__help"
+          type="button"
+          :disabled="busy"
+          aria-label="Объяснить SQL код"
+          @click="$emit('explain')"
+        >
+          ?
+          <span class="chat-sql-editor__help-tooltip">При нажатии ИИ объяснит SQL код</span>
         </button>
       </div>
     </div>
@@ -116,16 +115,12 @@ async function copy() {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
-  padding-top: 38px;
 }
 
 .chat-sql-editor__help {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  z-index: 2;
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 1px solid rgba(112, 59, 247, 0.7);
   background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));

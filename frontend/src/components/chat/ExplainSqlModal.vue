@@ -31,6 +31,11 @@
             <template v-else-if="explanation">
               <p class="sql-explain-modal__summary-text">{{ explanation.summary }}</p>
 
+              <div v-if="explanation.table_choice_reasoning" class="sql-explain-modal__table-choice">
+                <p class="sql-explain-modal__table-choice-title">Почему выбраны эти таблицы</p>
+                <p class="sql-explain-modal__block-text">{{ explanation.table_choice_reasoning }}</p>
+              </div>
+
               <div v-if="explanation.warnings.length" class="sql-explain-modal__warnings">
                 <p class="sql-explain-modal__warnings-title">Примечания</p>
                 <ul>
@@ -260,6 +265,21 @@ const sqlLines = computed(() =>
 
 .sql-explain-modal__message--error {
   color: #ffb3b3;
+}
+
+.sql-explain-modal__table-choice {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(112, 59, 247, 0.25);
+  background: rgba(112, 59, 247, 0.08);
+}
+
+.sql-explain-modal__table-choice-title {
+  margin: 0 0 6px;
+  color: #c4aaff;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .sql-explain-modal__warnings {

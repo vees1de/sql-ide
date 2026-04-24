@@ -292,8 +292,12 @@ def explain_sql(
     if not sql_text:
         raise HTTPException(status_code=400, detail="No SQL draft found for this session.")
 
+    last_user_message = next(
+        (m.content for m in reversed(session.messages) if m.role == "user"),
+        None,
+    )
     dialect = resolve_dialect(db, session.database_connection_id)
-    explanation = llm_service.explain_sql(sql=sql_text, dialect=dialect)
+    explanation = llm_service.explain_sql(sql=sql_text, dialect=dialect, user_question=last_user_message)
     if explanation is None:
         raise HTTPException(status_code=500, detail="Failed to explain SQL.")
     return explanation
