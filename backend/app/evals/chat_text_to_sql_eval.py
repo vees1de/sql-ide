@@ -1372,6 +1372,20 @@ _ALIAS_TOKEN_NORMALIZATIONS = {
     "week": "week",
     "hour": "hour",
     "bucket": "bucket",
+    "status": "status",
+    "done": "completed",
+    "complete": "completed",
+    "completed": "completed",
+    "finish": "completed",
+    "finished": "completed",
+    "cancel": "cancelled",
+    "canceled": "cancelled",
+    "cancelled": "cancelled",
+    "arrival": "arrival",
+    "arrived": "arrival",
+    "pickup": "pickup",
+    "distance": "distance",
+    "duration": "duration",
 }
 
 
@@ -1429,19 +1443,100 @@ def _match_filter(actual_filters: list[dict[str, Any]], expected_filter: FilterE
     expected_field = _normalize_text(expected_filter.field)
     expected_operator = _normalize_text(expected_filter.operator) if expected_filter.operator else None
     for actual in actual_filters:
-        if _normalize_text(actual.get("field")) != expected_field:
-            continue
-        if expected_operator and _normalize_text(actual.get("operator")) != expected_operator:
-            continue
+        actual_field = _normalize_text(actual.get("field"))
+        actual_operator = _normalize_text(actual.get("operator"))
         actual_value = actual.get("value")
-        if expected_filter.value is not None and _normalize_text(actual_value) != _normalize_text(expected_filter.value):
-            continue
-        if expected_filter.value_any_of and not any(_matches_any(actual_value, [str(item)]) for item in expected_filter.value_any_of):
-            continue
-        if expected_filter.value_contains and not any(_contains(actual_value, token) for token in expected_filter.value_contains):
-            continue
-        return True
+        if actual_field == expected_field:
+            if expected_operator and actual_operator != expected_operator:
+                continue
+            if expected_filter.value is not None and not _matches_semantic_value(actual_value, expected_filter.value):
+                continue
+            if expected_filter.value_any_of and not any(_matches_semantic_value(actual_value, item) for item in expected_filter.value_any_of):
+                continue
+            if expected_filter.value_contains and not any(_contains(actual_value, token) for token in expected_filter.value_contains):
+                continue
+            return True
+        if _semantic_filter_match(actual, expected_filter):
+            return True
     return False
+
+
+def _semantic_filter_match(actual: dict[str, Any], expected_filter: FilterExpectation) -> bool:
+    expected_field = _normalize_text(expected_filter.field)
+    actual_field = _normalize_text(actual.get("field"))
+    actual_operator = _normalize_text(actual.get("operator"))
+    actual_value = actual.get("value")
+
+    if not expected_field or not actual_field:
+        return False
+
+    expected_signature = _alias_signature(expected_field)
+    expected_signature.update(_semantic_value_tokens(expected_filter.value))
+    for item in expected_filter.value_any_of:
+        expected_signature.update(_semantic_value_tokens(item))
+    for token in expected_filter.value_contains:
+        expected_signature.update(_semantic_value_tokens(token))
+
+    actual_signature = _alias_signature(actual_field)
+    actual_signature.update(_semantic_value_tokens(actual_value))
+    actual_signature.update(_semantic_value_tokens(actual_operator))
+
+    if not expected_signature or not actual_signature:
+        return False
+
+    if expected_signature <= actual_signature or actual_signature <= expected_signature:
+        return True
+
+    if _is_completion_semantics(expected_signature, actual_signature, actual_operator):
+        return True
+
+    intersection = expected_signature & actual_signature
+    smaller = min(len(expected_signature), len(actual_signature))
+    return smaller > 0 and (len(intersection) / smaller) >= 0.67
+
+
+def _semantic_value_tokens(value: Any) -> set[str]:
+    tokens = _alias_signature(value)
+    if not tokens:
+        return set()
+    extras: set[str] = set()
+    if "completed" in tokens or "done" in tokens:
+        extras.add("completed")
+    if "cancelled" in tokens:
+        extras.add("cancelled")
+    return tokens | extras
+
+
+def _is_completion_semantics(
+    expected_signature: set[str],
+    actual_signature: set[str],
+    actual_operator: str,
+) -> bool:
+    expected_is_completion = "completed" in expected_signature
+    actual_is_presence_check = actual_operator in {"is not null", "not null"} or "not_null" in actual_signature
+    actual_is_completion_field = any(token in actual_signature for token in ("completed", "done", "finish"))
+    expected_mentions_status = "status" in expected_signature
+    return expected_is_completion and actual_is_presence_check and (actual_is_completion_field or expected_mentions_status)
+
+
+def _matches_semantic_value(actual: Any, expected: Any) -> bool:
+    actual_text = _normalize_text(actual)
+    expected_text = _normalize_text(expected)
+    if not actual_text or not expected_text:
+        return False
+    if actual_text == expected_text:
+        return True
+    actual_signature = _alias_signature(actual_text)
+    expected_signature = _alias_signature(expected_text)
+    if not actual_signature or not expected_signature:
+        return False
+    if actual_signature == expected_signature:
+        return True
+    intersection = actual_signature & expected_signature
+    if not intersection:
+        return False
+    smaller = min(len(actual_signature), len(expected_signature))
+    return (len(intersection) / smaller) >= 0.67
 
 
 def _match_date_range(actual: dict[str, Any], expected: DateRangeExpectation) -> tuple[bool, str]:

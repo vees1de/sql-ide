@@ -25,6 +25,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -74,6 +75,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -181,6 +183,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -230,6 +233,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -239,12 +243,25 @@
         </template>
       </section>
     </div>
+
+    <ExplainSqlModal
+      :open="sqlExplanationOpen"
+      :sql-text="sqlExplanationSql"
+      :explanation="sqlExplanation"
+      :loading="sqlExplanationLoading"
+      :error="sqlExplanationError"
+      @close="closeSqlExplanation"
+      @retry="retrySqlExplanation"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { chatApi } from "@/api/chat";
+import type { ApiSqlExplanationResponse } from "@/api/types";
 import ChatAssistant from "@/components/chat/ChatAssistant.vue";
+import ExplainSqlModal from "@/components/chat/ExplainSqlModal.vue";
 import ChatResultPanel from "@/components/chat/ChatResultPanel.vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
 import ChatSqlEditor from "@/components/chat/ChatSqlEditor.vue";
@@ -264,6 +281,13 @@ const panelSwapped = ref(false);
 const centerPanelSwapped = ref(false);
 const panelsEl = ref<HTMLElement | null>(null);
 const centerPanelEl = ref<HTMLElement | null>(null);
+const sqlExplanationOpen = ref(false);
+const sqlExplanationLoading = ref(false);
+const sqlExplanationError = ref<string | null>(null);
+const sqlExplanation = ref<ApiSqlExplanationResponse | null>(null);
+const sqlExplanationSql = ref("");
+
+let sqlExplanationRequestToken = 0;
 
 const chatWidthPx = computed(() => `${chatWidth.value}px`);
 const centerTopHeightPx = computed(() => `${centerTopHeight.value}px`);
@@ -434,6 +458,53 @@ function showChartPreview() {
 
 function updateSqlDraft(value: string) {
   chat.updateSqlDraft(value);
+}
+
+async function requestSqlExplanation(sqlText: string = chat.sqlDraft) {
+  const token = ++sqlExplanationRequestToken;
+  sqlExplanationSql.value = sqlText;
+  sqlExplanationOpen.value = true;
+  sqlExplanationLoading.value = true;
+  sqlExplanationError.value = null;
+  sqlExplanation.value = null;
+
+  const sessionId = chat.activeSessionId;
+  if (!sessionId) {
+    sqlExplanationError.value = "Сначала откройте чат с базой данных.";
+    sqlExplanationLoading.value = false;
+    return;
+  }
+
+  if (!sqlText.trim()) {
+    sqlExplanationError.value = "В редакторе пока нет SQL.";
+    sqlExplanationLoading.value = false;
+    return;
+  }
+
+  try {
+    const response = await chatApi.explainSql(sessionId, { sql: sqlText });
+    if (token !== sqlExplanationRequestToken) {
+      return;
+    }
+    sqlExplanation.value = response;
+  } catch (error) {
+    if (token !== sqlExplanationRequestToken) {
+      return;
+    }
+    sqlExplanationError.value = error instanceof Error ? error.message : "Не удалось объяснить SQL.";
+  } finally {
+    if (token === sqlExplanationRequestToken) {
+      sqlExplanationLoading.value = false;
+    }
+  }
+}
+
+function closeSqlExplanation() {
+  sqlExplanationOpen.value = false;
+}
+
+function retrySqlExplanation() {
+  void requestSqlExplanation(sqlExplanationSql.value);
 }
 
 function applySql(sql: string) {

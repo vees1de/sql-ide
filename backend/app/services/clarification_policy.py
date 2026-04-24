@@ -18,6 +18,19 @@ class ClarificationPolicy:
     GENERIC_GROUPING_MARKERS = ("grouped", "grouping", "group by", "сгруп", "группир", "по чему")
     GENERIC_TIME_MARKERS = ("time period", "time range", "timeframe", "period", "врем", "период", "дат")
     GENERIC_METRIC_MARKERS = ("metric", "measure", "метрик", "показател")
+    DEFINITION_MARKERS = ("что означает", "что значит", "what does", "what means", "означает")
+    OVERLY_CONSERVATIVE_JOIN_MARKERS = (
+        "нет прямой связи",
+        "нет прямого отношения",
+        "no direct link",
+        "no direct relationship",
+        "cannot directly",
+        "нельзя напрямую",
+        "нельзя выразить",
+        "directly count",
+        "не могу напрямую",
+        "не могу выразить",
+    )
 
     def should_suppress(
         self,
@@ -60,6 +73,30 @@ class ClarificationPolicy:
                 suppress=True,
                 cause_code="metric_already_explicit",
                 detail="Prompt already specifies a metric or parsed metric.",
+            )
+
+        if (
+            any(marker in lowered_question for marker in self.DEFINITION_MARKERS)
+            and (
+                self._has_explicit_grouping(prompt=lowered_prompt, intent=intent)
+                or self._has_explicit_metric(prompt=lowered_prompt, intent=intent)
+                or self._has_explicit_time(prompt=lowered_prompt, intent=intent)
+            )
+        ):
+            return ClarificationPolicyDecision(
+                suppress=True,
+                cause_code="definition_already_explicit",
+                detail="Prompt already contains the requested business term or grouping.",
+            )
+
+        if (
+            any(marker in lowered_question for marker in self.OVERLY_CONSERVATIVE_JOIN_MARKERS)
+            and self._has_explicit_analytics_request(prompt=lowered_prompt, intent=intent)
+        ):
+            return ClarificationPolicyDecision(
+                suppress=True,
+                cause_code="join_path_overly_conservative",
+                detail="Prompt already specifies enough analytics context to continue without a join-path clarification.",
             )
 
         return ClarificationPolicyDecision(suppress=False)
@@ -118,3 +155,9 @@ class ClarificationPolicy:
             "rate",
         )
         return any(marker in prompt for marker in metric_markers)
+
+    def _has_explicit_analytics_request(self, *, prompt: str, intent: IntentPayload) -> bool:
+        return self._has_explicit_metric(prompt=prompt, intent=intent) and (
+            self._has_explicit_grouping(prompt=prompt, intent=intent)
+            or self._has_explicit_time(prompt=prompt, intent=intent)
+        )

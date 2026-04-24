@@ -322,6 +322,40 @@ export interface ApiChatSessionDetail extends ApiChatSessionRead {
   last_execution: ApiChatExecutionRead | null;
 }
 
+export interface ApiExplainSqlRequest {
+  sql?: string | null;
+}
+
+export type ApiSqlExplanationBlockKind =
+  | 'cte'
+  | 'select'
+  | 'from'
+  | 'join'
+  | 'where'
+  | 'group_by'
+  | 'having'
+  | 'order_by'
+  | 'limit'
+  | 'compound'
+  | 'other';
+
+export interface ApiSqlExplanationBlock {
+  index: number;
+  kind: ApiSqlExplanationBlockKind;
+  title: string;
+  line_start: number;
+  line_end: number;
+  sql: string;
+  explanation: string;
+}
+
+export interface ApiSqlExplanationResponse {
+  summary: string;
+  blocks: ApiSqlExplanationBlock[];
+  warnings: string[];
+  generated_by_ai: boolean;
+}
+
 export interface ApiChatSessionCreate {
   title?: string | null;
 }

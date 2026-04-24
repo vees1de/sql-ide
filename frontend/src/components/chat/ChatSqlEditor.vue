@@ -1,5 +1,16 @@
 <template>
   <section class="chat-sql-editor">
+    <button
+      class="chat-sql-editor__help"
+      type="button"
+      :disabled="busy"
+      aria-label="Объяснить SQL код"
+      @click="$emit('explain')"
+    >
+      ?
+      <span class="chat-sql-editor__help-tooltip">При нажатии ИИ объяснит SQL код</span>
+    </button>
+
     <div class="chat-sql-editor__toolbar">
       <span class="chat-sql-editor__status" :class="statusClass">{{ statusLabel }}</span>
       <div class="chat-sql-editor__actions">
@@ -38,6 +49,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void;
   (event: 'run'): void;
+  (event: 'explain'): void;
 }>();
 
 const statusLabel = computed(() => {
@@ -99,10 +111,71 @@ async function copy() {
 
 <style scoped lang="scss">
 .chat-sql-editor {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
+  padding-top: 38px;
+}
+
+.chat-sql-editor__help {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(112, 59, 247, 0.7);
+  background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));
+  color: #efe9ff;
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(112, 59, 247, 0.18);
+  animation: chat-sql-editor-float 3.2s ease-in-out infinite;
+}
+
+.chat-sql-editor__help:hover:not(:disabled),
+.chat-sql-editor__help:focus-visible:not(:disabled) {
+  border-color: rgba(164, 126, 255, 0.92);
+  background: linear-gradient(180deg, rgba(112, 59, 247, 0.42), rgba(112, 59, 247, 0.26));
+}
+
+.chat-sql-editor__help:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  animation: none;
+}
+
+.chat-sql-editor__help-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 220px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 20, 0.96);
+  color: var(--ink);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.chat-sql-editor__help:hover .chat-sql-editor__help-tooltip,
+.chat-sql-editor__help:focus-visible .chat-sql-editor__help-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .chat-sql-editor__toolbar {
@@ -211,5 +284,15 @@ async function copy() {
 .chat-sql-editor__field:focus {
   outline: none;
   border-color: rgba(112, 59, 247, 0.8);
+}
+
+@keyframes chat-sql-editor-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 </style>

@@ -5,12 +5,14 @@ from app.evals.chat_text_to_sql_eval import (
     DateRangeExpectation,
     ExecutionExpectation,
     InterpretationExpectation,
+    FilterExpectation,
     SQLExpectation,
     StepExpectations,
     ChartExpectation,
     ClarificationExpectation,
     _build_repair_targets,
     _matches_column_reference,
+    _match_filter,
     _resolve_clarification_answer,
     evaluate_step,
 )
@@ -318,3 +320,68 @@ def test_matches_column_reference_uses_semantic_alias_matching() -> None:
     assert _matches_column_reference("avg_accept_to_arrival_min", ["avg_pickup_minutes", "avg_time_to_arrival"])
     assert _matches_column_reference("share_not_completed", ["non_completion_rate", "not_completed_rate"])
     assert _matches_column_reference("hour_of_day", ["hour", "hour_bucket", "order_hour"])
+
+
+def test_match_filter_accepts_semantic_value_aliases() -> None:
+    assert _match_filter(
+        [{"field": "status_order", "operator": "=", "value": "completed"}],
+        FilterExpectation(field="status_order", operator="=", value="done"),
+    )
+    assert _match_filter(
+        [{"field": "status_order", "operator": "=", "value": "cancelled"}],
+        FilterExpectation(field="status_order", operator="=", value_any_of=["canceled", "cancelled"]),
+    )
+
+
+def test_evaluate_step_accepts_semantically_equivalent_follow_up_filters() -> None:
+    expectations = StepExpectations(
+        should_clarify=False,
+        expected_state="SQL_READY",
+        interpretation=InterpretationExpectation(
+            dimensions_all_of=["hour"],
+            filters=[{"field": "status_order", "operator": "=", "value": "done"}],
+        ),
+    )
+    send_payload = {
+        "session": {
+            "last_intent_json": {
+                "metric": "order_count",
+                "dimensions": ["hour"],
+                "filters": [
+                    {"field": "driverdone_timestamp", "operator": "IS NOT NULL", "value": None},
+                    {"field": "order_timestamp", "operator": "=", "value": "2026-04-14"},
+                ],
+            }
+        },
+        "assistant_message": {
+            "structured_payload": {
+                "state": "SQL_READY",
+                "assistant_message": "SQL готов. Он не будет выполнен автоматически.",
+                "actions": [
+                    {"type": "show_run_button", "label": "Запустить SQL", "primary": True, "disabled": False, "payload": {"sql_ready": True, "require_user_confirmation": True}},
+                    {"type": "show_sql", "label": "Показать SQL", "primary": False, "disabled": False, "payload": {"expanded": True}},
+                ],
+                "needs_clarification": False,
+                "sql": "SELECT hour, COUNT(*) FROM train WHERE driverdone_timestamp IS NOT NULL GROUP BY hour",
+            }
+        },
+        "sql_draft": "SELECT hour, COUNT(*) FROM train WHERE driverdone_timestamp IS NOT NULL GROUP BY hour",
+    }
+
+    result = evaluate_step(
+        case_id="follow_up_status_alias",
+        step_index=1,
+        database=_database(),
+        user_prompt="А теперь только завершённые по часам",
+        query_mode="thinking",
+        llm_model_alias="gpt120",
+        expectations=expectations,
+        initial_send_payload=send_payload,
+        final_send_payload=send_payload,
+        clarification_transcript=[],
+        execution_payload=None,
+    )
+
+    filter_checks = [check for check in result["checks"] if check["code"] in {"filter_match", "filter_missing"}]
+    assert filter_checks and all(check["passed"] for check in filter_checks)
+    assert result["scores"]["understanding"] == 1.0

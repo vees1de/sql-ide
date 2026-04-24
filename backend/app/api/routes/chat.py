@@ -9,6 +9,7 @@ from app.api.deps import get_db
 from app.db.models import ChatMessageModel, ChatSessionModel, QueryExecutionModel
 from app.schemas.chat import (
     ChartSuggestionRequest,
+    ExplainSqlRequest,
     ChatMessageCreate,
     ChatMessageRead,
     ChatSessionCreate,
@@ -20,6 +21,7 @@ from app.schemas.chat import (
     ExecuteResponse,
     PrepareSqlResponse,
     QueryExecutionRead,
+    SqlExplanationResponse,
     RunPreparedSqlRequest,
     SendMessageResponse,
     SqlDraftUpdate,
@@ -28,12 +30,14 @@ from app.schemas.workspace import DatabaseDescriptor
 from app.services.chat_execution_service import ChatExecutionService
 from app.services.chat_service import ChatService, SqlDraftConflictError
 from app.services.chat_sql_adapter import ChatSqlAdapter
+from app.services.database_resolution import resolve_dialect
 
 
 router = APIRouter()
 chat_service = ChatService()
 chat_adapter = ChatSqlAdapter()
 chat_execution_service = ChatExecutionService()
+llm_service = chat_execution_service.llm_service
 
 _SESSION_BUSY: set[str] = set()
 _SESSION_BUSY_LOCK = threading.Lock()
@@ -263,6 +267,24 @@ def run_prepared_sql(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     session = _get_session_or_404(db, session_id)
     return ExecuteResponse(session=_session_to_read(session), execution=_execution_to_read(execution))
+
+
+@router.post("/chat/sessions/{session_id}/actions/explain-sql", response_model=SqlExplanationResponse)
+def explain_sql(
+    session_id: str,
+    payload: ExplainSqlRequest | None = None,
+    db: Session = Depends(get_db),
+) -> SqlExplanationResponse:
+    session = _get_session_or_404(db, session_id)
+    sql_text = (payload.sql if payload and payload.sql is not None else session.current_sql_draft or "").strip()
+    if not sql_text:
+        raise HTTPException(status_code=400, detail="No SQL draft found for this session.")
+
+    dialect = resolve_dialect(db, session.database_connection_id)
+    explanation = llm_service.explain_sql(sql=sql_text, dialect=dialect)
+    if explanation is None:
+        raise HTTPException(status_code=500, detail="Failed to explain SQL.")
+    return explanation
 
 
 @router.post("/chat/sessions/{session_id}/actions/create-sql", response_model=PrepareSqlResponse, status_code=201)

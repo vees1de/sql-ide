@@ -13,6 +13,8 @@ import type {
   ApiChatSessionDetail,
   ApiChatSessionRead,
   ApiChatSessionUpdate,
+  ApiExplainSqlRequest,
+  ApiSqlExplanationResponse,
   ApiChatSqlDraftUpdate,
   ApiDatabaseDescriptor,
   ApiLlmModelAliasesResponse
@@ -94,6 +96,13 @@ export const chatApi = {
 
   runPreparedSql(sessionId: string, payload?: ApiChatRunPreparedSqlRequest) {
     return request<ApiChatExecuteResponse>(`/api/chat/sessions/${sessionId}/actions/run-sql`, {
+      method: 'POST',
+      ...(payload ? { body: JSON.stringify(payload) } : {})
+    });
+  },
+
+  explainSql(sessionId: string, payload?: ApiExplainSqlRequest) {
+    return request<ApiSqlExplanationResponse>(`/api/chat/sessions/${sessionId}/actions/explain-sql`, {
       method: 'POST',
       ...(payload ? { body: JSON.stringify(payload) } : {})
     });

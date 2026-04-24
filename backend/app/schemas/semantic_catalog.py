@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.metadata import RelationshipGraphEdge, SchemaMetadataResponse
 from app.schemas.semantic_contract import SemanticContract
@@ -71,6 +71,11 @@ class SemanticColumn(BaseModel):
     comment: str | None = None
     profile: ColumnProfile = Field(default_factory=ColumnProfile)
 
+    @field_validator("semantic_types", mode="before")
+    @classmethod
+    def _normalize_semantic_types(cls, value: Any) -> list[str] | Any:
+        return _normalize_semantic_types(value)
+
 
 class SemanticRelationship(BaseModel):
     from_table: str
@@ -128,11 +133,15 @@ class SemanticCatalog(BaseModel):
 
 class SemanticRetrievalContext(BaseModel):
     catalog: SemanticCatalog
-    schema: SchemaMetadataResponse
+    schema_metadata: SchemaMetadataResponse
     semantic_contract: SemanticContract | None = None
     dictionary_entries: list[dict[str, Any]] = Field(default_factory=list)
     table_names: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+    @property
+    def schema(self) -> SchemaMetadataResponse:
+        return self.schema_metadata
 
 
 class SemanticTermCandidate(BaseModel):
@@ -170,6 +179,11 @@ class SemanticColumnEnrichment(BaseModel):
     semantic_types: list[SemanticType] = Field(default_factory=list)
     analytics_roles: list[AnalyticsRole] = Field(default_factory=list)
     synonyms: list[str] = Field(default_factory=list)
+
+    @field_validator("semantic_types", mode="before")
+    @classmethod
+    def _normalize_semantic_types(cls, value: Any) -> list[str] | Any:
+        return _normalize_semantic_types(value)
 
 
 class SemanticTableEnrichment(BaseModel):
@@ -234,3 +248,29 @@ class SemanticColumnPatch(BaseModel):
     synonyms: list[str] | None = None
     groupable: bool | None = None
     filterable: bool | None = None
+
+    @field_validator("semantic_types", mode="before")
+    @classmethod
+    def _normalize_semantic_types(cls, value: Any) -> list[str] | Any:
+        return _normalize_semantic_types(value)
+
+
+def _normalize_semantic_types(value: Any) -> Any:
+    if value is None:
+        return value
+    if not isinstance(value, list):
+        return value
+
+    alias_map = {
+        "attribute": "category",
+        "attributes": "category",
+        "attr": "category",
+        "string": "text",
+    }
+    normalized: list[str] = []
+    for item in value:
+        token = str(item).strip().lower()
+        if not token:
+            continue
+        normalized.append(alias_map.get(token, token))
+    return normalized

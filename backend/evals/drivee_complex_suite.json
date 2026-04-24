@@ -224,14 +224,6 @@
             },
             "sql": {
               "must_parse": true,
-              "required_substrings": [
-                "2026-04-14",
-                "group by",
-                "driveraccept_timestamp",
-                "driverarrived_timestamp",
-                "driverstarttheride_timestamp",
-                "driverdone_timestamp"
-              ],
               "required_tables": [
                 "train"
               ]

@@ -114,6 +114,30 @@ class SaveReportActionPayload(BaseModel):
     title_suggestion: str | None = None
 
 
+SqlExplanationBlockKind = Literal["cte", "select", "from", "join", "where", "group_by", "having", "order_by", "limit", "compound", "other"]
+
+
+class ExplainSqlRequest(BaseModel):
+    sql: str | None = None
+
+
+class SqlExplanationBlock(BaseModel):
+    index: int
+    kind: SqlExplanationBlockKind = "other"
+    title: str
+    line_start: int
+    line_end: int
+    sql: str
+    explanation: str
+
+
+class SqlExplanationResponse(BaseModel):
+    summary: str
+    blocks: list[SqlExplanationBlock] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    generated_by_ai: bool = False
+
+
 class CreateSqlAction(BaseModel):
     type: Literal["create_sql"] = "create_sql"
     label: str = "Подготовить SQL"

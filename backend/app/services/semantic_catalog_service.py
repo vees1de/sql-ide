@@ -63,6 +63,8 @@ _DURATION_HINTS = ("duration", "elapsed", "minutes", "hours", "days", "seconds")
 
 
 class SemanticCatalogService:
+    TEMPORAL_DIMENSION_TERMS = {"hour", "day", "week", "month", "quarter", "year"}
+
     def __init__(self) -> None:
         self.knowledge_service = KnowledgeService()
         self.llm_service = LLMService()
@@ -497,7 +499,7 @@ class SemanticCatalogService:
                 join_paths=selected_join_paths,
                 relationship_graph=selected_graph,
             ),
-            schema=schema,
+            schema_metadata=schema,
             semantic_contract=semantic_contract,
             dictionary_entries=[entry.model_dump(mode="json") for entry in dictionary_entries],
             table_names=sorted(selected_table_names),
@@ -512,7 +514,7 @@ class SemanticCatalogService:
         dictionary_entries: list[DictionaryEntryRead] | None = None,
     ) -> SchemaMetadataResponse:
         return SchemaMetadataResponse.model_validate(
-            self.build_retrieval_context(db, database_id, intent_text, dictionary_entries).schema
+            self.build_retrieval_context(db, database_id, intent_text, dictionary_entries).schema_metadata
         )
 
     def resolve_intent_terms(
@@ -706,6 +708,17 @@ class SemanticCatalogService:
         normalized = str(term or "").strip().lower()
         if not normalized:
             return None
+
+        if kind == "dimension" and normalized in self.TEMPORAL_DIMENSION_TERMS:
+            return SemanticTermResolutionItem(
+                term=str(term),
+                kind=kind,
+                resolved=True,
+                match=normalized,
+                source="schema",
+                confidence=0.95,
+                note="Temporal granularity is treated as an inherently grounded dimension.",
+            )
 
         direct_matches = list(term_index.get(normalized, []))
         preferred_matches = [item for item in direct_matches if item.kind in {kind, "term"}]

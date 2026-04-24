@@ -1,0 +1,606 @@
+[
+  {
+    "case_id": "daily_store_revenue_march_2007",
+    "step_index": 1,
+    "step_ref": "daily_store_revenue_march_2007#step1",
+    "user_prompt": "За март 2007 покажи по дням выручку и количество платежей по магазинам. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "expected_state": null,
+      "required_actions": [],
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2007-03",
+          "payment",
+          "payment_date",
+          "group by",
+          "sum("
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "payment"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "day"
+          ],
+          [
+            "store_id"
+          ],
+          [
+            "total_revenue"
+          ],
+          [
+            "payment_count"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "day"
+          ],
+          "y_any_of": [
+            "total_revenue"
+          ],
+          "series_any_of": [
+            "store_id"
+          ]
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "state": "CLARIFYING",
+      "actions": [
+        "create_sql"
+      ],
+      "clarification_question": "Уточните, что означает «day».",
+      "clarification_options": [
+        {
+          "id": "dimension:option",
+          "label": "Уточнить вручную",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "answer",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "Уточните, что означает «day».",
+          "answer": "Уточнить вручную",
+          "options": [
+            {
+              "id": "dimension:option",
+              "label": "Уточнить вручную",
+              "detail": null,
+              "reason": null
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "question": "Уточните, что означает «day».",
+          "answer": "Уточнить вручную",
+          "options": [
+            {
+              "id": "dimension:option",
+              "label": "Уточнить вручную",
+              "detail": null,
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "Уточнить вручную",
+        "metric": null,
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": null,
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.0,
+        "follow_up": false
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  },
+  {
+    "case_id": "top_categories_revenue_april_2007",
+    "step_index": 1,
+    "step_ref": "top_categories_revenue_april_2007#step1",
+    "user_prompt": "За апрель 2007 найди топ-10 категорий фильмов по выручке и количеству платежей. Нужен bar chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "expected_state": null,
+      "required_actions": [],
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2007-04",
+          "payment",
+          "category",
+          "limit 10",
+          "sum("
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "payment"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": 10,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "category"
+          ],
+          [
+            "total_revenue"
+          ],
+          [
+            "payment_count"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "bar"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "category"
+          ],
+          "y_any_of": [
+            "total_revenue"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "state": "CLARIFYING",
+      "actions": [
+        "create_sql"
+      ],
+      "clarification_question": "How should the result be grouped?",
+      "clarification_options": [
+        {
+          "id": "dimension:month",
+          "label": "Month",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "dimension:week",
+          "label": "Week",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "dimension:day",
+          "label": "Day",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "dimension:category_name",
+          "label": "category.name",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "dimension:category_last_update",
+          "label": "category.last_update",
+          "detail": null,
+          "reason": null
+        },
+        {
+          "id": "dimension:film_title",
+          "label": "film.title",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "answer",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "How should the result be grouped?",
+          "answer": "Hour",
+          "options": [
+            {
+              "id": "dimension:month",
+              "label": "Month",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "dimension:week",
+              "label": "Week",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "dimension:day",
+              "label": "Day",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "dimension:category_name",
+              "label": "category.name",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "dimension:category_last_update",
+              "label": "category.last_update",
+              "detail": null,
+              "reason": null
+            },
+            {
+              "id": "dimension:film_title",
+              "label": "film.title",
+              "detail": null,
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "Hour",
+        "metric": null,
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": null,
+        "visualization_preference": null,
+        "ambiguities": [],
+        "clarification_question": null,
+        "clarification_options": [],
+        "confidence": 0.0,
+        "follow_up": false
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  },
+  {
+    "case_id": "weekly_late_return_rate_august_2005",
+    "step_index": 1,
+    "step_ref": "weekly_late_return_rate_august_2005#step1",
+    "user_prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+    "query_mode": "thinking",
+    "llm_model_alias": "gpt120",
+    "expectations": {
+      "should_clarify": false,
+      "expected_state": null,
+      "required_actions": [],
+      "clarification": null,
+      "interpretation": null,
+      "sql": {
+        "must_parse": true,
+        "required_substrings": [
+          "2005-08",
+          "rental",
+          "return_date",
+          "rental_duration",
+          "group by"
+        ],
+        "forbidden_substrings": [],
+        "required_tables": [
+          "rental",
+          "film",
+          "inventory"
+        ],
+        "forbidden_tables": [],
+        "required_columns": []
+      },
+      "execution": {
+        "should_succeed": true,
+        "min_row_count": 1,
+        "max_row_count": null,
+        "required_columns_all_of": [],
+        "required_column_groups": [
+          [
+            "week"
+          ],
+          [
+            "avg_rental_days"
+          ],
+          [
+            "late_return_rate"
+          ]
+        ],
+        "chart": {
+          "acceptable_types": [
+            "line"
+          ],
+          "acceptable_views": [],
+          "x_any_of": [
+            "week"
+          ],
+          "y_any_of": [
+            "late_return_rate",
+            "avg_rental_days"
+          ],
+          "series_any_of": []
+        }
+      }
+    },
+    "actual": {
+      "database": {
+        "id": "3f2ce6596cfa44a5a9c77d0cabe9a993",
+        "name": "dvdrental",
+        "dialect": "postgresql"
+      },
+      "needs_clarification": true,
+      "state": "CLARIFYING",
+      "actions": [
+        "create_sql"
+      ],
+      "clarification_question": "Уточните, что означает «week».",
+      "clarification_options": [
+        {
+          "id": "dimension:option",
+          "label": "Уточнить вручную",
+          "detail": null,
+          "reason": null
+        }
+      ],
+      "message_kind": "clarification",
+      "initial_message_kind": "clarification",
+      "clarification_transcript": [
+        {
+          "round": 1,
+          "question": "Уточните, что означает «week».",
+          "answer": "Уточнить вручную",
+          "options": [
+            {
+              "id": "dimension:option",
+              "label": "Уточнить вручную",
+              "detail": null,
+              "reason": null
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "question": "Уточните, что означает «week».",
+          "answer": "Уточнить вручную",
+          "options": [
+            {
+              "id": "dimension:option",
+              "label": "Уточнить вручную",
+              "detail": null,
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "intent": {
+        "raw_prompt": "За август 2005 покажи по неделям среднее фактическое число дней аренды и долю просроченных возвратов. Считать аренду просроченной, если return_date > rental_date + rental_duration дней. Нужен line chart.",
+        "metric": null,
+        "dimensions": [],
+        "filters": [],
+        "comparison": null,
+        "date_range": {
+          "kind": "absolute",
+          "start": "2005-08-01",
+          "end": "2005-08-31",
+          "lookback_value": null,
+          "lookback_unit": null
+        },
+        "visualization_preference": "line",
+        "ambiguities": [
+          "Не указано, как определять недели (ISO‑неделя, календарная неделя с воскресенья или номер недели в месяце)."
+        ],
+        "clarification_question": "Как вы хотите определять недели для группировки?",
+        "clarification_options": [
+          {
+            "id": "iso_week",
+            "label": "ISO‑неделя (неделя начинается с понедельника, ISO‑8601)",
+            "detail": "Группировать по календарным неделям согласно ISO‑8601.",
+            "reason": null
+          },
+          {
+            "id": "calendar_week_sunday",
+            "label": "Календарная неделя (неделя начинается с воскресенья)",
+            "detail": "Группировать по неделям, где первая неделя начинается в воскресенье.",
+            "reason": null
+          },
+          {
+            "id": "week_of_month",
+            "label": "Номер недели в месяце",
+            "detail": "Группировать по порядковому номеру недели внутри августа (1‑5).",
+            "reason": null
+          }
+        ],
+        "confidence": 0.85,
+        "follow_up": true
+      },
+      "sql": "",
+      "execution": null,
+      "chart": null
+    },
+    "scores": {
+      "understanding": 0.0,
+      "sql": 0.0,
+      "chart": 0.0,
+      "overall": 0.0
+    },
+    "applicable_buckets": [
+      "understanding",
+      "sql",
+      "chart"
+    ],
+    "checks": [
+      {
+        "bucket": "understanding",
+        "code": "clarification_unexpected",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "Expected a direct answer, but the system asked for clarification."
+      },
+      {
+        "bucket": "sql",
+        "code": "sql_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 2.0,
+        "message": "SQL draft is empty."
+      },
+      {
+        "bucket": "sql",
+        "code": "execution_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.5,
+        "message": "Execution payload is missing."
+      },
+      {
+        "bucket": "chart",
+        "code": "chart_missing",
+        "passed": false,
+        "score": 0.0,
+        "weight": 1.0,
+        "message": "Chart cannot be evaluated without execution payload."
+      }
+    ]
+  }
+]

@@ -169,13 +169,53 @@ class ClarificationAgent:
 
     def _metric_options(self, schema: SchemaMetadataResponse | None) -> list[ClarificationOptionData]:
         schema_options = self._metric_options_from_schema(schema)
+        if len(schema_options) >= 3:
+            return schema_options[:5]
         if schema_options:
-            return schema_options[:6]
-        # Fallback only when schema unavailable
+            fallback_options = self._metric_fallback_options()
+            combined: list[ClarificationOptionData] = []
+            seen_labels: set[str] = set()
+            for option in [*schema_options, *fallback_options]:
+                label_key = option.label.lower()
+                if label_key in seen_labels:
+                    continue
+                combined.append(option)
+                seen_labels.add(label_key)
+                if len(combined) >= 5:
+                    return combined
+            return combined
+        # Fallback only when schema unavailable. Keep the options concrete enough to
+        # cover the common "quality of rides" ambiguity without inventing schema terms.
+        return self._metric_fallback_options()
+
+    @staticmethod
+    def _metric_fallback_options() -> list[ClarificationOptionData]:
         return [
-            ClarificationOptionData(id="metric:revenue",         label="Выручка",            detail="Сумма продаж"),
-            ClarificationOptionData(id="metric:order_count",     label="Количество заказов"),
-            ClarificationOptionData(id="metric:avg_order_value", label="Средний чек"),
+            ClarificationOptionData(
+                id="metric:completion_rate",
+                label="Коэффициент завершённости",
+                detail="Доля завершённых поездок",
+            ),
+            ClarificationOptionData(
+                id="metric:avg_duration",
+                label="Средняя длительность поездки",
+                detail="Среднее время в пути",
+            ),
+            ClarificationOptionData(
+                id="metric:distance",
+                label="Средняя дистанция",
+                detail="Средняя длина поездки",
+            ),
+            ClarificationOptionData(
+                id="metric:cancellation_rate",
+                label="Коэффициент отмены",
+                detail="Доля отменённых поездок",
+            ),
+            ClarificationOptionData(
+                id="metric:arrival_time",
+                label="Среднее время прибытия водителя",
+                detail="Среднее время до прибытия",
+            ),
         ]
 
     def _metric_options_from_schema(
@@ -187,12 +227,15 @@ class ClarificationAgent:
         for table in schema.tables:
             metric_cols = [c.name for c in table.columns if self._looks_like_metric_column(c)][:4]
             for col in metric_cols:
+                if col.lower().endswith("_id") or col.lower() == "id":
+                    continue
+                label = self._label_metric_column(col)
                 results.append(ClarificationOptionData(
                     id=f"metric:{table.name}.{col}",
-                    label=f"{table.name}.{col}",
-                    detail=f"Колонка таблицы «{table.name}»",
+                    label=label,
+                    detail=f"Колонка таблицы «{table.name}» ({col})" if label != f"{table.name}.{col}" else f"Колонка таблицы «{table.name}»",
                 ))
-                if len(results) >= 6:
+                if len(results) >= 5:
                     return results
         return results
 
@@ -259,3 +302,20 @@ class ClarificationAgent:
         if any(x in column.type.lower() for x in ("int", "numeric", "decimal", "float", "double", "real", "money")):
             return True
         return any(h in column.name.lower() for h in _METRIC_NAME_HINTS)
+
+    @staticmethod
+    def _label_metric_column(column_name: str) -> str:
+        lowered = column_name.lower()
+        pattern_labels = (
+            (("completion", "complete", "completed", "done", "status"), "Коэффициент завершённости"),
+            (("duration", "time", "minutes", "minute", "mins", "min"), "Средняя длительность поездки"),
+            (("distance", "km", "mile", "mileage"), "Средняя дистанция"),
+            (("cancel", "cancell", "rejected", "reject"), "Коэффициент отмены"),
+            (("arrival", "arriv", "pickup", "accept"), "Среднее время прибытия водителя"),
+            (("revenue", "amount", "total", "sales", "value", "cost"), "Выручка"),
+            (("count", "qty", "quantity", "orders", "rides", "trips"), "Количество"),
+        )
+        for tokens, label in pattern_labels:
+            if any(token in lowered for token in tokens):
+                return label
+        return column_name

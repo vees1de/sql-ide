@@ -30,3 +30,41 @@ def test_does_not_suppress_specific_question() -> None:
 
     assert decision.suppress is False
     assert decision.cause_code is None
+
+
+def test_suppresses_overly_conservative_join_path_question_when_prompt_is_specific() -> None:
+    policy = ClarificationPolicy()
+    intent = IntentPayload(
+        raw_prompt="За март 2007 покажи по дням выручку и количество платежей по магазинам.",
+        metric="revenue",
+        dimensions=["day"],
+        confidence=0.9,
+    )
+
+    decision = policy.should_suppress(
+        prompt="За март 2007 покажи по дням выручку и количество платежей по магазинам.",
+        intent=intent,
+        question="В схеме нет прямой связи между таблицами inventory и store, поэтому нельзя напрямую посчитать выручку и количество платежей по магазинам. Как вы хотите продолжить?",
+    )
+
+    assert decision.suppress is True
+    assert decision.cause_code == "join_path_overly_conservative"
+
+
+def test_suppresses_definition_style_dimension_question_when_prompt_is_explicit() -> None:
+    policy = ClarificationPolicy()
+    intent = IntentPayload(
+        raw_prompt="За март 2007 покажи по дням выручку и количество платежей по магазинам.",
+        metric="revenue",
+        dimensions=["day"],
+        confidence=0.9,
+    )
+
+    decision = policy.should_suppress(
+        prompt="За март 2007 покажи по дням выручку и количество платежей по магазинам.",
+        intent=intent,
+        question="Уточните, что означает «day».",
+    )
+
+    assert decision.suppress is True
+    assert decision.cause_code == "definition_already_explicit"

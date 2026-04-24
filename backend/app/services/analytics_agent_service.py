@@ -160,7 +160,7 @@ class AnalyticsAgentService:
         except Exception:
             catalog_context = None
         if catalog_context is not None:
-            schema = catalog_context.schema
+            schema = catalog_context.schema_metadata
             semantic_catalog = catalog_context.catalog
             catalog_dictionary_entries = [
                 DictionaryEntryRead.model_validate(entry) for entry in catalog_context.dictionary_entries
@@ -294,7 +294,7 @@ class AnalyticsAgentService:
             base_dictionary_entries,
         )
         return {
-            "schema": catalog_context.schema,
+            "schema": catalog_context.schema_metadata,
             "dictionary": catalog_context.dictionary_entries,
             "catalog": catalog_context.catalog.model_dump(mode="json"),
             "notes": catalog_context.notes,

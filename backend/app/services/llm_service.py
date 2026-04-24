@@ -10,7 +10,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.core.config import settings
-from app.schemas.chat import AgentAction, AgentState, SemanticParse
+from app.schemas.chat import AgentAction, AgentState, SemanticParse, SqlExplanationBlock, SqlExplanationResponse
 from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import IntentPayload, QuerySemantics
 from app.schemas.semantic_catalog import SemanticCatalog, SemanticTable, SemanticTableEnrichment
@@ -106,6 +106,22 @@ class LLMChartSuggestionPayload(BaseModel):
     reason: str | None = None
     explanation: str | None = None
     confidence: float | None = None
+
+
+class LLMSqlExplanationBlock(BaseModel):
+    index: int
+    kind: str = "other"
+    title: str
+    line_start: int
+    line_end: int
+    sql: str
+    explanation: str
+
+
+class LLMSqlExplanationPayload(BaseModel):
+    summary: str
+    blocks: list[LLMSqlExplanationBlock] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class LLMService:
@@ -622,6 +638,77 @@ class LLMService:
             logger.warning("LLM chart suggestion failed: %s", exc)
             return None
 
+    def explain_sql(
+        self,
+        *,
+        sql: str,
+        dialect: str | None = None,
+        model: str | None = None,
+    ) -> SqlExplanationResponse | None:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model):
+            return self._fallback_sql_explanation(sql, dialect=dialect)
+
+        line_map = self._numbered_sql(sql)
+        system_prompt = (
+            "You are a senior SQL tutor. "
+            "Return exactly one JSON object and no markdown. "
+            "Explain the query block by block in the user's language. "
+            "The explanation must stay faithful to the SQL and use the original line numbers. "
+            "Prefer 3-8 coherent blocks for non-trivial SQL. "
+            "If the query is simple, it is fine to produce fewer blocks. "
+            "Each block must describe one clause or one logical part of the query and should include the "
+            "exact SQL excerpt copied from the source. "
+            "Do not invent tables, columns, filters, or business meaning.\n"
+            "{"
+            '"summary":"string",'
+            '"blocks":[{'
+            '"index":"number",'
+            '"kind":"cte|select|from|join|where|group_by|having|order_by|limit|compound|other",'
+            '"title":"string",'
+            '"line_start":"number",'
+            '"line_end":"number",'
+            '"sql":"string",'
+            '"explanation":"string"'
+            '}],'
+            '"warnings":["string"]'
+            "}"
+        )
+        user_prompt = json.dumps(
+            {
+                "dialect": dialect,
+                "sql": sql,
+                "numbered_sql": line_map,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        try:
+            content = self._chat_json(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=1400,
+                temperature=0.1,
+                model=str(target_model),
+            )
+            payload = json.loads(self._extract_json_object(content))
+            result = LLMSqlExplanationPayload.model_validate(payload)
+            blocks = [SqlExplanationBlock.model_validate(block.model_dump(mode="json")) for block in result.blocks]
+            if not blocks:
+                return self._fallback_sql_explanation(sql, dialect=dialect)
+            return SqlExplanationResponse(
+                summary=result.summary.strip(),
+                blocks=blocks,
+                warnings=[warning.strip() for warning in result.warnings if str(warning).strip()],
+                generated_by_ai=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("LLM SQL explanation failed: %s", exc)
+            return self._fallback_sql_explanation(sql, dialect=dialect)
+
     def enrich_semantic_table(
         self,
         table: SemanticTable,
@@ -980,6 +1067,133 @@ class LLMService:
         if not match:
             raise ValueError("No JSON object found in LLM response.")
         return match.group(0)
+
+    def _numbered_sql(self, sql: str) -> list[str]:
+        lines = sql.splitlines() or [sql]
+        return [f"{index + 1}: {line}" for index, line in enumerate(lines)]
+
+    def _fallback_sql_explanation(self, sql: str, dialect: str | None = None) -> SqlExplanationResponse:
+        lines = sql.splitlines() or [sql]
+        if not lines:
+            lines = [sql]
+
+        blocks: list[SqlExplanationBlock] = []
+        current_kind: str | None = None
+        current_lines: list[tuple[int, str]] = []
+
+        def flush_block() -> None:
+            nonlocal current_kind, current_lines
+            if not current_lines:
+                return
+            start = current_lines[0][0]
+            end = current_lines[-1][0]
+            block_kind = current_kind or "other"
+            sql_excerpt = "\n".join(line for _, line in current_lines).strip()
+            blocks.append(
+                SqlExplanationBlock(
+                    index=len(blocks) + 1,
+                    kind=block_kind,  # type: ignore[arg-type]
+                    title=self._sql_block_title(block_kind),
+                    line_start=start,
+                    line_end=end,
+                    sql=sql_excerpt,
+                    explanation=self._sql_block_explanation(block_kind, dialect=dialect),
+                )
+            )
+            current_kind = None
+            current_lines = []
+
+        for index, raw_line in enumerate(lines, start=1):
+            stripped = raw_line.strip()
+            if not stripped and current_lines:
+                current_lines.append((index, raw_line))
+                continue
+
+            kind = self._detect_sql_block_kind(stripped)
+            if current_lines and kind != current_kind and stripped:
+                flush_block()
+
+            if not current_lines:
+                current_kind = kind
+            elif kind != current_kind and stripped:
+                current_kind = kind
+
+            current_lines.append((index, raw_line))
+
+        flush_block()
+
+        summary = self._fallback_sql_summary(blocks, dialect=dialect, sql=sql)
+        return SqlExplanationResponse(
+            summary=summary,
+            blocks=blocks,
+            warnings=[
+                "AI explanation is unavailable, so the query is shown with a structural SQL breakdown."
+            ],
+            generated_by_ai=False,
+        )
+
+    def _detect_sql_block_kind(self, line: str) -> str:
+        lowered = line.lower().lstrip(",")
+        patterns: list[tuple[str, str]] = [
+            (r"^with\b", "cte"),
+            (r"^select\b", "select"),
+            (r"^from\b", "from"),
+            (r"^((left|right|full|inner|cross|outer)\s+)?join\b", "join"),
+            (r"^on\b", "join"),
+            (r"^where\b", "where"),
+            (r"^group\s+by\b", "group_by"),
+            (r"^having\b", "having"),
+            (r"^order\s+by\b", "order_by"),
+            (r"^limit\b", "limit"),
+            (r"^(union|except|intersect)\b", "compound"),
+        ]
+        for pattern, kind in patterns:
+            if re.match(pattern, lowered):
+                return kind
+        if lowered.startswith(")"):
+            return "other"
+        return "other"
+
+    def _sql_block_title(self, kind: str) -> str:
+        titles = {
+            "cte": "CTE / временный подзапрос",
+            "select": "Выборка полей",
+            "from": "Основная таблица",
+            "join": "Соединение таблиц",
+            "where": "Фильтрация строк",
+            "group_by": "Группировка",
+            "having": "Фильтр по агрегатам",
+            "order_by": "Сортировка",
+            "limit": "Ограничение результата",
+            "compound": "Объединение запросов",
+            "other": "Прочая логика",
+        }
+        return titles.get(kind, titles["other"])
+
+    def _sql_block_explanation(self, kind: str, *, dialect: str | None = None) -> str:
+        suffix = f" для {dialect}" if dialect else ""
+        explanations = {
+            "cte": "Объявляет промежуточный набор данных, чтобы упростить основной запрос.",
+            "select": "Перечисляет поля и вычисления, которые попадут в итоговый результат.",
+            "from": "Задаёт базовую таблицу или подзапрос, от которого строится запрос.",
+            "join": "Подключает связанную таблицу и расширяет набор данных дополнительными полями.",
+            "where": "Отсекает строки до группировки и агрегации.",
+            "group_by": "Собирает строки в группы по выбранным измерениям.",
+            "having": "Фильтрует уже сгруппированные данные по агрегатам.",
+            "order_by": "Упорядочивает готовый результат по одному или нескольким полям.",
+            "limit": "Ограничивает число возвращаемых строк.",
+            "compound": "Объединяет несколько запросов в один результат.",
+            "other": "Поддерживает основную логику запроса или содержит служебное выражение.",
+        }
+        return f"{explanations.get(kind, explanations['other'])}{suffix}."
+
+    def _fallback_sql_summary(self, blocks: list[SqlExplanationBlock], *, dialect: str | None = None, sql: str) -> str:
+        if not blocks:
+            return "SQL query could not be split into blocks, but the raw text is available below."
+        if len(blocks) == 1:
+            return "Запрос состоит из одного логического блока, поэтому он показан как единая последовательность."
+        dialect_suffix = f" для {dialect}" if dialect else ""
+        return f"Запрос разбит на {len(blocks)} логических блоков{dialect_suffix}, чтобы было проще понять его структуру."
 
     def _extract_text(self, content: Any) -> str:
         if isinstance(content, str):
