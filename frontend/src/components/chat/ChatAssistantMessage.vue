@@ -31,17 +31,13 @@
         v-for="action in visibleActions"
         :key="action.type"
         class="chat-assistant-message__icon-btn"
-        :class="{ 'chat-assistant-message__icon-btn--primary': action.primary }"
         :disabled="action.disabled"
         type="button"
         :title="action.label"
         :aria-label="action.label"
         @click="handleAction(action.type)"
       >
-        <svg v-if="action.type === 'show_run_button'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M4.5 3.3v7.4L10.8 7 4.5 3.3Z" fill="currentColor"/>
-        </svg>
-        <svg v-else-if="action.type === 'create_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <svg v-if="action.type === 'create_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M7 2.2v9.6M2.2 7h9.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
         </svg>
       </button>
@@ -72,9 +68,11 @@
         :show-explain-button="Boolean(payload?.sql)"
         :show-copy-button="Boolean(payload?.sql)"
         :show-toggle-sql-button="hasToggleSqlAction"
+        :show-run-button="hasRunAction"
         @explain="emitExplain"
         @copy="copySql"
         @toggle-sql="sqlCollapsed = !sqlCollapsed"
+        @run="emit('run-prepared')"
       />
     </section>
 
@@ -155,12 +153,15 @@ const clarificationOptions = computed(
   () => payload.value?.clarification?.options || payload.value?.clarification_options || []
 );
 
-const HIDDEN_ACTION_TYPES = new Set(['show_sql', 'save_report', 'show_chart_preview']);
+const HIDDEN_ACTION_TYPES = new Set(['show_sql', 'save_report', 'show_chart_preview', 'show_run_button']);
 const visibleActions = computed<ApiChatAction[]>(() =>
   (payload.value?.actions ?? []).filter(a => !HIDDEN_ACTION_TYPES.has(a.type))
 );
 const hasToggleSqlAction = computed(() =>
   Boolean(payload.value?.actions?.some(a => a.type === 'show_sql'))
+);
+const hasRunAction = computed(() =>
+  Boolean(payload.value?.actions?.some(a => a.type === 'show_run_button' && !a.disabled))
 );
 
 const showSqlSection = computed(() => Boolean(payload.value?.sql));
@@ -206,9 +207,6 @@ function handleAction(type: ApiChatAction['type']) {
       } else {
         emit('prepare-sql');
       }
-      break;
-    case 'show_run_button':
-      emit('run-prepared');
       break;
   }
 }
@@ -332,9 +330,7 @@ function handleAction(type: ApiChatAction['type']) {
 }
 
 .chat-assistant-message__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: none;
 }
 
 .chat-assistant-message__icon-btn {

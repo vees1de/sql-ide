@@ -602,6 +602,7 @@ function prepareSql() {
   min-width: 0;
   height: 100%;
   gap: 0;
+  overflow: hidden;
 }
 
 .chat-view__panel {
@@ -642,7 +643,7 @@ function prepareSql() {
 }
 
 .chat-view__panel--chat {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   min-height: 0;

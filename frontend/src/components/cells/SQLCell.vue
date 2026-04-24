@@ -6,6 +6,19 @@
       </p>
       <div class="sql-cell__actions">
         <button
+          v-if="showRunButton"
+          class="sql-cell__run-btn"
+          type="button"
+          title="Запустить SQL"
+          aria-label="Запустить SQL"
+          @click="$emit('run')"
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M4.5 3.3v7.4L10.8 7 4.5 3.3Z" fill="currentColor"/>
+          </svg>
+          <span>Запустить</span>
+        </button>
+        <button
           v-if="showToggleSqlButton"
           class="sql-cell__action-btn"
           type="button"
@@ -74,12 +87,14 @@ const props = defineProps<{
   showExplainButton?: boolean;
   showCopyButton?: boolean;
   showToggleSqlButton?: boolean;
+  showRunButton?: boolean;
 }>();
 
 defineEmits<{
   (event: 'explain'): void;
   (event: 'copy'): void;
   (event: 'toggle-sql'): void;
+  (event: 'run'): void;
 }>();
 
 function escapeHtml(value: string) {
@@ -89,7 +104,7 @@ function escapeHtml(value: string) {
     .replaceAll('>', '&gt;');
 }
 
-const hasHeader = computed(() => Boolean(props.content.explanation || props.showExplainButton || props.showCopyButton || props.showToggleSqlButton));
+const hasHeader = computed(() => Boolean(props.content.explanation || props.showExplainButton || props.showCopyButton || props.showToggleSqlButton || props.showRunButton));
 
 const highlightedSql = computed(() => {
   const escaped = escapeHtml(props.content.sql ?? '');
@@ -126,9 +141,39 @@ const highlightedSql = computed(() => {
 .sql-cell__actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.sql-cell__run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(112, 59, 247, 0.7);
+  background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));
+  color: #efe9ff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(164, 126, 255, 0.92);
+    background: linear-gradient(180deg, rgba(112, 59, 247, 0.46), rgba(112, 59, 247, 0.3));
+    box-shadow: 0 4px 16px rgba(112, 59, 247, 0.28);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 }
 
 .sql-cell__action-btn {

@@ -29,51 +29,130 @@
               </button>
 
               <div v-show="isReasoningOpen(message.id)" class="chat-assistant__reasoning-body">
-                <div v-if="hasUnderstanding(message)" class="chat-assistant__semantic-summary">
-                  <p class="chat-assistant__semantic-title">Как я понял запрос</p>
-                  <p v-if="understandingSummary(message)" class="chat-assistant__semantic-lead">
-                    {{ understandingSummary(message) }}
-                  </p>
-                  <p v-if="taskSummary(message)" class="chat-assistant__semantic-task">
-                    Задача: {{ taskSummary(message) }}
-                  </p>
 
-                  <p v-if="semanticIntentSummary(message)" class="chat-assistant__semantic-note">
-                    {{ semanticIntentSummary(message) }}
+                <!-- Как я понял запрос -->
+                <div v-if="intentBlock(message)" class="r-block">
+                  <p class="r-label">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 4v2.5l1.5 1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+                    Как я понял запрос
                   </p>
-
-                  <p class="chat-assistant__semantic-title">Semantic summary</p>
-                  <div class="chat-assistant__chips">
+                  <p class="r-lead">{{ intentBlock(message).summary }}</p>
+                  <div v-if="intentBlock(message).tags.length" class="r-tags">
                     <span
-                      v-for="item in semanticSummaryItems(message)"
-                      :key="item"
-                      class="chat-assistant__chip"
+                      v-for="tag in intentBlock(message).tags"
+                      :key="tag.text"
+                      class="r-tag"
+                      :class="`r-tag--${tag.kind}`"
+                    >{{ tag.text }}</span>
+                  </div>
+                </div>
+
+                <!-- Почему выбраны таблицы и колонки -->
+                <div v-if="tablesBlock(message).length" class="r-block">
+                  <p class="r-label">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="9" height="7" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h9" stroke="currentColor" stroke-width="1.1"/><path d="M5 5v4.5" stroke="currentColor" stroke-width="1.1"/></svg>
+                    Почему выбраны эти таблицы
+                  </p>
+                  <div class="r-table-list">
+                    <div
+                      v-for="row in tablesBlock(message)"
+                      :key="row.table"
+                      class="r-table-row"
                     >
-                      {{ item }}
+                      <span class="r-table-name">{{ row.table }}</span>
+                      <span class="r-table-reason">{{ row.reason }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Почему выбраны эти столбцы -->
+                <div v-if="columnsBlock(message).length" class="r-block">
+                  <p class="r-label">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 2h6v8H3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M3 4.5h6M3 7h6" stroke="currentColor" stroke-width="1"/></svg>
+                    Почему выбраны эти столбцы
+                  </p>
+                  <div class="r-col-list">
+                    <div
+                      v-for="col in columnsBlock(message)"
+                      :key="col.term + col.match"
+                      class="r-col-row"
+                    >
+                      <div class="r-col-header">
+                        <span class="r-col-name">{{ col.match }}</span>
+                        <span class="r-tag" :class="`r-tag--${col.kind}`">{{ col.kindLabel }}</span>
+                        <span class="r-col-source">{{ col.sourceLabel }}</span>
+                      </div>
+                      <p v-if="col.note" class="r-col-note">{{ col.note }}</p>
+                      <p v-else-if="col.term !== col.match" class="r-col-note">
+                        Из запроса: <em>{{ col.term }}</em>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Как термины запроса легли на поля БД -->
+                <div v-if="termsBlock(message).length" class="r-block">
+                  <p class="r-label">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6h8M7 3.5 9.5 6 7 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Как слова запроса стали полями
+                  </p>
+                  <div class="r-term-list">
+                    <div
+                      v-for="t in termsBlock(message)"
+                      :key="t.term"
+                      class="r-term-row"
+                    >
+                      <span class="r-term-user">{{ t.term }}</span>
+                      <svg class="r-term-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6h8M7 3.5 9.5 6 7 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span class="r-term-match">{{ t.match }}</span>
+                      <span class="r-term-kind r-tag" :class="`r-tag--${t.kind}`">{{ t.kindLabel }}</span>
+                      <span v-if="t.note" class="r-term-note">{{ t.note }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Уверенность и фильтры -->
+                <div v-if="metaBlock(message)" class="r-block r-block--meta">
+                  <div v-if="metaBlock(message)!.confidence" class="r-confidence">
+                    <span class="r-label r-label--inline">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1.5 7.2 4.4l3.1.3-2.2 2 .7 3L6 8.1l-2.8 1.6.7-3L1.7 4.7l3.1-.3Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+                      Уверенность
+                    </span>
+                    <span class="r-confidence-bar">
+                      <span class="r-confidence-fill" :class="`r-confidence-fill--${metaBlock(message)!.confidence}`" />
+                    </span>
+                    <span class="r-confidence-label" :class="`r-confidence-label--${metaBlock(message)!.confidence}`">
+                      {{ { low: 'Низкая', medium: 'Средняя', high: 'Высокая' }[metaBlock(message)!.confidence] }}
                     </span>
                   </div>
-                  <p
-                    v-for="note in semanticNotes(message)"
-                    :key="note"
-                    class="chat-assistant__semantic-note"
-                  >
-                    {{ note }}
+                  <div v-if="metaBlock(message)!.filters.length" class="r-filters">
+                    <span class="r-label r-label--inline">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M1.5 3h9M3 6h6M4.5 9h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                      Фильтры
+                    </span>
+                    <span
+                      v-for="f in metaBlock(message)!.filters"
+                      :key="f"
+                      class="r-tag r-tag--filter"
+                    >{{ f }}</span>
+                  </div>
+                </div>
+
+                <!-- Предупреждения -->
+                <div v-if="warnings(message).length" class="r-block r-block--warnings">
+                  <p class="r-label">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1.5 11 10.5H1L6 1.5Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M6 5v2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="9" r="0.6" fill="currentColor"/></svg>
+                    Обратите внимание
                   </p>
+                  <div class="r-warning-list">
+                    <span
+                      v-for="w in warnings(message)"
+                      :key="w"
+                      class="r-warning"
+                    >{{ w }}</span>
+                  </div>
                 </div>
 
-                <div v-if="reasoningLines(message).length" class="chat-assistant__reasoning-lines">
-                  <p v-for="line in reasoningLines(message)" :key="line">{{ line }}</p>
-                </div>
-
-                <div v-if="warnings(message).length" class="sql-cell__warnings">
-                  <span
-                    v-for="warning in warnings(message)"
-                    :key="warning"
-                    class="pill pill--ghost"
-                  >
-                    {{ warning }}
-                  </span>
-                </div>
               </div>
             </section>
 
@@ -220,16 +299,15 @@ function payloadOf(message: ApiChatMessageRead): ApiChatStructuredPayload | null
 }
 
 function hasReasoning(message: ApiChatMessageRead) {
-  return (
-    reasoningLines(message).length > 0 ||
-    semanticSummaryItems(message).length > 0 ||
-    Boolean(understandingSummary(message) || taskSummary(message) || semanticIntentSummary(message)) ||
-    warnings(message).length > 0
+  const p = payloadOf(message);
+  if (!p) return false;
+  return Boolean(
+    p.semantic_parse ||
+    p.tables_used?.length ||
+    p.confidence_level ||
+    p.warnings?.length ||
+    p.interpretation?.ambiguities?.length
   );
-}
-
-function hasUnderstanding(message: ApiChatMessageRead) {
-  return Boolean(understandingSummary(message) || taskSummary(message) || semanticIntentSummary(message));
 }
 
 function isReasoningOpen(messageId: string) {
@@ -243,111 +321,101 @@ function toggleReasoning(messageId: string) {
   };
 }
 
-function reasoningLines(message: ApiChatMessageRead) {
-  const payload = payloadOf(message);
-  const lines: string[] = [];
-  if (!payload) {
-    return lines;
-  }
-  if (payload.confidence_level) {
-    lines.push(`Уверенность SQL: ${payload.confidence_level}`);
-  }
-  if (payload.tables_used?.length) {
-    lines.push(`Таблицы: ${payload.tables_used.map((item) => item.table).join(', ')}`);
-  }
-  if (payload.semantic_parse?.unresolved_terms?.length) {
-    lines.push(
-      `Требуют уточнения: ${payload.semantic_parse.unresolved_terms.map((item) => item.term).join(', ')}`
-    );
-  }
-  if (payload.debug_trace?.length) {
-    lines.push(...payload.debug_trace.map((item) => `${item.stage}: ${item.detail}`));
-  }
-  return lines;
+const KIND_LABELS: Record<string, string> = {
+  metric: 'метрика',
+  dimension: 'измерение',
+  filter: 'фильтр',
+  table: 'таблица',
+  column: 'колонка',
+  relationship: 'связь',
+  term: 'термин'
+};
+
+function intentBlock(message: ApiChatMessageRead) {
+  const semantic = payloadOf(message)?.semantic_parse;
+  if (!semantic) return null;
+
+  const summary = semantic.intent_summary ?? buildIntentSummary(semantic);
+  if (!summary) return null;
+
+  type Tag = { text: string; kind: string };
+  const tags: Tag[] = [];
+  if (semantic.metric) tags.push({ text: semantic.metric, kind: 'metric' });
+  (semantic.dimensions ?? []).forEach(d => tags.push({ text: d, kind: 'dimension' }));
+  if (semantic.date_range?.kind) tags.push({ text: semantic.date_range.kind, kind: 'date' });
+  if (semantic.comparison) tags.push({ text: semantic.comparison, kind: 'comparison' });
+
+  return { summary, tags };
 }
 
-function semanticSummaryItems(message: ApiChatMessageRead) {
-  const payload = payloadOf(message);
-  const semantic = payload?.semantic_parse;
-  if (!semantic) {
-    return [];
-  }
-
-  return [
-    semantic.metric ? `Метрика: ${semantic.metric}` : '',
-    ...(semantic.dimensions ?? []).map((dimension) => `Измерение: ${dimension}`),
-    ...(semantic.candidate_tables ?? []).map((table) => `Таблица: ${table}`)
-  ].filter(Boolean);
-}
-
-function semanticIntentSummary(message: ApiChatMessageRead) {
-  return payloadOf(message)?.semantic_parse?.intent_summary ?? null;
-}
-
-function understandingSummary(message: ApiChatMessageRead) {
-  const payload = payloadOf(message);
-  const semantic = payload?.semantic_parse;
-  if (!semantic) {
-    return null;
-  }
-
+function buildIntentSummary(semantic: NonNullable<ApiChatStructuredPayload['semantic_parse']>) {
   const parts: string[] = [];
-  if (semantic.metric) {
-    parts.push(`метрика ${semantic.metric}`);
-  }
-  if (semantic.dimensions?.length) {
-    parts.push(`группировка по ${semantic.dimensions.join(', ')}`);
-  }
-  if (semantic.date_range?.kind) {
-    parts.push(`период ${semantic.date_range.kind}`);
-  }
-  if (semantic.comparison) {
-    parts.push(`сравнение ${semantic.comparison}`);
-  }
-
-  return parts.length ? parts.join(', ') : null;
+  if (semantic.metric) parts.push(`метрика — ${semantic.metric}`);
+  if (semantic.dimensions?.length) parts.push(`группировка по ${semantic.dimensions.join(', ')}`);
+  if (semantic.date_range?.kind) parts.push(`период ${semantic.date_range.kind}`);
+  if (semantic.comparison) parts.push(`сравнение ${semantic.comparison}`);
+  return parts.length ? parts.join('; ') : null;
 }
 
-function taskSummary(message: ApiChatMessageRead) {
-  const payload = payloadOf(message);
-  const semantic = payload?.semantic_parse;
-  if (!semantic) {
-    return null;
-  }
-
-  const parts: string[] = ['построить SQL-запрос'];
-  if (semantic.metric) {
-    parts.push(`по метрике ${semantic.metric}`);
-  }
-  if (semantic.dimensions?.length) {
-    parts.push(`с группировкой по ${semantic.dimensions.join(', ')}`);
-  }
-  if (semantic.filters?.length) {
-    parts.push(
-      `с фильтрами ${semantic.filters
-        .map((item) => `${item.field} ${item.operator} ${String(item.value)}`)
-        .join('; ')}`
-    );
-  }
-  if (semantic.date_range?.kind) {
-    parts.push(`за период ${semantic.date_range.kind}`);
-  }
-  if (semantic.comparison) {
-    parts.push(`и сравнением ${semantic.comparison}`);
-  }
-
-  return parts.join(' ');
+function tablesBlock(message: ApiChatMessageRead) {
+  return payloadOf(message)?.tables_used ?? [];
 }
 
-function semanticNotes(message: ApiChatMessageRead) {
-  return payloadOf(message)?.semantic_parse?.notes ?? [];
+const SOURCE_LABELS: Record<string, string> = {
+  semantic_catalog: 'семантика',
+  schema: 'схема БД',
+  dictionary: 'словарь',
+  user_input: 'из запроса',
+  unknown: ''
+};
+
+const COLUMN_KINDS = new Set(['column', 'metric', 'dimension']);
+
+function columnsBlock(message: ApiChatMessageRead) {
+  const terms = payloadOf(message)?.semantic_parse?.resolved_terms ?? [];
+  return terms
+    .filter(t => COLUMN_KINDS.has(t.kind) && t.match)
+    .map(t => ({
+      term: t.term,
+      match: t.match!,
+      kind: t.kind,
+      kindLabel: KIND_LABELS[t.kind] ?? t.kind,
+      sourceLabel: SOURCE_LABELS[t.source] ?? '',
+      note: t.note ?? null
+    }));
+}
+
+function termsBlock(message: ApiChatMessageRead) {
+  const terms = payloadOf(message)?.semantic_parse?.resolved_terms ?? [];
+  return terms
+    .filter(t => !COLUMN_KINDS.has(t.kind))
+    .map(t => ({
+      term: t.term,
+      match: t.match || t.term,
+      kind: t.kind,
+      kindLabel: KIND_LABELS[t.kind] ?? t.kind,
+      note: t.note ?? null
+    }));
+}
+
+function metaBlock(message: ApiChatMessageRead) {
+  const p = payloadOf(message);
+  if (!p) return null;
+  const filters = (p.semantic_parse?.filters ?? []).map(
+    f => `${f.field} ${f.operator} ${String(f.value)}`
+  );
+  const confidence = p.confidence_level ?? null;
+  if (!confidence && !filters.length) return null;
+  return { confidence, filters };
 }
 
 function warnings(message: ApiChatMessageRead) {
   const payload = payloadOf(message);
   return [
     ...(payload?.warnings ?? []),
-    ...(payload?.interpretation.ambiguities ?? []).map((item) => `Неоднозначность: ${item.replaceAll('_', ' ')}`)
+    ...(payload?.interpretation?.ambiguities ?? []).map(
+      item => `Неоднозначность: ${item.replaceAll('_', ' ')}`
+    )
   ];
 }
 </script>
@@ -403,74 +471,272 @@ function warnings(message: ApiChatMessageRead) {
   color: var(--ink);
 }
 
+/* ── Reasoning body ─────────────────────────────────────── */
 .chat-assistant__reasoning-body {
   display: grid;
-  gap: 10px;
-  padding-left: 2px;
+  gap: 1px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.chat-assistant__semantic-summary {
+.r-block {
   display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.r-block + .r-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.r-block--meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.r-block--warnings {
+  background: rgba(255, 184, 77, 0.05);
+  border-top-color: rgba(255, 184, 77, 0.15) !important;
+}
+
+/* labels */
+.r-label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.69rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+
+  svg { opacity: 0.6; flex-shrink: 0; }
+}
+
+.r-label--inline {
+  font-size: 0.69rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  svg { opacity: 0.6; }
+}
+
+/* intent lead text */
+.r-lead {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* tags */
+.r-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.r-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.r-tag--metric    { background: rgba(112, 59, 247, 0.16); border-color: rgba(112, 59, 247, 0.3); color: #d4bfff; }
+.r-tag--dimension { background: rgba(36, 107, 255, 0.12); border-color: rgba(36, 107, 255, 0.25); color: #a8c4ff; }
+.r-tag--date      { background: rgba(67, 176, 42, 0.1);   border-color: rgba(67, 176, 42, 0.25);  color: #b8f0a8; }
+.r-tag--comparison{ background: rgba(255, 184, 77, 0.1);  border-color: rgba(255, 184, 77, 0.25); color: #ffd79a; }
+.r-tag--filter    { background: rgba(255, 107, 107, 0.1); border-color: rgba(255, 107, 107, 0.22); color: #ffb3b3; }
+.r-tag--column    { background: rgba(0, 196, 180, 0.1);   border-color: rgba(0, 196, 180, 0.22);  color: #9ef0e8; }
+.r-tag--table     { background: rgba(255, 140, 0, 0.1);   border-color: rgba(255, 140, 0, 0.22);  color: #ffc87a; }
+
+/* tables */
+.r-table-list {
+  display: grid;
+  gap: 5px;
+}
+
+.r-table-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
   gap: 8px;
 }
 
-.chat-assistant__semantic-title {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.r-table-name {
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #ffc87a;
+  white-space: nowrap;
 }
 
-.chat-assistant__chips {
+.r-table-reason {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* columns */
+.r-col-list {
+  display: grid;
+  gap: 6px;
+}
+
+.r-col-row {
+  display: grid;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(0, 196, 180, 0.06);
+  border: 1px solid rgba(0, 196, 180, 0.14);
+}
+
+.r-col-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.r-col-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #9ef0e8;
+}
+
+.r-col-source {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.r-col-note {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.4;
+
+  em {
+    color: var(--ink);
+    font-style: italic;
+  }
+}
+
+/* terms */
+.r-term-list {
+  display: grid;
+  gap: 5px;
+}
+
+.r-term-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 6px;
 }
 
-.chat-assistant__chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.28rem 0.55rem;
-  border-radius: 999px;
-  background: rgba(36, 107, 255, 0.08);
+.r-term-user {
+  font-size: 0.76rem;
+  font-weight: 600;
   color: var(--ink);
+  font-style: italic;
+}
+
+.r-term-arrow {
+  color: var(--muted);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.r-term-match {
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #9ef0e8;
+}
+
+.r-term-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* confidence */
+.r-confidence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.r-confidence-bar {
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.r-confidence-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.r-confidence-fill--low    { width: 33%; background: #ff6b6b; }
+.r-confidence-fill--medium { width: 66%; background: #ffb84d; }
+.r-confidence-fill--high   { width: 100%; background: #43b02a; }
+
+.r-confidence-label {
   font-size: 0.72rem;
   font-weight: 600;
 }
+.r-confidence-label--low    { color: #ff9898; }
+.r-confidence-label--medium { color: #ffd79a; }
+.r-confidence-label--high   { color: #b8f0a8; }
 
-.chat-assistant__semantic-note,
-.chat-assistant__semantic-lead,
-.chat-assistant__semantic-task,
-.chat-assistant__reasoning-lines p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.45;
+/* filters */
+.r-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
-.chat-assistant__semantic-lead,
-.chat-assistant__semantic-task {
-  color: var(--ink);
-}
-
-.chat-assistant__semantic-task {
-  font-weight: 600;
-}
-
-.chat-assistant__reasoning-lines {
-  display: grid;
+/* warnings */
+.r-warning-list {
+  display: flex;
+  flex-direction: column;
   gap: 4px;
 }
 
-.sql-cell__warnings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
+.r-warning {
+  font-size: 0.78rem;
+  color: #ffd79a;
+  line-height: 1.4;
+  padding-left: 12px;
+  position: relative;
 
-.sql-cell__warnings .pill {
-  background: rgba(255, 255, 255, 0.04);
+  &::before {
+    content: '·';
+    position: absolute;
+    left: 3px;
+    color: #ffb84d;
+  }
 }
 
 .chat-assistant__empty {
