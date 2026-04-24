@@ -40,7 +40,7 @@ import type {
   ApiDashboardWidgetPatch,
 } from "@/api/types";
 
-const apiBaseUrl = "https://bims.su/x9p4k2q7";
+const apiBaseUrl = "http://localhost:8000";
 
 function toUrl(path: string) {
   return `${apiBaseUrl}${path}`;

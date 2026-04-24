@@ -75,7 +75,7 @@
             <span
               v-if="isSelected(widget.id)"
               class="builder-view__widget-check"
-              >вњ“</span
+              >✓</span
             >
           </div>
         </div>
@@ -103,7 +103,7 @@
                 type="button"
                 @click="removeWidget(idx)"
               >
-                вњ•
+                ✕
               </button>
             </div>
             <div class="builder-view__grid-tile-body">
@@ -111,7 +111,7 @@
                 {{ translateVisualizationType(item.visualization_type) }}
               </span>
               <span class="builder-view__sql-preview">
-                {{ item.sql_text.slice(0, 80) }}вЂ¦
+                {{ item.sql_text.slice(0, 80) }}…
               </span>
             </div>
           </div>

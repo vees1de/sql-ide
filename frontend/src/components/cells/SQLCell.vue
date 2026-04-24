@@ -24,7 +24,29 @@
           :aria-label="collapsed ? 'Показать SQL' : 'Скрыть SQL'"
           @click="$emit('toggle-sql')"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M5 4.2 2.8 7l2.2 2.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 4.2 11.2 7 9 9.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 3.2 6 10.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <svg
+            v-if="collapsed"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path d="M1.6 7s1.9-3.3 5.4-3.3S12.4 7 12.4 7 10.5 10.3 7 10.3 1.6 7 1.6 7Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="7" cy="7" r="1.45" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <svg
+            v-else
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path d="M1.6 7s1.9-3.3 5.4-3.3c.9 0 1.7.2 2.4.6M12.4 7s-1.9 3.3-5.4 3.3c-.9 0-1.7-.2-2.4-.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2.3 2.3 11.7 11.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M6.1 6.1a1.45 1.45 0 0 0 1.8 1.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
         </button>
         <button
           v-if="showExplainButton"
@@ -46,7 +68,11 @@
           aria-label="Скопировать SQL код"
           @click="$emit('copy')"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><rect x="4" y="1.5" width="7.5" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M5.5 5.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M5.5 7.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="4.4" y="1.8" width="7.1" height="8.2" rx="1.2" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M2.5 4v6.7c0 .8.6 1.4 1.4 1.4h5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M6.2 5h3.5M6.2 7h3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
         </button>
       </div>
     </div>

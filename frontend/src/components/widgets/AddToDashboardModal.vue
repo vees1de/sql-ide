@@ -5,7 +5,7 @@
         <div class="modal__header">
           <span class="modal__title">Add To Dashboard</span>
           <button class="modal__close" type="button" @click="$emit('close')">
-            вњ•
+            ✕
           </button>
         </div>
 

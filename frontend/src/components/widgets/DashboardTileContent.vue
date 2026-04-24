@@ -32,7 +32,7 @@
         />
       </template>
     </template>
-    <div v-else class="tile-content__empty">РќРµС‚ РґР°РЅРЅС‹С…</div>
+    <div v-else class="tile-content__empty">Нет данных</div>
   </div>
 </template>
 

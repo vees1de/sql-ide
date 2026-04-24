@@ -1,17 +1,5 @@
 <template>
   <div class="chart-cell">
-    <div v-if="showHeader" class="chart-cell__head">
-      <div>
-        <strong>{{ content.title }}</strong>
-        <p :title="content.explanation ?? content.subtitle ?? ''">
-          {{ content.subtitle }}
-        </p>
-      </div>
-      <div v-if="content.ruleId" class="chart-cell__pill" :title="content.explanation ?? ''">
-        {{ content.ruleId }} · {{ confidenceLabel }}
-      </div>
-    </div>
-
     <div v-if="content.chartType === 'metric_card'" class="chart-cell__metric">
       <div class="chart-cell__metric-value">{{ formatValue(content.value, content.valueFormat) }}</div>
       <div class="chart-cell__metric-label">{{ content.metricLabel ?? 'Value' }}</div>
@@ -37,13 +25,6 @@ const props = defineProps<{
 const palette = computed(
   () => props.content.palette ?? ['#246bff', '#0f766e', '#f59e0b']
 );
-
-const confidenceLabel = computed(() => {
-  if (typeof props.content.confidence !== 'number') {
-    return 'n/a';
-  }
-  return `${Math.round(props.content.confidence * 100)}%`;
-});
 
 function formatValue(value: unknown, valueFormat?: string) {
   if (value === null || value === undefined || value === '') {
@@ -178,41 +159,6 @@ const chartOption = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.chart-cell__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.55rem;
-}
-
-.chart-cell__head strong {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--ink);
-}
-
-.chart-cell__head p {
-  margin: 0.2rem 0 0;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.chart-cell__pill {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid rgba(36, 107, 255, 0.18);
-  background: rgba(36, 107, 255, 0.08);
-  color: var(--ink);
-  font-size: 0.72rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
 .chart-cell__plot {
   width: 100%;
   height: 280px;

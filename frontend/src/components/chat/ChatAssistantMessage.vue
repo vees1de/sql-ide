@@ -8,36 +8,6 @@
 
     <p class="chat-assistant-message__text">{{ displayText }}</p>
 
-    <section v-if="hasSemanticSummary" class="chat-assistant-message__semantic">
-      <div class="chat-assistant-message__semantic-head">Semantic summary</div>
-      <div class="chat-assistant-message__chips">
-        <span v-if="payload?.semantic_parse?.metric" class="chat-assistant-message__chip">
-          Метрика: {{ payload.semantic_parse.metric }}
-        </span>
-        <span
-          v-for="dimension in payload?.semantic_parse?.dimensions ?? []"
-          :key="dimension"
-          class="chat-assistant-message__chip"
-        >
-          Измерение: {{ dimension }}
-        </span>
-        <span
-          v-for="table in payload?.semantic_parse?.candidate_tables ?? []"
-          :key="table"
-          class="chat-assistant-message__chip chat-assistant-message__chip--muted"
-        >
-          Таблица: {{ table }}
-        </span>
-      </div>
-      <p
-        v-for="note in payload?.semantic_parse?.notes ?? []"
-        :key="note"
-        class="chat-assistant-message__semantic-note"
-      >
-        {{ note }}
-      </p>
-    </section>
-
     <section v-if="clarificationQuestion" class="chat-assistant-message__clarification">
       <p class="chat-assistant-message__clarification-text">{{ clarificationQuestion }}</p>
       <div v-if="clarificationOptions.length" class="chat-assistant-message__chips">
@@ -93,21 +63,6 @@
         @run="emit('run-prepared')"
       />
     </section>
-
-    <section v-if="hasReasoning" class="chat-assistant-message__reasoning">
-      <button
-        class="chat-assistant-message__reasoning-toggle"
-        type="button"
-        :aria-expanded="!reasoningCollapsed"
-        @click="reasoningCollapsed = !reasoningCollapsed"
-      >
-        <span>Agent trace</span>
-        <span aria-hidden="true">{{ reasoningCollapsed ? '▾' : '▴' }}</span>
-      </button>
-      <div v-show="!reasoningCollapsed" class="chat-assistant-message__reasoning-body">
-        <p v-for="line in reasoningLines" :key="line">{{ line }}</p>
-      </div>
-    </section>
   </article>
 </template>
 
@@ -137,13 +92,11 @@ const emit = defineEmits<{
 
 const payload = computed<ApiChatStructuredPayload | null>(() => props.message.structured_payload);
 const sqlCollapsed = ref(false);
-const reasoningCollapsed = ref(true);
 
 watch(
   () => props.message.id,
   () => {
     sqlCollapsed.value = false;
-    reasoningCollapsed.value = true;
   }
 );
 
@@ -198,46 +151,12 @@ const hasRunAction = computed(() =>
   Boolean(payload.value?.actions?.some(a => a.type === 'show_run_button' && !a.disabled))
 );
 
-const hasSemanticSummary = computed(() => {
-  const semantic = payload.value?.semantic_parse;
-  return Boolean(
-    semantic &&
-    (semantic.metric ||
-      semantic.dimensions.length ||
-      semantic.candidate_tables.length ||
-      semantic.notes.length)
-  );
-});
-
 const warnings = computed(() => [
   ...(payload.value?.warnings ?? []),
   ...(payload.value?.interpretation.ambiguities ?? []).map((item) => `Неоднозначность: ${item.replaceAll('_', ' ')}`)
 ]);
 
 const showSqlSection = computed(() => Boolean(payload.value?.sql));
-const hasReasoning = computed(() => reasoningLines.value.length > 0);
-
-const reasoningLines = computed(() => {
-  const lines: string[] = [];
-  if (payload.value?.confidence_level) {
-    lines.push(`Уверенность SQL: ${payload.value.confidence_level}`);
-  }
-  if (payload.value?.tables_used?.length) {
-    lines.push(`Таблицы: ${payload.value.tables_used.map((item) => item.table).join(', ')}`);
-  }
-  if (payload.value?.semantic_parse?.unresolved_terms?.length) {
-    lines.push(
-      `Требуют уточнения: ${payload.value.semantic_parse.unresolved_terms.map((item) => item.term).join(', ')}`
-    );
-  }
-  if (payload.value?.debug_trace?.length) {
-    lines.push(...payload.value.debug_trace.map((item) => `${item.stage}: ${item.detail}`));
-  }
-  if (warnings.value.length) {
-    lines.push(`Предупреждения: ${warnings.value.join('; ')}`);
-  }
-  return lines;
-});
 
 const sqlCellContent = computed(() => ({
   sql: payload.value?.sql ?? '',
@@ -336,9 +255,7 @@ function handleAction(type: ApiChatAction['type']) {
 }
 
 .chat-assistant-message__text,
-.chat-assistant-message__clarification-text,
-.chat-assistant-message__semantic-note,
-.chat-assistant-message__reasoning-body p {
+.chat-assistant-message__clarification-text {
   margin: 0;
   color: var(--ink);
   font-size: 0.84rem;
@@ -346,22 +263,13 @@ function handleAction(type: ApiChatAction['type']) {
   white-space: pre-wrap;
 }
 
-.chat-assistant-message__semantic,
-.chat-assistant-message__clarification,
-.chat-assistant-message__reasoning {
+.chat-assistant-message__clarification {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 10px;
   background: rgba(255, 255, 255, 0.03);
   display: grid;
   gap: 8px;
-}
-
-.chat-assistant-message__semantic-head {
-  color: var(--muted);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .chat-assistant-message__chips,
@@ -402,18 +310,4 @@ function handleAction(type: ApiChatAction['type']) {
   cursor: not-allowed;
 }
 
-.chat-assistant-message__reasoning-toggle {
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0;
-}
-
-.chat-assistant-message__reasoning-body {
-  display: grid;
-  gap: 4px;
-}
 </style>

@@ -13,8 +13,8 @@
         <button
           class="chat-sidebar__rail-toggle"
           type="button"
-          :title="isCollapsed ? 'Р Р°Р·РІРµСЂРЅСѓС‚СЊ СЃР°Р№РґР±Р°СЂ' : 'РЎРІРµСЂРЅСѓС‚СЊ СЃР°Р№РґР±Р°СЂ'"
-          :aria-label="isCollapsed ? 'Р Р°Р·РІРµСЂРЅСѓС‚СЊ СЃР°Р№РґР±Р°СЂ' : 'РЎРІРµСЂРЅСѓС‚СЊ СЃР°Р№РґР±Р°СЂ'"
+          :title="isCollapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'"
+          :aria-label="isCollapsed ? 'Развернуть сайдбар' : 'Свернуть сайдбар'"
           :aria-expanded="!isCollapsed"
           @click="toggleSidebarRail"
         >
@@ -22,7 +22,7 @@
         </button>
       </div>
 
-      <nav class="chat-sidebar__nav" aria-label="РќР°РІРёРіР°С†РёСЏ">
+      <nav class="chat-sidebar__nav" aria-label="Навигация">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
@@ -43,6 +43,7 @@
               stroke-width="1.9"
               stroke-linecap="round"
               stroke-linejoin="round"
+            >
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
             </svg>
             <svg
@@ -55,6 +56,7 @@
               stroke-width="1.9"
               stroke-linecap="round"
               stroke-linejoin="round"
+            >
               <rect x="4" y="4" width="7" height="7" rx="1.5" />
               <rect x="13" y="4" width="7" height="7" rx="1.5" />
               <rect x="4" y="13" width="7" height="7" rx="1.5" />
@@ -70,6 +72,7 @@
               stroke-width="1.9"
               stroke-linecap="round"
               stroke-linejoin="round"
+            >
               <ellipse cx="12" cy="5" rx="8" ry="3" />
               <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
               <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
@@ -99,7 +102,7 @@
                 v-model="query"
                 class="chat-sidebar__search"
                 type="search"
-                placeholder="РџРѕРёСЃРє Р±Р°Р·"
+                placeholder="Поиск баз"
               />
             </div>
           </template>
@@ -110,17 +113,17 @@
                 v-model="query"
                 class="chat-sidebar__search"
                 type="search"
-                placeholder="РџРѕРёСЃРє РґР°С€Р±РѕСЂРґРѕРІ Рё РІРёРґР¶РµС‚РѕРІ"
+                placeholder="Поиск дашбордов и виджетов"
               />
             </div>
           </template>
           <div v-if="showLoadingState" class="chat-sidebar__state">
             {{
               isDatabaseMode
-                ? "Р—Р°РіСЂСѓР¶Р°СЋ СЃРїРёСЃРѕРє Р±Р°Р·вЂ¦"
+                ? "Загружаю список баз…"
                 : isDashboardsMode
-                  ? "Р—Р°РіСЂСѓР¶Р°СЋ РЅР°РІРёРіР°С†РёСЋвЂ¦"
-                  : "Р—Р°РіСЂСѓР¶Р°СЋ РґРµСЂРµРІРѕ С‡Р°С‚РѕРІвЂ¦"
+                  ? "Загружаю навигацию…"
+                  : "Загружаю дерево чатов…"
             }}
           </div>
 
@@ -128,28 +131,28 @@
             v-else-if="isDashboardsMode && !dashboards.length"
             class="chat-sidebar__state"
           >
-            Р”Р°С€Р±РѕСЂРґРѕРІ РїРѕРєР° РЅРµС‚
+            Дашбордов пока нет
           </div>
 
           <div
             v-else-if="!isDashboardsMode && !databases.length"
             class="chat-sidebar__state"
           >
-            РќРµС‚ РїРѕРґРєР»СЋС‡С‘РЅРЅС‹С… Р±Р°Р·
+            Нет подключённых баз
           </div>
 
           <div
             v-else-if="!isDashboardsMode && !treeDatabases.length"
             class="chat-sidebar__state"
           >
-            РќРёС‡РµРіРѕ РЅРµ РЅР°Р№РґРµРЅРѕ
+            Ничего не найдено
           </div>
 
           <div
             v-else-if="isDashboardsMode && !dashboardTree.length"
             class="chat-sidebar__state"
           >
-            РќРёС‡РµРіРѕ РЅРµ РЅР°Р№РґРµРЅРѕ
+            Ничего не найдено
           </div>
 
           <div v-else class="chat-sidebar__tree">
@@ -187,13 +190,13 @@
                         v-if="isDashboardPublic(item.dashboard)"
                         class="chat-sidebar__db-pill chat-sidebar__db-pill--accent"
                       >
-                        РџСѓР±Р»РёС‡РЅС‹Р№
+                        Публичный
                       </span>
                       <span
                         v-if="isDashboardHidden(item.dashboard)"
                         class="chat-sidebar__db-pill"
                       >
-                        РЎРєСЂС‹С‚С‹Р№
+                        Скрытый
                       </span>
                       <span
                         v-if="dashboardWidgetCountLabel(item.dashboard.id)"
@@ -214,8 +217,8 @@
                     :aria-expanded="isDashboardExpanded(item.dashboard.id)"
                     :aria-label="
                       isDashboardExpanded(item.dashboard.id)
-                        ? 'РЎРІРµСЂРЅСѓС‚СЊ РІРёРґР¶РµС‚С‹'
-                        : 'РџРѕРєР°Р·Р°С‚СЊ РІРёРґР¶РµС‚С‹'
+                        ? 'Свернуть виджеты'
+                        : 'Показать виджеты'
                     "
                     @click="toggleDashboardExpand(item.dashboard.id)"
                   >
@@ -231,7 +234,7 @@
                     v-if="isDashboardWidgetsLoading(item.dashboard.id)"
                     class="chat-sidebar__dashboard-state"
                   >
-                    Р—Р°РіСЂСѓР¶Р°СЋ РІРёРґР¶РµС‚С‹вЂ¦
+                    Загружаю виджеты…
                   </div>
                   <div
                     v-else-if="dashboardWidgetsErrorMessage(item.dashboard.id)"
@@ -243,7 +246,7 @@
                     v-else-if="!item.widgets.length"
                     class="chat-sidebar__dashboard-state"
                   >
-                    Р’РёРґР¶РµС‚РѕРІ РїРѕРєР° РЅРµС‚
+                    Виджетов пока нет
                   </div>
                   <div v-else class="chat-sidebar__dashboard-widgets">
                     <RouterLink
@@ -345,13 +348,13 @@
                     v-if="isDashboardItemPublic(item)"
                     class="chat-sidebar__db-pill chat-sidebar__db-pill--accent"
                   >
-                    РџСѓР±Р»РёС‡РЅС‹Р№
+                    Публичный
                   </span>
                   <span
                     v-if="isDashboardItemHidden(item)"
                     class="chat-sidebar__db-pill"
                   >
-                    РЎРєСЂС‹С‚С‹Р№
+                    Скрытый
                   </span>
                   <span
                     v-else-if="isWidgetItem(item)"
@@ -417,22 +420,22 @@
                   <button
                     class="chat-sidebar__icon-btn"
                     type="button"
-                    title="РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ"
-                    aria-label="РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ"
+                    title="Переименовать"
+                    aria-label="Переименовать"
                     :disabled="database.is_builtin"
                     @click.stop="renameDatabase(database)"
                   >
-                    вњЋ
+                    ✎
                   </button>
                   <button
                     class="chat-sidebar__icon-btn"
                     type="button"
-                    title="РЈРґР°Р»РёС‚СЊ"
-                    aria-label="РЈРґР°Р»РёС‚СЊ"
+                    title="Удалить"
+                    aria-label="Удалить"
                     :disabled="database.is_builtin"
                     @click.stop="remove(database)"
                   >
-                    Г—
+                    ×
                   </button>
                 </span>
               </div>
@@ -489,9 +492,9 @@
                       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                     </span>
                     <span class="chat-sidebar__session-text">
-                      <span class="chat-sidebar__session-title">РќРѕРІС‹Р№ С‡Р°С‚</span>
+                      <span class="chat-sidebar__session-title">Новый чат</span>
                       <span class="chat-sidebar__session-sub"
-                        >РЎРѕР·РґР°С‚СЊ РІ СЌС‚РѕР№ Р±Р°Р·Рµ</span
+                        >Создать в этой базе</span
                       >
                     </span>
                   </button>
@@ -500,7 +503,7 @@
                     v-if="!database.sessions.length"
                     class="chat-sidebar__empty-branch"
                   >
-                    РќРµС‚ С‡Р°С‚РѕРІ РІ СЌС‚РѕР№ Р±Р°Р·Рµ
+                    Нет чатов в этой базе
                   </div>
 
                   <div v-else class="chat-sidebar__session-list">
@@ -538,20 +541,20 @@
                         <button
                           class="chat-sidebar__icon-btn"
                           type="button"
-                          title="РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ"
-                          aria-label="РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ"
+                          title="Переименовать"
+                          aria-label="Переименовать"
                           @click.stop="rename(session)"
                         >
-                          вњЋ
+                          ✎
                         </button>
                         <button
                           class="chat-sidebar__icon-btn"
                           type="button"
-                          title="РЈРґР°Р»РёС‚СЊ"
-                          aria-label="РЈРґР°Р»РёС‚СЊ"
+                          title="Удалить"
+                          aria-label="Удалить"
                           @click.stop="removeSession(session)"
                         >
-                          Г—
+                          ×
                         </button>
                       </span>
                     </article>
@@ -568,7 +571,7 @@
             @click="$emit('add-database')"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Р”РѕР±Р°РІРёС‚СЊ Р±Р°Р·Сѓ РґР°РЅРЅС‹С…
+            Добавить базу данных
           </button>
 
           <button
@@ -590,7 +593,7 @@
             >
               <path d="M12 5v14M5 12h14" />
             </svg>
-            РќРѕРІС‹Р№ С‡Р°С‚
+            Новый чат
           </button>
         </div>
       </section>
@@ -602,13 +605,13 @@
         class="chat-sidebar__footer-btn chat-sidebar__footer-btn--accent chat-sidebar__footer-btn--dashboard"
         :to="dashboardView === 'widgets' ? '/widgets' : '/dashboards/new'"
         :title="
-          dashboardView === 'widgets' ? 'РљР°С‚Р°Р»РѕРі РІРёРґР¶РµС‚РѕРІ' : 'РќРѕРІС‹Р№ РґР°С€Р±РѕСЂРґ'
+          dashboardView === 'widgets' ? 'Каталог виджетов' : 'Новый дашборд'
         "
         :aria-label="
-          dashboardView === 'widgets' ? 'РљР°С‚Р°Р»РѕРі РІРёРґР¶РµС‚РѕРІ' : 'РќРѕРІС‹Р№ РґР°С€Р±РѕСЂРґ'
+          dashboardView === 'widgets' ? 'Каталог виджетов' : 'Новый дашборд'
         "
       >
-        {{ dashboardView === "widgets" ? "РљР°С‚Р°Р»РѕРі РІРёРґР¶РµС‚РѕРІ" : "РќРѕРІС‹Р№ РґР°С€Р±РѕСЂРґ" }}
+        {{ dashboardView === "widgets" ? "Каталог виджетов" : "Новый дашборд" }}
         <span class="chat-sidebar__footer-icon" aria-hidden="true">
           <svg
             v-if="dashboardView === 'widgets'"
@@ -643,7 +646,7 @@
         </span>
         <span class="chat-sidebar__footer-label">
           {{
-            dashboardView === "widgets" ? "РљР°С‚Р°Р»РѕРі РІРёРґР¶РµС‚РѕРІ" : "РќРѕРІС‹Р№ РґР°С€Р±РѕСЂРґ"
+            dashboardView === "widgets" ? "Каталог виджетов" : "Новый дашборд"
           }}
         </span>
       </RouterLink>
@@ -651,18 +654,18 @@
         v-else
         class="chat-sidebar__footer-btn chat-sidebar__footer-btn--accent"
         type="button"
-        title="РџСЂРѕС„РёР»СЊ"
-        aria-label="РџСЂРѕС„РёР»СЊ"
+        title="Профиль"
+        aria-label="Профиль"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <span class="chat-sidebar__footer-label">РџСЂРѕС„РёР»СЊ</span>
-        РџСЂРѕС„РёР»СЊ
+        <span class="chat-sidebar__footer-label">Профиль</span>
+        Профиль
       </button>
       <button
         class="chat-sidebar__footer-btn"
         type="button"
-        title="РСЃС‚РѕС‡РЅРёРєРё"
-        aria-label="РСЃС‚РѕС‡РЅРёРєРё"
+        title="Источники"
+        aria-label="Источники"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1.05V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8.6 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.05-.4H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1.05V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15.4 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.37.15.7.36 1 .6.3.25.66.4 1.05.4H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg>
       </button>
@@ -735,16 +738,16 @@ const isDashboardsMode = computed(() => props.mode === "dashboards");
 const isChatMode = computed(() => (props.mode ?? "chat") === "chat");
 const dashboardView = computed(() => props.dashboardView ?? "dashboards");
 const sectionTitleByMode = {
-  chat: "Р§Р°С‚С‹",
-  database: "Р‘Р°Р·С‹ РґР°РЅРЅС‹С…",
-  dashboards: "Р”Р°С€Р±РѕСЂРґС‹",
+  chat: "Чаты",
+  database: "Базы данных",
+  dashboards: "Дашборды",
 } as const;
 const sectionTitle = computed(() => sectionTitleByMode[props.mode ?? "chat"]);
 
 const navItems = [
-  { to: "/chat", label: "Р§Р°С‚", key: "chat" as const },
-  { to: "/dashboards", label: "Р”Р°С€Р±РѕСЂРґС‹", key: "dashboards" as const },
-  { to: "/data", label: "РСЃС‚РѕС‡РЅРёРєРё", key: "data" as const },
+  { to: "/chat", label: "Чат", key: "chat" as const },
+  { to: "/dashboards", label: "Дашборды", key: "dashboards" as const },
+  { to: "/data", label: "Источники", key: "data" as const },
 ];
 
 const normalizedQuery = computed(() => query.value.trim().toLowerCase());
@@ -1058,7 +1061,7 @@ function dashboardTitle(item: ApiDashboardRead) {
 }
 
 function dashboardSubtitle(item: ApiDashboardRead) {
-  return item.description || "Р‘РµР· РѕРїРёСЃР°РЅРёСЏ";
+  return item.description || "Без описания";
 }
 
 function dashboardWidgetTitle(item: ApiDashboardWidgetDetail) {
@@ -1079,16 +1082,16 @@ function dashboardWidgetCountLabel(dashboardId: string) {
     return "";
   }
   if (count % 10 === 1 && count % 100 !== 11) {
-    return `${count} РІРёРґР¶РµС‚`;
+    return `${count} виджет`;
   }
   if (
     count % 10 >= 2 &&
     count % 10 <= 4 &&
     (count % 100 < 12 || count % 100 > 14)
   ) {
-    return `${count} РІРёРґР¶РµС‚Р°`;
+    return `${count} виджета`;
   }
-  return `${count} РІРёРґР¶РµС‚РѕРІ`;
+  return `${count} виджетов`;
 }
 
 function isDashboardWidgetsLoading(id: string) {
@@ -1147,7 +1150,7 @@ async function ensureDashboardWidgetsLoaded(id: string) {
       [id]:
         error instanceof Error
           ? error.message
-          : "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РІРёРґР¶РµС‚С‹.",
+          : "Не удалось загрузить виджеты.",
     };
   } finally {
     dashboardWidgetsLoading.value = {
@@ -1181,17 +1184,17 @@ async function expandDashboardForWidget(widgetId: string) {
 function translateVisualizationType(value: string) {
   switch (value) {
     case "table":
-      return "РўР°Р±Р»РёС†Р°";
+      return "Таблица";
     case "bar":
-      return "РЎС‚РѕР»Р±С‡Р°С‚Р°СЏ";
+      return "Столбчатая";
     case "line":
-      return "Р›РёРЅРµР№РЅР°СЏ";
+      return "Линейная";
     case "area":
-      return "РћР±Р»Р°СЃС‚РЅР°СЏ";
+      return "Областная";
     case "pie":
-      return "РљСЂСѓРіРѕРІР°СЏ";
+      return "Круговая";
     case "metric":
-      return "РњРµС‚СЂРёРєР°";
+      return "Метрика";
     default:
       return value;
   }
@@ -1200,11 +1203,11 @@ function translateVisualizationType(value: string) {
 function translateRefreshPolicy(value: string) {
   switch (value) {
     case "manual":
-      return "Р’СЂСѓС‡РЅСѓСЋ";
+      return "Вручную";
     case "scheduled":
-      return "РџРѕ СЂР°СЃРїРёСЃР°РЅРёСЋ";
+      return "По расписанию";
     case "on_view":
-      return "РџСЂРё РѕС‚РєСЂС‹С‚РёРё";
+      return "При открытии";
     default:
       return value;
   }
@@ -1213,24 +1216,24 @@ function translateRefreshPolicy(value: string) {
 function translateDatabaseStatus(value?: string | null) {
   switch (value) {
     case "active":
-      return "РђРєС‚РёРІРЅР°";
+      return "Активна";
     case "connected":
-      return "РџРѕРґРєР»СЋС‡РµРЅР°";
+      return "Подключена";
     case "syncing":
-      return "РЎРєР°РЅРёСЂСѓРµС‚СЃСЏ";
+      return "Сканируется";
     case "not_scanned":
-      return "РќРµ СЃРєР°РЅРёСЂРѕРІР°Р»Р°СЃСЊ";
+      return "Не сканировалась";
     case "failed":
-      return "РћС€РёР±РєР°";
+      return "Ошибка";
     case "disabled":
-      return "РћС‚РєР»СЋС‡РµРЅР°";
+      return "Отключена";
     default:
-      return value || "РќРµРёР·РІРµСЃС‚РЅРѕ";
+      return value || "Неизвестно";
   }
 }
 
 function formatTableCount(count: number) {
-  return `${count} С‚Р°Р±Р».`;
+  return `${count} табл.`;
 }
 
 function folderMetaText(database: TreeDatabase) {
@@ -1242,20 +1245,20 @@ function folderMetaText(database: TreeDatabase) {
 }
 
 function rename(session: ApiChatSessionRead) {
-  const title = window.prompt("РќРѕРІРѕРµ РЅР°Р·РІР°РЅРёРµ С‡Р°С‚Р°", session.title)?.trim();
+  const title = window.prompt("Новое название чата", session.title)?.trim();
   if (title) {
     emit("rename-session", session.id, title);
   }
 }
 
 function removeSession(session: ApiChatSessionRead) {
-  if (window.confirm(`РЈРґР°Р»РёС‚СЊ С‡Р°С‚ В«${session.title}В»?`)) {
+  if (window.confirm(`Удалить чат «${session.title}»?`)) {
     emit("delete-session", session.id);
   }
 }
 
 function renameDatabase(database: ApiDatabaseDescriptor) {
-  const title = window.prompt("РќРѕРІРѕРµ РЅР°Р·РІР°РЅРёРµ Р±Р°Р·С‹", database.name)?.trim();
+  const title = window.prompt("Новое название базы", database.name)?.trim();
   if (title) {
     emit("rename-database", database.id, title);
   }

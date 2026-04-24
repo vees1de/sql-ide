@@ -4,7 +4,7 @@
       <div class="modal">
         <div class="modal__header">
           <span class="modal__title">Add Widget</span>
-          <button class="modal__close" type="button" @click="$emit('close')">вњ•</button>
+          <button class="modal__close" type="button" @click="$emit('close')">✕</button>
         </div>
 
         <div class="modal__body">

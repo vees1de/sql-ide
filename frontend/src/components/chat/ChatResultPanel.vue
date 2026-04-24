@@ -82,26 +82,6 @@
       />
 
       <section v-else class="chat-result-panel__chart-view">
-        <div class="chat-result-panel__section-head">
-          <div>
-            <strong>Визуализация</strong>
-            <p>{{ visualizationLead }}</p>
-          </div>
-
-          <div v-if="sourceOptions.length" class="chat-result-panel__source-switcher">
-            <button
-              v-for="option in sourceOptions"
-              :key="option.key"
-              class="chat-result-panel__source-btn"
-              :class="{ 'chat-result-panel__source-btn--active': activeSource === option.key }"
-              type="button"
-              @click="activeSource = option.key"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
-
         <div v-if="showInterpretation && currentInterpretation" class="chat-result-panel__interpretation">
           <strong>Как система поняла dataset</strong>
           <p>{{ currentInterpretation.short_explanation ?? currentSubtitle }}</p>
@@ -212,20 +192,6 @@ const currentInterpretation = computed(
 
 const primaryMetric = computed(() => currentInterpretation.value?.metrics?.[0]?.name ?? null);
 
-const sourceOptions = computed(() => {
-  const options: Array<{ key: 'heuristic' | 'ai' | 'manual'; label: string }> = [];
-  if (defaultChartSpec.value || recommendation.value) {
-    options.push({ key: 'heuristic', label: 'Эвристика' });
-  }
-  if (aiChartSpec.value) {
-    options.push({ key: 'ai', label: 'AI suggestion' });
-  }
-  if (manualChartSpec.value) {
-    options.push({ key: 'manual', label: 'Ручная' });
-  }
-  return options;
-});
-
 const currentSubtitle = computed(
   () => currentChartSpec.value?.reason ?? recommendation.value?.reason ?? 'Визуализация результата'
 );
@@ -236,16 +202,6 @@ const summary = computed(() => {
   }
   const columnCount = props.execution.columns?.length ?? 0;
   return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} мс`;
-});
-
-const visualizationLead = computed(() => {
-  if (activeSource.value === 'manual') {
-    return 'Текущий preview собран из вручную отредактированного ChartSpec.';
-  }
-  if (activeSource.value === 'ai' && aiChartSpec.value) {
-    return 'AI-контур предложил альтернативную визуализацию поверх готового dataset.';
-  }
-  return 'Сначала строится deterministic chart по shape результата, без участия LLM.';
 });
 
 const emptyChartMessage = computed(() => {
@@ -351,8 +307,7 @@ watch(
 }
 
 .chat-result-panel__toggle-btn,
-.chat-result-panel__save-btn,
-.chat-result-panel__source-btn {
+.chat-result-panel__save-btn {
   padding: 0 10px;
   min-height: 26px;
   border-radius: 8px;
@@ -367,8 +322,7 @@ watch(
   color: var(--muted);
 }
 
-.chat-result-panel__toggle-btn:hover,
-.chat-result-panel__source-btn:hover {
+.chat-result-panel__toggle-btn:hover {
   color: var(--ink-strong);
   border-color: rgba(112, 59, 247, 0.5);
   background: rgba(112, 59, 247, 0.12);
@@ -385,44 +339,6 @@ watch(
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-}
-
-.chat-result-panel__section-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.chat-result-panel__section-head strong {
-  display: block;
-  color: var(--ink-strong);
-  font-size: 0.88rem;
-}
-
-.chat-result-panel__section-head p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 0.76rem;
-}
-
-.chat-result-panel__source-switcher {
-  display: inline-flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.chat-result-panel__source-btn {
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
-}
-
-.chat-result-panel__source-btn--active {
-  color: var(--ink-strong);
-  border-color: rgba(112, 59, 247, 0.7);
-  background: rgba(112, 59, 247, 0.16);
 }
 
 .chat-result-panel__interpretation {
