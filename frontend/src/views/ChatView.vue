@@ -536,6 +536,9 @@ function prepareSql() {
 .chat-view__layout > :deep(.chat-sidebar) {
   width: var(--app-shell-sidebar-width);
   flex: 0 0 var(--app-shell-sidebar-width);
+  transition:
+    width 220ms ease,
+    flex-basis 220ms ease;
 }
 
 .chat-view__panels {

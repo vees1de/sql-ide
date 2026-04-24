@@ -1,24 +1,35 @@
 <template>
   <section class="chat-sql-editor">
-    <button
-      class="chat-sql-editor__help"
-      type="button"
-      :disabled="busy"
-      aria-label="Объяснить SQL код"
-      @click="$emit('explain')"
-    >
-      ?
-      <span class="chat-sql-editor__help-tooltip">При нажатии ИИ объяснит SQL код</span>
-    </button>
-
     <div class="chat-sql-editor__toolbar">
-      <span class="chat-sql-editor__status" :class="statusClass">{{ statusLabel }}</span>
+      <div style="display: flex; gap: 16px">
+        <span class="chat-sql-editor__status" :class="statusClass">{{
+          statusLabel
+        }}</span>
+        <button
+          class="chat-sql-editor__help"
+          type="button"
+          :disabled="busy"
+          aria-label="Объяснить SQL код"
+          @click="$emit('explain')"
+        >
+          ?
+          <span class="chat-sql-editor__help-tooltip"
+            >При нажатии ИИ объяснит SQL код</span
+          >
+        </button>
+      </div>
+
       <div class="chat-sql-editor__actions">
         <button class="chat-sql-editor__btn" type="button" @click="copy">
           Копировать
         </button>
-        <button class="chat-sql-editor__btn chat-sql-editor__btn--accent" type="button" :disabled="!canRun" @click="$emit('run')">
-          {{ busy ? 'Выполняю…' : 'Запустить' }}
+        <button
+          class="chat-sql-editor__btn chat-sql-editor__btn--accent"
+          type="button"
+          :disabled="!canRun"
+          @click="$emit('run')"
+        >
+          {{ busy ? "Выполняю…" : "Запустить" }}
         </button>
       </div>
     </div>
@@ -37,64 +48,69 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 const props = defineProps<{
   modelValue: string;
   busy: boolean;
-  status: 'idle' | 'executing' | 'error' | 'generating';
-  state?: 'CLARIFYING' | 'SQL_DRAFTING' | 'SQL_READY' | 'ERROR';
+  status: "idle" | "executing" | "error" | "generating";
+  state?: "CLARIFYING" | "SQL_DRAFTING" | "SQL_READY" | "ERROR";
 }>();
 
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: string): void;
-  (event: 'run'): void;
-  (event: 'explain'): void;
+  (event: "update:modelValue", value: string): void;
+  (event: "run"): void;
+  (event: "explain"): void;
 }>();
 
 const statusLabel = computed(() => {
-  if (props.state === 'SQL_READY') {
-    return 'SQL ready';
+  if (props.state === "SQL_READY") {
+    return "SQL ready";
   }
-  if (props.state === 'CLARIFYING') {
-    return 'Ждём уточнение';
+  if (props.state === "CLARIFYING") {
+    return "Ждём уточнение";
   }
   switch (props.status) {
-    case 'executing':
-      return 'Выполняю';
-    case 'error':
-      return 'Ошибка';
-    case 'generating':
-      return 'Генерирую';
+    case "executing":
+      return "Выполняю";
+    case "error":
+      return "Ошибка";
+    case "generating":
+      return "Генерирую";
     default:
-      return 'Готов';
+      return "Готов";
   }
 });
 
 const statusClass = computed(() => {
-  if (props.state === 'SQL_READY') {
-    return 'chat-sql-editor__status--success';
+  if (props.state === "SQL_READY") {
+    return "chat-sql-editor__status--success";
   }
-  if (props.state === 'CLARIFYING') {
-    return 'chat-sql-editor__status--warning';
+  if (props.state === "CLARIFYING") {
+    return "chat-sql-editor__status--warning";
   }
   switch (props.status) {
-    case 'executing':
-      return 'chat-sql-editor__status--info';
-    case 'error':
-      return 'chat-sql-editor__status--error';
-    case 'generating':
-      return 'chat-sql-editor__status--info';
+    case "executing":
+      return "chat-sql-editor__status--info";
+    case "error":
+      return "chat-sql-editor__status--error";
+    case "generating":
+      return "chat-sql-editor__status--info";
     default:
-      return '';
+      return "";
   }
 });
 
-const canRun = computed(() => props.modelValue.trim().length > 0 && !props.busy && props.state !== 'CLARIFYING');
+const canRun = computed(
+  () =>
+    props.modelValue.trim().length > 0 &&
+    !props.busy &&
+    props.state !== "CLARIFYING",
+);
 
 function onInput(event: Event) {
   const target = event.target as HTMLTextAreaElement;
-  emit('update:modelValue', target.value);
+  emit("update:modelValue", target.value);
 }
 
 async function copy() {
@@ -116,33 +132,34 @@ async function copy() {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
-  padding-top: 38px;
 }
 
 .chat-sql-editor__help {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  z-index: 2;
   width: 36px;
   height: 36px;
   border-radius: 999px;
   border: 1px solid rgba(112, 59, 247, 0.7);
-  background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));
+  background: linear-gradient(
+    180deg,
+    rgba(112, 59, 247, 0.34),
+    rgba(112, 59, 247, 0.2)
+  );
   color: #efe9ff;
   font-size: 1rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(112, 59, 247, 0.18);
-  animation: chat-sql-editor-float 3.2s ease-in-out infinite;
 }
 
 .chat-sql-editor__help:hover:not(:disabled),
 .chat-sql-editor__help:focus-visible:not(:disabled) {
   border-color: rgba(164, 126, 255, 0.92);
-  background: linear-gradient(180deg, rgba(112, 59, 247, 0.42), rgba(112, 59, 247, 0.26));
+  background: linear-gradient(
+    180deg,
+    rgba(112, 59, 247, 0.42),
+    rgba(112, 59, 247, 0.26)
+  );
 }
 
 .chat-sql-editor__help:disabled {

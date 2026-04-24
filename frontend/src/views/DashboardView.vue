@@ -800,12 +800,14 @@ onBeforeUnmount(() => {
   gap: var(--app-shell-gap);
   background: var(--bg);
   padding: var(--app-shell-gap);
+  transition: grid-template-columns 220ms ease;
 }
 
 .dashboard-shell__sidebar {
   min-height: 0;
   width: var(--app-shell-sidebar-width);
   max-width: 100%;
+  transition: width 220ms ease;
 }
 
 .dashboard-shell__content {
