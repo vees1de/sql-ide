@@ -257,7 +257,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { chatApi } from "@/api/chat";
 import type { ApiSqlExplanationResponse } from "@/api/types";
 import ChatAssistant from "@/components/chat/ChatAssistant.vue";
@@ -268,6 +269,8 @@ import ChatSqlEditor from "@/components/chat/ChatSqlEditor.vue";
 import { useChatStore } from "@/stores/chat";
 
 const chat = useChatStore();
+const route = useRoute();
+const router = useRouter();
 
 const LS_KEY = "chat-panel-layout";
 const CHAT_WIDTH_MIN = 240;
@@ -412,12 +415,19 @@ function stopCenterResize() {
   saveLayout();
 }
 
+// Keep ?session= in sync with active session
+watch(() => chat.activeSessionId, (id) => {
+  if (id && route.query.session !== id) {
+    void router.replace({ query: { ...route.query, session: id } });
+  }
+});
+
 onMounted(() => {
   loadLayout();
-  // defer so panelsEl has its layout dimensions
   requestAnimationFrame(clampChatWidth);
   window.addEventListener("resize", clampChatWidth);
-  void chat.initialize().catch(() => {
+  const sessionFromUrl = route.query.session as string | undefined;
+  void chat.initialize(sessionFromUrl || undefined).catch(() => {
     /* store already captures the error */
   });
 });
@@ -588,7 +598,10 @@ function prepareSql() {
 .chat-view__panel--center-bottom {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-view__panel--chat {
@@ -597,9 +610,13 @@ function prepareSql() {
   min-height: 0;
 }
 
-.chat-view__panel--center-top :deep(.chat-sql-editor),
-.chat-view__panel--center-bottom :deep(.chat-result-panel) {
+.chat-view__panel--center-top :deep(.chat-sql-editor) {
   height: 100%;
+}
+
+.chat-view__panel--center-bottom :deep(.chat-result-panel) {
+  flex: 1;
+  min-height: 0;
 }
 
 .chat-view__panel--chat :deep(.chat-assistant) {

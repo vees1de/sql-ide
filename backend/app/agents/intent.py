@@ -64,12 +64,12 @@ class IntentAgent:
         "previous_period": ("предыдущим периодом", "previous period"),
     }
     CITY_VALUES = {
-        "москва": "Moscow",
+        "москв": "Moscow",
         "moscow": "Moscow",
         "санкт-петербург": "Saint Petersburg",
         "saint petersburg": "Saint Petersburg",
         "петербург": "Saint Petersburg",
-        "казань": "Kazan",
+        "казан": "Kazan",
         "kazan": "Kazan",
         "новосибирск": "Novosibirsk",
         "novosibirsk": "Novosibirsk",
@@ -259,13 +259,13 @@ class IntentAgent:
             year = int(year_match.group(1))
             return DateRange(kind="absolute", start=date(year, 1, 1), end=date(year, 12, 31))
 
-        if "this year" in prompt or "в этом году" in prompt:
+        if any(p in prompt for p in ("this year", "в этом году", "за этот год", "в этом год")):
             return DateRange(kind="absolute", start=date(today.year, 1, 1), end=today)
-        if "last year" in prompt or "в прошлом году" in prompt:
+        if any(p in prompt for p in ("last year", "в прошлом году", "прошлого года", "за прошлый год")):
             return DateRange(kind="absolute", start=date(today.year - 1, 1, 1), end=date(today.year - 1, 12, 31))
-        if "this quarter" in prompt or "в этом квартале" in prompt:
+        if any(p in prompt for p in ("this quarter", "в этом квартале", "за этот квартал")):
             return DateRange(kind="absolute", start=start_of_current_quarter(today), end=today)
-        if "last quarter" in prompt or "в прошлом квартале" in prompt:
+        if any(p in prompt for p in ("last quarter", "в прошлом квартале", "прошлого квартала", "за прошлый квартал")):
             return DateRange(kind="absolute", start=start_of_previous_quarter(today), end=end_of_previous_quarter(today))
 
         if "вчера" in prompt or "yesterday" in prompt:

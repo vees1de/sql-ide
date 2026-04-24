@@ -274,7 +274,6 @@ function handleAction(type: ApiChatAction['type']) {
 <style scoped lang="scss">
 .chat-assistant-message {
   min-width: 0;
-  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 10px;

@@ -1,0 +1,496 @@
+{
+  "suite_name": "drivee_accuracy_and_flexibility",
+  "database_id": "30a98b573aef4c069fd14d129e21f82b",
+  "query_mode": "thinking",
+  "llm_model_alias": "gpt120",
+  "cases": [
+
+    {
+      "id": "basic_order_count_by_hour",
+      "title": "Simple: hourly order count — checks GROUP BY hour in SQL",
+      "tags": ["basic", "timeseries", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля 2026 покажи количество заказов по часам.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "interpretation": {
+              "metric_any_of": ["order_count"],
+              "dimensions_all_of": ["hour"]
+            },
+            "sql": {
+              "required_substrings": ["2026-04-14", "group by"],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["order_count", "total_orders", "orders", "count"]
+              ],
+              "chart": {
+                "acceptable_types": ["line", "bar"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["order_count", "total_orders", "orders", "count"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "completion_rate_by_hour",
+      "title": "Intermediate: completion rate per hour — ratio metric requires correct numerator/denominator",
+      "tags": ["intermediate", "ratio", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи по часам конверсию из созданных в завершённые заказы.",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": ["2026-04-14", "group by", "driverdone_timestamp", "order_timestamp"],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["completion_rate", "conversion_rate", "done_rate", "completed_ratio"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["completion_rate", "conversion_rate", "done_rate", "completed_ratio"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "avg_pickup_and_ride_time_by_hour_done_only",
+      "title": "Intermediate: dual avg metric for completed orders — both columns must appear in SELECT",
+      "tags": ["intermediate", "multi_metric", "filter", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи по часам среднее время подачи и среднее время поездки только для завершённых заказов.",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "driveraccept_timestamp",
+                "driverdone_timestamp"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["avg_pickup_minutes", "pickup_minutes", "avg_time_to_arrival", "avg_accept_to_arrival_minutes", "avg_submit_minutes"],
+                ["avg_ride_minutes", "ride_minutes", "avg_ride_time", "avg_start_to_done_minutes"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["avg_pickup_minutes", "avg_ride_minutes", "avg_time_to_arrival", "avg_ride_time"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "top10_drivers_non_completion",
+      "title": "Complex: top-10 drivers by non-completion rate — requires HAVING + ratio + LIMIT",
+      "tags": ["complex", "ranking", "driver", "having", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля найди топ-10 водителей с самой высокой долей незавершённых поездок среди принятых. Учитывай только водителей с минимум 10 принятыми заказами.",
+          "clarification_reply": "Принятым считай заказ с driveraccept_timestamp IS NOT NULL; завершённым — с driverdone_timestamp IS NOT NULL.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "driver_id",
+                "driveraccept_timestamp",
+                "driverdone_timestamp",
+                "limit 10"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 10,
+              "required_column_groups": [
+                ["driver_id"],
+                ["accepted_orders", "accepted_count", "total_accepted"],
+                ["non_completion_rate", "not_completed_rate", "fail_rate", "not_done_rate"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["driver_id"],
+                "y_any_of": ["non_completion_rate", "not_completed_rate", "fail_rate"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "hourly_three_metrics_created_accepted_done",
+      "title": "Complex: three metrics in one query — SQL must compute all three in SELECT",
+      "tags": ["complex", "multi_metric", "timeseries", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи по часам: количество созданных заказов, количество принятых и количество завершённых. Нужен line chart.",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "order_timestamp",
+                "driveraccept_timestamp",
+                "driverdone_timestamp"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["created_orders", "total_orders", "orders_created"],
+                ["accepted_orders", "accepted_count", "total_accepted"],
+                ["completed_orders", "done_orders", "completed_rides"]
+              ],
+              "chart": {
+                "acceptable_types": ["line"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["created_orders", "total_orders", "accepted_orders", "completed_orders"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "follow_up_add_status_filter",
+      "title": "Follow-up: add completed-only filter while preserving hour grouping",
+      "tags": ["follow_up", "context", "filter", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи по часам количество заказов.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "interpretation": {
+              "metric_any_of": ["order_count"],
+              "dimensions_all_of": ["hour"]
+            },
+            "sql": {
+              "required_substrings": ["2026-04-14", "group by"],
+              "required_tables": ["train"]
+            }
+          }
+        },
+        {
+          "user": "Теперь оставь только завершённые.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "interpretation": {
+              "metric_any_of": ["order_count"],
+              "dimensions_all_of": ["hour"],
+              "filters": [
+                {"field": "status_order", "operator": "=", "value": "done"}
+              ]
+            },
+            "sql": {
+              "required_substrings": ["driverdone_timestamp", "group by"],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["order_count", "total_orders", "completed_orders", "count"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "follow_up_add_driver_filter",
+      "title": "Follow-up: narrow to specific driver — WHERE driver_id must appear",
+      "tags": ["follow_up", "filter", "context"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи по часам среднее время поездки.",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "sql": {
+              "required_substrings": ["2026-04-14", "group by"],
+              "required_tables": ["train"]
+            }
+          }
+        },
+        {
+          "user": "Только для водителя с id 42.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": ["driver_id", "42", "group by"],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["avg_ride_minutes", "ride_minutes", "avg_ride_time", "avg_start_to_done_minutes"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "clarify_then_sql",
+      "title": "Clarification path: ambiguous metric resolved before SQL generation",
+      "tags": ["clarification", "understanding"],
+      "steps": [
+        {
+          "user": "Покажи продажи по часам за 14 апреля.",
+          "clarification_reply": "выручку",
+          "max_auto_clarifications": 1,
+          "expectations": {
+            "should_clarify": true,
+            "expected_state": "CLARIFYING",
+            "clarification": {
+              "question_should_contain": ["выруч", "колич", "средний"],
+              "options_should_include": ["выруч", "колич", "средний"],
+              "min_options": 3
+            },
+            "interpretation": {
+              "dimensions_all_of": ["hour"]
+            }
+          }
+        },
+        {
+          "user": "Выручку.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "interpretation": {
+              "metric_any_of": ["revenue"],
+              "dimensions_all_of": ["hour"]
+            },
+            "sql": {
+              "required_substrings": ["group by"],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["revenue", "total_revenue", "sum_revenue", "amount"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "cancellation_rate_before_accept",
+      "title": "Complex: cancellation rate before driver accepts — agent must use order_timestamp and driveraccept_timestamp",
+      "tags": ["complex", "ratio", "cancellation", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи долю заказов, отменённых до принятия водителем, по часам.",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "driveraccept_timestamp",
+                "order_timestamp"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["cancellation_rate", "cancel_rate", "not_accepted_rate", "pre_accept_cancel_rate"]
+              ],
+              "chart": {
+                "acceptable_types": ["line", "bar"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["cancellation_rate", "cancel_rate", "not_accepted_rate"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "peak_hours_ranking",
+      "title": "Complex: rank hours by order volume — ORDER BY + LIMIT in SQL",
+      "tags": ["complex", "ranking", "timeseries", "classification"],
+      "steps": [
+        {
+          "user": "Какие 5 часов в день 14 апреля были самыми загруженными по числу заказов?",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "limit 5"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 5,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["order_count", "total_orders", "orders", "count"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["order_count", "total_orders", "count"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "driver_avg_orders_per_day_last_week",
+      "title": "Flexible: average orders per driver per day — agent must compute per-driver aggregation",
+      "tags": ["flexible", "per_entity", "aggregation", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи топ-5 водителей по количеству завершённых заказов.",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "driver_id",
+                "driverdone_timestamp",
+                "limit 5"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "max_row_count": 5,
+              "required_column_groups": [
+                ["driver_id"],
+                ["completed_orders", "done_orders", "order_count", "total_orders"]
+              ],
+              "chart": {
+                "acceptable_types": ["bar"],
+                "x_any_of": ["driver_id"],
+                "y_any_of": ["completed_orders", "done_orders", "order_count"]
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "median_wait_time_by_hour",
+      "title": "Flexible: agent must choose correct timestamp columns for wait time",
+      "tags": ["flexible", "percentile", "timing", "classification"],
+      "steps": [
+        {
+          "user": "За 14 апреля покажи медианное время ожидания водителя по часам (от принятия до прибытия).",
+          "clarification_reply": "Hour",
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "required_substrings": [
+                "2026-04-14",
+                "group by",
+                "driveraccept_timestamp",
+                "driverarrived_timestamp"
+              ],
+              "required_tables": ["train"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["hour", "hour_bucket", "order_hour"],
+                ["median_wait", "median_arrival", "p50_wait", "median_pickup_minutes", "median_accept_to_arrival"]
+              ],
+              "chart": {
+                "acceptable_types": ["line", "bar"],
+                "x_any_of": ["hour", "hour_bucket", "order_hour"],
+                "y_any_of": ["median_wait", "p50_wait", "median_pickup_minutes"]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

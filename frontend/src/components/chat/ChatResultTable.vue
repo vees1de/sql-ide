@@ -1,23 +1,26 @@
 <template>
   <div class="chat-result-table">
     <div class="chat-result-table__wrap">
-      <table>
-        <thead>
-          <tr>
-            <th v-for="column in columns" :key="column.name">
-              <span>{{ column.name }}</span>
-              <small>{{ column.type }}</small>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
-            <td v-for="column in columns" :key="column.name">
+      <div class="chat-result-table__track">
+        <div class="chat-result-table__header">
+          <div
+            v-for="column in columns"
+            :key="column.name"
+            class="chat-result-table__cell chat-result-table__cell--head"
+          >
+            <span>{{ column.name }}</span>
+            <small>{{ column.type }}</small>
+          </div>
+        </div>
+
+        <div class="chat-result-table__body">
+          <div v-for="(row, rowIndex) in rows" :key="rowIndex" class="chat-result-table__row">
+            <div v-for="column in columns" :key="column.name" class="chat-result-table__cell">
               {{ formatValue(row[column.name]) }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <p v-if="truncated" class="chat-result-table__note">
@@ -54,18 +57,19 @@ function formatValue(value: unknown) {
 
 <style scoped lang="scss">
 .chat-result-table {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  height: 100%;
-  width: 100%;
+  overflow: hidden;
 }
 
 .chat-result-table__wrap {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  width: 100%;
   max-width: 100%;
   overflow: auto;
   border-radius: var(--radius-lg);
@@ -73,49 +77,58 @@ function formatValue(value: unknown) {
   background: var(--canvas);
 }
 
-table {
-  width: max-content;
+.chat-result-table__track {
+  display: inline-flex;
+  flex-direction: column;
   min-width: 100%;
-  border-collapse: collapse;
+  width: max-content;
+}
+
+.chat-result-table__header,
+.chat-result-table__row {
+  display: flex;
+  width: 100%;
   font-family: var(--font-mono);
 }
 
-th,
-td {
-  white-space: nowrap;
+.chat-result-table__body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
-th,
-td {
+.chat-result-table__cell {
+  flex: 0 0 180px;
+  width: 180px;
   padding: 0.6rem 0.75rem;
   text-align: left;
-  vertical-align: top;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-th {
+.chat-result-table__cell--head {
+  border-top: 0;
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.03);
 }
 
-th span {
+.chat-result-table__cell--head span {
   display: block;
   color: var(--ink);
   font-size: 0.75rem;
 }
 
-th small {
+.chat-result-table__cell--head small {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 600;
 }
 
-td {
-  border-top: 1px solid var(--line);
-  color: var(--ink);
-  font-size: 0.8rem;
-}
-
-tr:hover td {
+.chat-result-table__row:hover .chat-result-table__cell {
   background: rgba(255, 255, 255, 0.02);
 }
 
@@ -125,4 +138,3 @@ tr:hover td {
   font-size: 0.78rem;
 }
 </style>
-

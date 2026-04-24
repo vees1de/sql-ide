@@ -1,7 +1,6 @@
 <template>
   <section class="chat-sql-editor">
     <div class="chat-sql-editor__toolbar">
-      <span class="chat-sql-editor__status" :class="statusClass">{{ statusLabel }}</span>
       <div class="chat-sql-editor__actions">
         <button class="chat-sql-editor__btn" type="button" @click="copy">
           Копировать
@@ -50,44 +49,6 @@ const emit = defineEmits<{
   (event: 'run'): void;
   (event: 'explain'): void;
 }>();
-
-const statusLabel = computed(() => {
-  if (props.state === 'SQL_READY') {
-    return 'SQL ready';
-  }
-  if (props.state === 'CLARIFYING') {
-    return 'Ждём уточнение';
-  }
-  switch (props.status) {
-    case 'executing':
-      return 'Выполняю';
-    case 'error':
-      return 'Ошибка';
-    case 'generating':
-      return 'Генерирую';
-    default:
-      return 'Готов';
-  }
-});
-
-const statusClass = computed(() => {
-  if (props.state === 'SQL_READY') {
-    return 'chat-sql-editor__status--success';
-  }
-  if (props.state === 'CLARIFYING') {
-    return 'chat-sql-editor__status--warning';
-  }
-  switch (props.status) {
-    case 'executing':
-      return 'chat-sql-editor__status--info';
-    case 'error':
-      return 'chat-sql-editor__status--error';
-    case 'generating':
-      return 'chat-sql-editor__status--info';
-    default:
-      return '';
-  }
-});
 
 const canRun = computed(() => props.modelValue.trim().length > 0 && !props.busy && props.state !== 'CLARIFYING');
 
@@ -181,41 +142,6 @@ async function copy() {
   flex-wrap: wrap;
 }
 
-.chat-sql-editor__status {
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.76rem;
-  color: var(--muted);
-  line-height: 1.1;
-}
-
-.chat-sql-editor__status--info {
-  color: var(--ink-strong);
-  border-color: rgba(112, 59, 247, 0.7);
-  background: rgba(112, 59, 247, 0.2);
-}
-
-.chat-sql-editor__status--error {
-  border-color: rgba(255, 107, 107, 0.6);
-  background: rgba(255, 107, 107, 0.15);
-  color: #ffb3b3;
-}
-
-.chat-sql-editor__status--success {
-  border-color: rgba(67, 176, 42, 0.6);
-  background: rgba(67, 176, 42, 0.15);
-  color: #c4f0b8;
-}
-
-.chat-sql-editor__status--warning {
-  border-color: rgba(255, 184, 77, 0.6);
-  background: rgba(255, 184, 77, 0.12);
-  color: #ffd79a;
-}
 
 .chat-sql-editor__actions {
   display: flex;

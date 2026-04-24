@@ -201,9 +201,17 @@ const chartOption = computed(() => {
   white-space: nowrap;
 }
 
+.chart-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .chart-cell__plot {
+  flex: 1;
   width: 100%;
-  height: 280px;
+  min-height: 200px;
   padding: 0.5rem;
   background: var(--canvas);
   border: 1px solid var(--line);
@@ -249,11 +257,11 @@ const chartOption = computed(() => {
 
 @media (max-width: 760px) {
   .chart-cell__plot {
-    height: 220px;
+    min-height: 180px;
   }
 
   .chart-cell__metric {
-    min-height: 220px;
+    min-height: 180px;
   }
 }
 </style>

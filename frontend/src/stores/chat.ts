@@ -142,7 +142,7 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function loadSessions(databaseId = activeDbId.value) {
+  async function loadSessions(databaseId = activeDbId.value, { skipSelect = false } = {}) {
     if (!databaseId) {
       return;
     }
@@ -151,6 +151,10 @@ export const useChatStore = defineStore('chat', () => {
     try {
       sessions.value = await chatApi.getSessions(databaseId);
       activeDbId.value = databaseId;
+
+      if (skipSelect) {
+        return;
+      }
 
       if (!sessions.value.length) {
         await createSession(databaseId);
@@ -192,10 +196,27 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function initialize() {
-    await loadLlmModels();
-    await loadDatabases();
-    if (activeDbId.value) {
+  async function initialize(preferredSessionId?: string) {
+    await Promise.all([loadLlmModels(), loadDatabases()]);
+    if (!activeDbId.value) return;
+
+    if (preferredSessionId) {
+      activeSessionId.value = preferredSessionId;
+      // Load session content and sidebar list in parallel
+      const [sessionResult] = await Promise.allSettled([
+        selectSession(preferredSessionId),
+        loadSessions(activeDbId.value, { skipSelect: true }),
+      ]);
+      // If the preferred session was invalid, fall back to first in list
+      if (sessionResult.status === 'rejected') {
+        activeSessionId.value = '';
+        if (sessions.value.length) {
+          await selectSession(sessions.value[0].id);
+        } else {
+          await createSession(activeDbId.value);
+        }
+      }
+    } else {
       await loadSessions(activeDbId.value);
     }
   }

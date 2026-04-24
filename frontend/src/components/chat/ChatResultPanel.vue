@@ -20,35 +20,71 @@
         </button>
       </div>
 
-      <div class="chat-result-panel__actions">
-        <span v-if="execution" class="chat-result-panel__summary">{{ summary }}</span>
+      <div v-if="execution" class="chat-result-panel__meta">
+        <span class="chat-result-panel__summary">{{ summary }}</span>
         <span v-if="execution?.dataset" class="chat-result-panel__dataset">
           dataset: {{ execution.dataset.dataset_id }}
         </span>
+      </div>
+
+      <div class="chat-result-panel__actions">
         <button
           v-if="execution && view === 'chart' && !execution.error_message"
-          class="chat-result-panel__toggle-btn"
+          class="chat-result-panel__ai-suggest-btn"
           type="button"
           :disabled="chat.suggestingChart"
+          :title="chat.suggestingChart ? 'ИИ думает…' : 'Предложить график с ИИ'"
           @click="requestAiSuggestion"
         >
-          {{ chat.suggestingChart ? 'ИИ думает…' : 'Предложить график с ИИ' }}
+          <svg
+            v-if="!chat.suggestingChart"
+            class="chat-result-panel__ai-icon"
+            width="15"
+            height="15"
+            viewBox="0 0 15 15"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              <linearGradient id="ai-star-grad" x1="0" y1="0" x2="15" y2="15" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#a78bfa"/>
+                <stop offset="50%" stop-color="#818cf8"/>
+                <stop offset="100%" stop-color="#38bdf8"/>
+              </linearGradient>
+            </defs>
+            <!-- large center star -->
+            <path d="M7.5 1 L8.3 5.5 L12.5 5.5 L9.2 8.1 L10.3 12.5 L7.5 10 L4.7 12.5 L5.8 8.1 L2.5 5.5 L6.7 5.5 Z" fill="url(#ai-star-grad)"/>
+            <!-- small top-right sparkle -->
+            <path d="M12 1 L12.4 2.6 L14 3 L12.4 3.4 L12 5 L11.6 3.4 L10 3 L11.6 2.6 Z" fill="url(#ai-star-grad)" opacity="0.85"/>
+            <!-- small bottom-left sparkle -->
+            <path d="M3 10 L3.3 11.3 L4.5 11.5 L3.3 11.7 L3 13 L2.7 11.7 L1.5 11.5 L2.7 11.3 Z" fill="url(#ai-star-grad)" opacity="0.7"/>
+          </svg>
+          <span v-if="chat.suggestingChart" class="chat-result-panel__ai-pulse"/>
         </button>
         <button
           v-if="execution && view === 'chart' && !execution.error_message"
-          class="chat-result-panel__toggle-btn"
+          class="chat-result-panel__icon-btn"
           type="button"
+          title="Настроить вручную"
           @click="showBuilder = true"
         >
-          Настроить вручную
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M7 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM5.5 7a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Z" fill="currentColor"/>
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M7 1a.75.75 0 0 1 .75.75v.42a4.52 4.52 0 0 1 1.27.527l.298-.298a.75.75 0 1 1 1.06 1.06l-.297.299c.228.394.397.826.527 1.27h.42a.75.75 0 0 1 0 1.5h-.42a4.52 4.52 0 0 1-.527 1.27l.297.298a.75.75 0 1 1-1.06 1.06l-.298-.297a4.52 4.52 0 0 1-1.27.527v.42a.75.75 0 0 1-1.5 0v-.42a4.52 4.52 0 0 1-1.27-.527l-.298.297a.75.75 0 1 1-1.06-1.06l.297-.298A4.52 4.52 0 0 1 2.67 7.75H2.25a.75.75 0 0 1 0-1.5h.42c.13-.444.299-.876.527-1.27l-.297-.298a.75.75 0 1 1 1.06-1.06l.298.298A4.52 4.52 0 0 1 5.528 3.17V2.75A.75.75 0 0 1 7 1Z" fill="currentColor"/>
+          </svg>
         </button>
         <button
           v-if="execution && view === 'chart' && currentInterpretation"
-          class="chat-result-panel__toggle-btn"
+          class="chat-result-panel__icon-btn"
           type="button"
+          :title="showInterpretation ? 'Скрыть интерпретацию' : 'Показать интерпретацию'"
           @click="showInterpretation = !showInterpretation"
         >
-          {{ showInterpretation ? 'Скрыть интерпретацию' : 'Показать интерпретацию' }}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M7 9.5V7.25C6.17 7.08 5.5 6.36 5.5 5.5a1.5 1.5 0 0 1 3 0c0 .56-.31 1.05-.77 1.31" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <circle cx="7" cy="10.75" r="0.6" fill="currentColor"/>
+          </svg>
         </button>
         <button
           v-if="execution && view === 'chart' && previewContent"
@@ -304,8 +340,7 @@ watch(
 }
 
 .chat-result-panel :deep(.chat-result-table) {
-  flex: 1 1 auto;
-  min-height: 0;
+  min-width: 0;
 }
 
 .chat-result-panel__toolbar {
@@ -319,6 +354,16 @@ watch(
 .chat-result-panel__tabs {
   display: inline-flex;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+.chat-result-panel__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chat-result-panel__tab {
@@ -348,6 +393,9 @@ watch(
 .chat-result-panel__dataset {
   font-size: 0.72rem;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-result-panel__toggle-btn,
@@ -374,6 +422,78 @@ watch(
   background: rgba(112, 59, 247, 0.12);
 }
 
+.chat-result-panel__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.chat-result-panel__icon-btn:hover {
+  color: var(--ink-strong);
+  border-color: rgba(112, 59, 247, 0.5);
+  background: rgba(112, 59, 247, 0.12);
+}
+
+.chat-result-panel__ai-suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  position: relative;
+}
+
+.chat-result-panel__ai-suggest-btn:hover {
+  background: rgba(129, 140, 248, 0.12);
+  border-color: rgba(129, 140, 248, 0.4);
+  transform: scale(1.1);
+}
+
+.chat-result-panel__ai-suggest-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+  transform: none;
+}
+
+.chat-result-panel__ai-icon {
+  display: block;
+  filter: drop-shadow(0 0 3px rgba(167, 139, 250, 0.5));
+  transition: filter 0.15s;
+}
+
+.chat-result-panel__ai-suggest-btn:hover .chat-result-panel__ai-icon {
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
+}
+
+.chat-result-panel__ai-pulse {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa, #38bdf8);
+  animation: ai-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes ai-pulse {
+  from { transform: scale(0.7); opacity: 0.5; }
+  to   { transform: scale(1.2); opacity: 1; }
+}
+
 .chat-result-panel__save-btn {
   border: 1px solid rgba(112, 59, 247, 0.6);
   background: rgba(112, 59, 247, 0.12);
@@ -381,10 +501,12 @@ watch(
 }
 
 .chat-result-panel__chart-view {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
+  overflow: auto;
 }
 
 .chat-result-panel__section-head {
