@@ -605,7 +605,8 @@ function prepareSql() {
 }
 
 .chat-view__panel--chat {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   min-height: 0;
 }

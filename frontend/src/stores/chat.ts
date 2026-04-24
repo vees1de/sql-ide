@@ -15,6 +15,29 @@ import type {
 
 const emptyExecution: ApiChatExecutionRead | null = null;
 
+const HIDDEN_DB_IDS = new Set(['analytics']);
+const CHAT_STATE_LS_KEY = 'chat-active-state';
+
+function saveActiveState(dbId: string, sessionId: string) {
+  try {
+    localStorage.setItem(CHAT_STATE_LS_KEY, JSON.stringify({ dbId, sessionId }));
+  } catch { /* ignore */ }
+}
+
+function loadActiveState(): { dbId: string; sessionId: string } {
+  try {
+    const raw = localStorage.getItem(CHAT_STATE_LS_KEY);
+    if (raw) {
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        dbId: typeof d.dbId === 'string' ? d.dbId : '',
+        sessionId: typeof d.sessionId === 'string' ? d.sessionId : '',
+      };
+    }
+  } catch { /* ignore */ }
+  return { dbId: '', sessionId: '' };
+}
+
 export const useChatStore = defineStore('chat', () => {
   const defaultSessionTitle = 'Новый чат';
   const databases = ref<ApiDatabaseDescriptor[]>([]);
@@ -117,7 +140,9 @@ export const useChatStore = defineStore('chat', () => {
 
   async function loadDatabases() {
     try {
-      databases.value = await chatApi.getDatabases();
+      const all = await chatApi.getDatabases();
+      databases.value = all.filter((db) => !HIDDEN_DB_IDS.has(db.id));
+
       if (!databases.value.length) {
         activeDbId.value = '';
         sessions.value = [];
@@ -133,8 +158,13 @@ export const useChatStore = defineStore('chat', () => {
         return;
       }
 
-      if (!activeDbId.value || !databases.value.some((database) => database.id === activeDbId.value)) {
-        activeDbId.value = databases.value[0]?.id ?? '';
+      // Restore persisted DB, fall back to first visible
+      const saved = loadActiveState();
+      const restoredDb = saved.dbId && databases.value.some((db) => db.id === saved.dbId)
+        ? saved.dbId
+        : '';
+      if (!activeDbId.value || !databases.value.some((db) => db.id === activeDbId.value)) {
+        activeDbId.value = restoredDb || (databases.value[0]?.id ?? '');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Не удалось загрузить базы данных.');
@@ -197,27 +227,28 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function initialize(preferredSessionId?: string) {
+    // Merge URL param with persisted state; URL wins
+    const saved = loadActiveState();
+    const targetSessionId = preferredSessionId || saved.sessionId || '';
+
     await Promise.all([loadLlmModels(), loadDatabases()]);
     if (!activeDbId.value) return;
 
-    if (preferredSessionId) {
-      activeSessionId.value = preferredSessionId;
-      // Load session content and sidebar list in parallel
-      const [sessionResult] = await Promise.allSettled([
-        selectSession(preferredSessionId),
-        loadSessions(activeDbId.value, { skipSelect: true }),
-      ]);
-      // If the preferred session was invalid, fall back to first in list
-      if (sessionResult.status === 'rejected') {
+    if (targetSessionId) {
+      activeSessionId.value = targetSessionId;
+      try {
+        // selectSession sets activeDbId to the session's actual database
+        await selectSession(targetSessionId);
+        // Now load the sidebar list for that database (correct one)
+        await loadSessions(activeDbId.value, { skipSelect: true });
+        saveActiveState(activeDbId.value, activeSessionId.value);
+      } catch {
         activeSessionId.value = '';
-        if (sessions.value.length) {
-          await selectSession(sessions.value[0].id);
-        } else {
-          await createSession(activeDbId.value);
-        }
+        await loadSessions(activeDbId.value);
       }
     } else {
       await loadSessions(activeDbId.value);
+      saveActiveState(activeDbId.value, activeSessionId.value);
     }
   }
 
@@ -268,6 +299,7 @@ export const useChatStore = defineStore('chat', () => {
     applyAssistantState(null);
     setSessionResult(null);
     await loadSessions(databaseId);
+    saveActiveState(activeDbId.value, activeSessionId.value);
   }
 
   async function selectSession(sessionId: string) {
@@ -289,6 +321,7 @@ export const useChatStore = defineStore('chat', () => {
       );
       setSessionResult(detail.last_execution);
       setStatus(detail.title || 'Чат готов');
+      saveActiveState(activeDbId.value, activeSessionId.value);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Не удалось открыть чат.');
       throw error;

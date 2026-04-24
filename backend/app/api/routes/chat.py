@@ -293,7 +293,7 @@ def explain_sql(
         raise HTTPException(status_code=400, detail="No SQL draft found for this session.")
 
     last_user_message = next(
-        (m.content for m in reversed(session.messages) if m.role == "user"),
+        (str(m.text).strip() for m in reversed(session.messages) if m.role == "user" and str(m.text).strip()),
         None,
     )
     dialect = resolve_dialect(db, session.database_connection_id)
