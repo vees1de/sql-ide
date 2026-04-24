@@ -48,7 +48,8 @@ class SQLValidationAgent:
                 errors.append("Dangerous SQL operation detected.")
                 break
 
-        tables = sorted({table.name for table in parsed.find_all(exp.Table)})
+        cte_names = {name for name in self._cte_names(parsed) if name}
+        tables = sorted({table.name for table in parsed.find_all(exp.Table) if table.name not in cte_names})
         if allowed_tables is not None:
             effective_allowed_tables = tuple(str(table) for table in allowed_tables)
             unknown_tables = sorted(set(tables) - set(effective_allowed_tables))
@@ -82,6 +83,15 @@ class SQLValidationAgent:
             semantic_confidence_level=confidence_level,
             semantic_confidence_reasons=confidence_reasons,
         )
+
+    @staticmethod
+    def _cte_names(parsed: exp.Expression) -> set[str]:
+        names: set[str] = set()
+        for cte in parsed.find_all(exp.CTE):
+            alias = getattr(cte, "alias_or_name", None)
+            if alias:
+                names.add(str(alias))
+        return names
 
     # ------------------------------------------------------------------
     # Semantic lint: uncorrelated CROSS JOIN that duplicates a scalar value.
@@ -266,7 +276,8 @@ class SQLValidationAgent:
         reasons: list[str] = []
         catalog_tables = {table.table_name.lower(): table for table in semantic_catalog.tables}
         alias_map = self._alias_map(parsed)
-        query_tables = sorted({table.name for table in parsed.find_all(exp.Table)})
+        cte_names = self._cte_names(parsed)
+        query_tables = sorted({table.name for table in parsed.find_all(exp.Table) if table.name not in cte_names})
 
         missing_tables = [table for table in query_tables if table.lower() not in catalog_tables]
         if missing_tables:
@@ -381,9 +392,10 @@ class SQLValidationAgent:
 
     def _alias_map(self, parsed: exp.Expression) -> dict[str, str]:
         alias_map: dict[str, str] = {}
+        cte_names = self._cte_names(parsed)
         for table in parsed.find_all(exp.Table):
             name = str(table.name or "")
-            if not name:
+            if not name or name in cte_names:
                 continue
             alias = str(getattr(table, "alias_or_name", None) or name)
             alias_map[name] = name

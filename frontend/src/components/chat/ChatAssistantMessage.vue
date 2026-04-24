@@ -24,25 +24,9 @@
     </section>
 
     <section
-      v-if="visibleActions.length || payload?.sql || (payload?.mode_suggestion && payload.mode_suggestion_reason)"
+      v-if="visibleActions.length || (payload?.mode_suggestion && payload.mode_suggestion_reason)"
       class="chat-assistant-message__actions"
     >
-      <button
-        v-if="payload?.sql"
-        class="chat-assistant-message__icon-btn"
-        type="button"
-        title="Скопировать SQL"
-        aria-label="Скопировать SQL"
-        @click="copySql"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <rect x="4" y="1.5" width="7.5" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
-          <path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          <path d="M5.5 5.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          <path d="M5.5 7.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-        </svg>
-      </button>
-
       <button
         v-for="action in visibleActions"
         :key="action.type"
@@ -56,22 +40,6 @@
       >
         <svg v-if="action.type === 'show_run_button'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M4.5 3.3v7.4L10.8 7 4.5 3.3Z" fill="currentColor"/>
-        </svg>
-        <svg v-else-if="action.type === 'show_chart_preview'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M2.5 11.5h9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          <path d="M4 9V6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          <path d="M7 9V4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          <path d="M10 9V5.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-        <svg v-else-if="action.type === 'show_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M5 4.2 2.8 7l2.2 2.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M9 4.2 11.2 7 9 9.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M7 3.2 6 10.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-        </svg>
-        <svg v-else-if="action.type === 'save_report'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M3 1.8h6.5L11 3.3v8.9H3V1.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-          <path d="M4.6 1.8v3.1h4.2V1.8" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-          <path d="M4.7 8h4.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
         </svg>
         <svg v-else-if="action.type === 'create_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M7 2.2v9.6M2.2 7h9.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
@@ -102,7 +70,11 @@
         :collapsed="sqlCollapsed"
         :busy="false"
         :show-explain-button="Boolean(payload?.sql)"
+        :show-copy-button="Boolean(payload?.sql)"
+        :show-toggle-sql-button="hasToggleSqlAction"
         @explain="emitExplain"
+        @copy="copySql"
+        @toggle-sql="sqlCollapsed = !sqlCollapsed"
       />
     </section>
 
@@ -183,7 +155,13 @@ const clarificationOptions = computed(
   () => payload.value?.clarification?.options || payload.value?.clarification_options || []
 );
 
-const visibleActions = computed<ApiChatAction[]>(() => payload.value?.actions ?? []);
+const HIDDEN_ACTION_TYPES = new Set(['show_sql', 'save_report', 'show_chart_preview']);
+const visibleActions = computed<ApiChatAction[]>(() =>
+  (payload.value?.actions ?? []).filter(a => !HIDDEN_ACTION_TYPES.has(a.type))
+);
+const hasToggleSqlAction = computed(() =>
+  Boolean(payload.value?.actions?.some(a => a.type === 'show_sql'))
+);
 
 const showSqlSection = computed(() => Boolean(payload.value?.sql));
 
@@ -229,17 +207,8 @@ function handleAction(type: ApiChatAction['type']) {
         emit('prepare-sql');
       }
       break;
-    case 'show_sql':
-      sqlCollapsed.value = !sqlCollapsed.value;
-      break;
     case 'show_run_button':
       emit('run-prepared');
-      break;
-    case 'show_chart_preview':
-      emit('show-chart-preview');
-      break;
-    case 'save_report':
-      emit('show-chart-preview');
       break;
   }
 }

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from app.agents.intent import IntentAgent
 from app.schemas.query import ClarificationAnswerRecord, DateRange, IntentPayload
 
 _METRIC_KEYWORDS = {
@@ -66,6 +67,10 @@ def _apply_single(intent: IntentPayload, answer: ClarificationAnswerRecord) -> I
             intent.metric = text
         elif answer.ambiguity_type == "dimension" and text not in intent.dimensions:
             intent.dimensions = [*intent.dimensions, text]
+        elif answer.ambiguity_type == "time_range":
+            parsed = IntentAgent()._extract_date_range(text)  # noqa: SLF001
+            if parsed is not None:
+                intent.date_range = parsed
     return intent
 
 

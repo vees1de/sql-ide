@@ -16,6 +16,75 @@ from app.schemas.query import DateRange, FilterCondition, IntentPayload
 
 
 class IntentAgent:
+    MONTH_NAME_TO_NUMBER: dict[str, int] = {
+        "январ": 1,
+        "феврал": 2,
+        "март": 3,
+        "апрел": 4,
+        "ма": 5,
+        "июн": 6,
+        "июл": 7,
+        "август": 8,
+        "сентябр": 9,
+        "октябр": 10,
+        "ноябр": 11,
+        "декабр": 12,
+        "january": 1,
+        "february": 2,
+        "march": 3,
+        "april": 4,
+        "may": 5,
+        "june": 6,
+        "july": 7,
+        "august": 8,
+        "september": 9,
+        "october": 10,
+        "november": 11,
+        "december": 12,
+    }
+    ALL_TIME_MARKERS: tuple[str, ...] = (
+        "за все время",
+        "за всё время",
+        "весь период",
+        "за весь период",
+        "по всей истории",
+        "за всю историю",
+        "all time",
+        "entire history",
+        "full history",
+        "whole period",
+    )
+    BROAD_ANALYTICS_MARKERS: tuple[str, ...] = (
+        "конверси",
+        "доля",
+        "средн",
+        "average",
+        "avg",
+        "rate",
+        "funnel",
+        "воронк",
+        "цикл",
+        "этап",
+        "где",
+        "where",
+        "как часто",
+        "how often",
+        "как меня",
+        "how does",
+        "compare",
+        "сравни",
+        "сравнит",
+        "успеш",
+        "стоим",
+        "отлича",
+        "завис",
+        "паттер",
+        "проблем",
+        "wait",
+        "ожидан",
+        "скорост",
+        "долг",
+    )
     METRIC_PATTERNS: dict[str, tuple[str, ...]] = {
         "completion_rate": (
             "completion rate",
@@ -186,12 +255,48 @@ class IntentAgent:
         if intent.metric is None and previous_intent and intent.follow_up:
             intent.metric = previous_intent.metric
             intent.confidence = max(intent.confidence, previous_intent.confidence * 0.95)
+        if self.requires_explicit_time_range(prompt, intent, previous_intent=previous_intent):
+            if "time_range" not in intent.ambiguities:
+                intent.ambiguities.append("time_range")
+            intent.clarification_question = intent.clarification_question or "За какой период показать данные?"
+            intent.confidence = min(intent.confidence, 0.65)
         if intent.metric is None:
             intent.clarification_question = (
                 intent.clarification_question
                 or "Какую метрику нужно посчитать: выручку, количество заказов или средний чек?"
             )
         return intent
+
+    @classmethod
+    def requires_explicit_time_range(
+        cls,
+        prompt: str,
+        intent: IntentPayload,
+        *,
+        previous_intent: IntentPayload | None = None,
+    ) -> bool:
+        lowered = normalize_text(prompt)
+        if intent.date_range is not None:
+            return False
+        if intent.follow_up and previous_intent and previous_intent.date_range is not None:
+            return False
+        if any(marker in lowered for marker in cls.ALL_TIME_MARKERS):
+            return False
+        if not cls._looks_like_analytics_request(lowered, intent):
+            return False
+        return True
+
+    @classmethod
+    def _looks_like_analytics_request(cls, prompt: str, intent: IntentPayload) -> bool:
+        if not (intent.metric or intent.dimensions or intent.filters or intent.comparison):
+            return False
+        if any(marker in prompt for marker in cls.BROAD_ANALYTICS_MARKERS):
+            return True
+        if intent.comparison:
+            return True
+        if len(intent.dimensions) > 0:
+            return True
+        return bool(intent.metric and len(prompt.split()) >= 4)
 
     def _extract_metric(self, prompt: str) -> str | None:
         for metric_key, markers in self.METRIC_PATTERNS.items():
@@ -287,6 +392,44 @@ class IntentAgent:
 
     def _extract_date_range(self, prompt: str) -> DateRange | None:
         today = date.today()
+
+        iso_match = re.search(r"\b((?:19|20)\d{2})-(\d{1,2})-(\d{1,2})\b", prompt)
+        if iso_match:
+            year = int(iso_match.group(1))
+            month = int(iso_match.group(2))
+            day = int(iso_match.group(3))
+            exact_day = date(year, month, day)
+            return DateRange(kind="absolute", start=exact_day, end=exact_day, lookback_value=1, lookback_unit="days")
+
+        dotted_match = re.search(r"\b(\d{1,2})[./](\d{1,2})[./]((?:19|20)\d{2})\b", prompt)
+        if dotted_match:
+            day = int(dotted_match.group(1))
+            month = int(dotted_match.group(2))
+            year = int(dotted_match.group(3))
+            exact_day = date(year, month, day)
+            return DateRange(kind="absolute", start=exact_day, end=exact_day, lookback_value=1, lookback_unit="days")
+
+        named_month_match = re.search(
+            r"\b(\d{1,2})\s+([a-zа-яё]+)\s+((?:19|20)\d{2})\b",
+            prompt,
+        )
+        if named_month_match:
+            day = int(named_month_match.group(1))
+            month_token = named_month_match.group(2)
+            year = int(named_month_match.group(3))
+            month = next(
+                (value for token, value in self.MONTH_NAME_TO_NUMBER.items() if month_token.startswith(token)),
+                None,
+            )
+            if month is not None:
+                exact_day = date(year, month, day)
+                return DateRange(
+                    kind="absolute",
+                    start=exact_day,
+                    end=exact_day,
+                    lookback_value=1,
+                    lookback_unit="days",
+                )
 
         relative_match = re.search(
             r"(?:последн(?:ие|их)?|last)\s+(\d+)\s+(месяц(?:ев|а)?|months?|дн(?:ей|я)?|days?|недел(?:ь|и)?|weeks?)",
