@@ -1,62 +1,62 @@
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-ExtraLight.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-ExtraLight.ttf") format("truetype");
   font-weight: 200;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-Light.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-Light.ttf") format("truetype");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-Regular.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-Italic.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-Italic.ttf") format("truetype");
   font-weight: 400;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-Medium.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-Medium.ttf") format("truetype");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-SemiBold.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-SemiBold.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-Bold.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-Bold.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('./fonts/Inter_18pt-ExtraBold.ttf') format('truetype');
+  font-family: "Inter";
+  src: url("./fonts/Inter_18pt-ExtraBold.ttf") format("truetype");
   font-weight: 800;
   font-style: normal;
   font-display: swap;
@@ -94,12 +94,12 @@
   --shadow-soft: none;
   --shadow-hover: none;
   --app-shell-gap: 16px;
-  --app-shell-sidebar-width: 300px;
+  --app-shell-sidebar-width: 180px;
   --skeleton-base: rgba(255, 255, 255, 0.06);
   --skeleton-mid: rgba(255, 255, 255, 0.14);
 
-  --font-sans: 'Inter', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Menlo', monospace;
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", "Menlo", monospace;
 }
 
 *,
@@ -145,7 +145,7 @@ select {
 }
 
 select:not([multiple]):not([size]),
-select:not([multiple])[size='1'] {
+select:not([multiple])[size="1"] {
   // Chromium keeps the native chevron flush to the border, so we draw our own with a fixed inset.
   appearance: none;
   -webkit-appearance: none;
@@ -292,16 +292,15 @@ textarea {
   view-transition-name: none;
 }
 
-html[data-view-transition-scope='section'] .app-route-section {
+html[data-view-transition-scope="section"] .app-route-section {
   view-transition-name: app-route-section;
 }
 
-html[data-view-transition-scope='page'] .app-route-section {
+html[data-view-transition-scope="page"] .app-route-section {
   view-transition-name: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
@@ -341,11 +340,9 @@ html[data-view-transition-scope='page'] .app-route-section {
 @keyframes app-route-content-in {
   from {
     opacity: 0;
-
   }
 
   to {
     opacity: 1;
-
   }
 }
