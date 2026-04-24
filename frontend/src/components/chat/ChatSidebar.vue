@@ -1366,7 +1366,34 @@ function formatTime(value: string) {
 
 <style scoped lang="scss">
 .chat-sidebar {
-  height: 100%;
+  --chat-sidebar-tree-surface: #262626;
+  --chat-sidebar-tree-surface-hover: color-mix(
+    in srgb,
+    var(--chat-sidebar-tree-surface) 88%,
+    var(--ink-strong)
+  );
+  --chat-sidebar-tree-surface-active: color-mix(
+    in srgb,
+    var(--accent) 16%,
+    var(--chat-sidebar-tree-surface)
+  );
+  --chat-sidebar-tree-border-active: color-mix(
+    in srgb,
+    var(--accent) 30%,
+    var(--line)
+  );
+  --chat-sidebar-tree-well: color-mix(
+    in srgb,
+    var(--chat-sidebar-tree-surface) 72%,
+    black
+  );
+  position: sticky;
+  top: var(--app-shell-gap);
+  align-self: start;
+  max-height: calc(100vh - (var(--app-shell-gap) * 2));
+  max-height: calc(100dvh - (var(--app-shell-gap) * 2));
+  height: min(100%, calc(100vh - (var(--app-shell-gap) * 2)));
+  height: min(100%, calc(100dvh - (var(--app-shell-gap) * 2)));
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1663,7 +1690,7 @@ function formatTime(value: string) {
 .chat-sidebar__dashboard-toggle:hover {
   color: var(--ink-strong);
   border-color: var(--line);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__dashboard-toggle svg {
@@ -1691,6 +1718,7 @@ function formatTime(value: string) {
   padding: 0.55rem 0.7rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   font-size: 0.76rem;
 }
@@ -1708,7 +1736,7 @@ function formatTime(value: string) {
   padding: 0.7rem 0.75rem;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--chat-sidebar-tree-surface);
   color: var(--ink);
   text-align: left;
   transition:
@@ -1719,12 +1747,12 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__db-row:hover:not(.chat-sidebar__db-row--active) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__db-row--active {
-  border-color: rgba(112, 59, 247, 0.28);
-  background: rgba(112, 59, 247, 0.1);
+  border-color: var(--chat-sidebar-tree-border-active);
+  background: var(--chat-sidebar-tree-surface-active);
 }
 
 .chat-sidebar__db-row:focus-visible {
@@ -1828,16 +1856,16 @@ function formatTime(value: string) {
 .chat-sidebar__folder {
   display: flex;
   flex-direction: column;
-  border: 1px solid #262626;
+  border: 1px solid var(--chat-sidebar-tree-surface);
   border-radius: 12px;
   overflow: hidden;
-  background: #262626;
+  background: var(--chat-sidebar-tree-surface);
   min-height: 0;
 }
 
 .chat-sidebar__folder--active {
-  border-color: #2a1f3d;
-  background: #262626;
+  border-color: var(--chat-sidebar-tree-border-active);
+  background: var(--chat-sidebar-tree-surface);
 }
 
 .chat-sidebar__folder-head {
@@ -1848,7 +1876,7 @@ function formatTime(value: string) {
   width: 100%;
   padding: 0.55rem 0.6rem;
   border: none;
-  background: #262626;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--ink);
   text-align: left;
   font-size: 0.84rem;
@@ -1856,12 +1884,12 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__folder--active .chat-sidebar__folder-head {
-  background: #2a1f3d;
+  background: var(--chat-sidebar-tree-surface-active);
 }
 
 .chat-sidebar__folder:not(.chat-sidebar__folder--active)
   .chat-sidebar__folder-head:hover {
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__folder-chevron {
@@ -1910,8 +1938,8 @@ function formatTime(value: string) {
   max-width: 200px;
   gap: 6px;
   min-height: 0;
-  padding: 0 0.45rem 0.55rem 0.55rem;
-  background: #1a1a1a;
+  padding: 0.5rem 0.45rem 0.55rem 0.55rem;
+  background: var(--chat-sidebar-tree-well);
   box-sizing: border-box;
 }
 
@@ -1926,7 +1954,7 @@ function formatTime(value: string) {
   padding: 0.5rem 0.55rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   font-size: 0.74rem;
   line-height: 1.3;
@@ -1948,7 +1976,7 @@ function formatTime(value: string) {
   padding: 0.42rem 0.45rem;
   border: none;
   border-radius: 8px;
-  background: #262626;
+  background: var(--chat-sidebar-tree-surface);
   text-align: left;
   color: var(--ink);
   transition:
@@ -1959,16 +1987,16 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__session:hover:not(.chat-sidebar__session--active) {
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__session--active {
-  background: #2a1f3d;
+  background: var(--chat-sidebar-tree-surface-active);
   color: var(--ink-strong);
 }
 
 .chat-sidebar__session--create {
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -2059,6 +2087,7 @@ function formatTime(value: string) {
   border: 1px dashed var(--line);
   border-radius: 10px;
   padding: 10px;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -2219,6 +2248,15 @@ function formatTime(value: string) {
 .chat-sidebar-panel-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+@media (max-width: 1100px) {
+  .chat-sidebar {
+    position: static;
+    top: auto;
+    max-height: none;
+    height: auto;
+  }
 }
 
 @media (max-width: 940px) {
