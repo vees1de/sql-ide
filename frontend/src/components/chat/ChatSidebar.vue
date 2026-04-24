@@ -1798,10 +1798,14 @@ function formatTime(value: string) {
 .chat-sidebar__folder-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  align-self: stretch;
+  width: min(100%, 180px);
+  max-width: 180px;
+  gap: 6px;
   min-height: 0;
-  padding: 0 0.6rem 0.65rem 1.2rem;
+  padding: 0 0.45rem 0.55rem 0.55rem;
   background: #1a1a1a;
+  box-sizing: border-box;
 }
 
 .chat-sidebar__folder--active.chat-sidebar__folder--open
@@ -1812,12 +1816,13 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__empty-branch {
-  padding: 0.55rem 0.6rem;
+  padding: 0.5rem 0.55rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
   background: #1a1a1a;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  line-height: 1.3;
 }
 
 .chat-sidebar__session-list {
@@ -1830,11 +1835,12 @@ function formatTime(value: string) {
 .chat-sidebar__session {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.42rem;
   width: 100%;
-  padding: 0.45rem 0.55rem;
+  min-width: 0;
+  padding: 0.42rem 0.45rem;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #262626;
   text-align: left;
   color: var(--ink);
@@ -1868,7 +1874,12 @@ function formatTime(value: string) {
   color: var(--muted);
   display: inline-grid;
   place-items: center;
-  flex-shrink: 0;
+  flex: 0 0 16px;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
 }
 
 .chat-sidebar__session--active .chat-sidebar__session-icon {
@@ -1883,15 +1894,21 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__session-title {
-  font-size: 0.83rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .chat-sidebar__session-sub {
-  font-size: 0.7rem;
+  margin-top: 1px;
+  font-size: 0.66rem;
+  line-height: 1.2;
   color: var(--muted-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-sidebar__session--active .chat-sidebar__session-sub {
@@ -1901,7 +1918,20 @@ function formatTime(value: string) {
 .chat-sidebar__session-actions {
   display: flex;
   gap: 4px;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-width 140ms ease,
+    opacity 140ms ease;
+}
+
+.chat-sidebar__session:hover .chat-sidebar__session-actions,
+.chat-sidebar__session:focus-within .chat-sidebar__session-actions,
+.chat-sidebar__session--active .chat-sidebar__session-actions {
+  max-width: 52px;
+  opacity: 1;
 }
 
 .chat-sidebar__icon-btn {
