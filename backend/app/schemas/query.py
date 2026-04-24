@@ -160,7 +160,6 @@ class ValidationPayload(BaseModel):
     sql: str
     tables: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    trace: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     semantic_confidence_level: Literal["low", "medium", "high"] | None = None
     semantic_confidence_reasons: list[str] = Field(default_factory=list)
@@ -305,7 +304,6 @@ class QueryRunRead(BaseModel):
     execution_time_ms: int
     row_count: int
     status: str
-    analysis_message: str | None = None
     error_message: str | None = None
     created_at: datetime
 

@@ -2,7 +2,8 @@
   <section class="chat-assistant">
     <div ref="scrollRef" class="chat-assistant__feed">
       <template v-if="messages.length">
-        <template
+        <component
+          :is="message.role === 'user' ? ChatUserMessage : ChatAssistantMessage"
           v-for="message in messages"
           :key="message.id"
         >
@@ -198,11 +199,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import ChatAssistantMessage from '@/components/chat/ChatAssistantMessage.vue';
-import ChatInput from '@/components/chat/ChatInput.vue';
-import ChatUserMessage from '@/components/chat/ChatUserMessage.vue';
-import type { ApiChatMessageRead, ApiChatStructuredPayload, ApiQueryMode } from '@/api/types';
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import ChatAssistantMessage from "@/components/chat/ChatAssistantMessage.vue";
+import ChatInput from "@/components/chat/ChatInput.vue";
+import ChatUserMessage from "@/components/chat/ChatUserMessage.vue";
+import type { ApiChatMessageRead, ApiQueryMode } from "@/api/types";
 
 const props = withDefaults(
   defineProps<{
@@ -214,28 +215,33 @@ const props = withDefaults(
     llmModelAliases?: string[];
   }>(),
   {
-    pendingUserMessage: '',
-    queryMode: 'fast',
-    llmModelAlias: 'gpt120',
-    llmModelAliases: () => ['gpt120']
-  }
+    pendingUserMessage: "",
+    queryMode: "fast",
+    llmModelAlias: "gpt120",
+    llmModelAliases: () => ["gpt120"],
+  },
 );
 
 const emit = defineEmits<{
-  (event: 'send', text: string, mode: ApiQueryMode): void;
-  (event: 'apply-sql', sql: string): void;
-  (event: 'explain-sql', sql: string): void;
-  (event: 'prepare-sql'): void;
-  (event: 'clarification', payload: { clarificationId: string; optionId?: string | null; text?: string | null }): void;
-  (event: 'run-prepared'): void;
-  (event: 'show-chart-preview'): void;
-  (event: 'set-query-mode', mode: ApiQueryMode): void;
-  (event: 'set-llm-model-alias', alias: string): void;
+  (event: "send", text: string, mode: ApiQueryMode): void;
+  (event: "apply-sql", sql: string): void;
+  (event: "prepare-sql"): void;
+  (
+    event: "clarification",
+    payload: {
+      clarificationId: string;
+      optionId?: string | null;
+      text?: string | null;
+    },
+  ): void;
+  (event: "run-prepared"): void;
+  (event: "show-chart-preview"): void;
+  (event: "set-query-mode", mode: ApiQueryMode): void;
+  (event: "set-llm-model-alias", alias: string): void;
 }>();
 
-const draft = ref('');
+const draft = ref("");
 const scrollRef = ref<HTMLElement | null>(null);
-const openReasoning = ref<Record<string, boolean>>({});
 const pendingMessage = computed<ApiChatMessageRead | null>(() => {
   const text = props.pendingUserMessage?.trim();
   if (!text) {
@@ -243,12 +249,12 @@ const pendingMessage = computed<ApiChatMessageRead | null>(() => {
   }
 
   return {
-    id: 'pending-user-message',
-    session_id: 'pending',
-    role: 'user',
+    id: "pending-user-message",
+    session_id: "pending",
+    role: "user",
     text,
     structured_payload: null,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   };
 });
 
@@ -256,7 +262,7 @@ async function scrollToBottom() {
   await nextTick();
   scrollRef.value?.scrollTo({
     top: scrollRef.value.scrollHeight,
-    behavior: 'smooth'
+    behavior: "smooth",
   });
 }
 
@@ -264,21 +270,21 @@ watch(
   () => props.messages.length,
   () => {
     void scrollToBottom();
-  }
+  },
 );
 
 watch(
   () => props.busy,
   () => {
     void scrollToBottom();
-  }
+  },
 );
 
 watch(
   () => props.pendingUserMessage,
   () => {
     void scrollToBottom();
-  }
+  },
 );
 
 onMounted(() => {
@@ -433,10 +439,12 @@ function warnings(message: ApiChatMessageRead) {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding-right: 2px;
+  scrollbar-width: thin;
 }
 
 .chat-assistant__assistant-wrap {
@@ -764,12 +772,26 @@ function warnings(message: ApiChatMessageRead) {
   animation: chat-dot-bounce 1.2s infinite ease-in-out;
 }
 
-.chat-assistant__dot:nth-child(1) { animation-delay: 0s; }
-.chat-assistant__dot:nth-child(2) { animation-delay: 0.2s; }
-.chat-assistant__dot:nth-child(3) { animation-delay: 0.4s; }
+.chat-assistant__dot:nth-child(1) {
+  animation-delay: 0s;
+}
+.chat-assistant__dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.chat-assistant__dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes chat-dot-bounce {
-  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
-  40%            { opacity: 1;    transform: translateY(-4px); }
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
 }
 </style>

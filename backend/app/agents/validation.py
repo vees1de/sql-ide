@@ -22,7 +22,6 @@ class SQLValidationAgent:
     ) -> ValidationPayload:
         errors: list[str] = []
         warnings: list[str] = []
-        trace: list[str] = []
         confidence_reasons: list[str] = []
 
         try:
@@ -69,8 +68,7 @@ class SQLValidationAgent:
                 errors,
             )
 
-        self._rewrite_divisions_without_nullif(parsed, warnings)
-        parsed = self._apply_row_limit(parsed, warnings, trace)
+        parsed = self._apply_row_limit(parsed, warnings)
         final_sql = self.format_sql(parsed.sql(pretty=True, dialect=self._read_dialect(dialect)), dialect)
 
         return ValidationPayload(
@@ -78,7 +76,6 @@ class SQLValidationAgent:
             sql=final_sql,
             tables=tables,
             warnings=warnings,
-            trace=trace,
             errors=errors,
             semantic_confidence_level=confidence_level,
             semantic_confidence_reasons=confidence_reasons,
@@ -376,20 +373,6 @@ class SQLValidationAgent:
             return "medium", reasons[:4]
         return "low", reasons[:4]
 
-    def _rewrite_divisions_without_nullif(self, parsed: exp.Expression, warnings: list[str]) -> None:
-        rewrites = 0
-        for division in parsed.find_all(exp.Div):
-            denominator = division.args.get("expression")
-            if denominator is None or isinstance(denominator, exp.Nullif):
-                continue
-            guarded = exp.Nullif(this=denominator.copy() if hasattr(denominator, "copy") else denominator, expression=exp.Literal.number(0))
-            division.set("expression", guarded)
-            rewrites += 1
-        if rewrites:
-            warnings.append(
-                f"Division without NULLIF was rewritten automatically in {rewrites} expression(s)."
-            )
-
     def _alias_map(self, parsed: exp.Expression) -> dict[str, str]:
         alias_map: dict[str, str] = {}
         cte_names = self._cte_names(parsed)
@@ -531,16 +514,11 @@ class SQLValidationAgent:
         except Exception:  # noqa: BLE001
             return cleaned_sql
 
-    def _apply_row_limit(
-        self,
-        parsed: exp.Expression,
-        warnings: list[str],
-        trace: list[str],
-    ) -> exp.Expression:
+    def _apply_row_limit(self, parsed: exp.Expression, warnings: list[str]) -> exp.Expression:
         limit_clause = parsed.args.get("limit")
         if limit_clause is None:
             parsed.set("limit", exp.Limit(expression=exp.Literal.number(settings.default_row_limit)))
-            trace.append(f"LIMIT {settings.default_row_limit} was added automatically.")
+            warnings.append(f"LIMIT {settings.default_row_limit} was added automatically.")
             return parsed
 
         limit_value = self._extract_limit_value(limit_clause)

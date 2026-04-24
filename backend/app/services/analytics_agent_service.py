@@ -493,10 +493,9 @@ class AnalyticsAgentService:
 
     def _apply_context(self, intent: IntentPayload, context: AnalyticsContext) -> IntentPayload:
         patched = intent.model_copy(deep=True)
-        if not patched.dimensions:
-            for dimension in context.active_dimensions:
-                if dimension not in patched.dimensions:
-                    patched.dimensions.append(dimension)
+        for dimension in context.active_dimensions:
+            if dimension not in patched.dimensions:
+                patched.dimensions.append(dimension)
         if context.active_filters:
             merged_filters = {item.field: item for item in patched.filters}
             for filter_item in context.active_filters:
@@ -564,7 +563,7 @@ class AnalyticsAgentService:
             questions.append(
                 ClarificationQuestion(
                     id="dimension",
-                    text="Как сгруппировать результат?",
+                    text="How should the result be grouped?",
                     options=self._dimension_options(schema),
                 )
             )
@@ -582,8 +581,8 @@ class AnalyticsAgentService:
             questions.append(
                 ClarificationQuestion(
                     id="metric",
-                    text="Какую метрику нужно проанализировать?",
-                    options=["Выручка", "Количество заказов", "Средний чек"],
+                    text="What metric do you want to analyze?",
+                    options=["Revenue", "Number of orders", "Average order value"],
                 )
             )
         return questions[:3]

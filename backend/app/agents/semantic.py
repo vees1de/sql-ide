@@ -206,12 +206,6 @@ class SemanticMappingAgent:
         return (None, None, None)
 
     def _resolve_filter_expression(self, field: str) -> tuple[str | None, str | None]:
-        if field == "status":
-            return ("r.status", None)
-        if field == "driver_status":
-            return ("d.status", "driver")
-        if field == "tariff_type":
-            return ("t.tariff_type", "tariff")
         if field in {"city", "region", "segment"}:
             return (f"c.{field}", "customer")
         if field == "channel":
@@ -359,18 +353,6 @@ class SemanticMappingAgent:
                 )
             )
 
-        if intent.metric in {"avg_ride_duration", "avg_pickup_minutes"}:
-            base_table_alias = alias_map.get(base_table, base_alias)
-            filter_mappings.append(
-                FilterMapping(
-                    field="completed_at",
-                    expression=f"{base_table_alias}.{self._quote_identifier('completed_at')}",
-                    operator="IS NOT NULL",
-                    value=None,
-                    requires_join=None,
-                )
-            )
-
         if intent.date_range and time_expression is None:
             warnings.append("A date-like column could not be resolved for the requested period.")
 
@@ -418,11 +400,6 @@ class SemanticMappingAgent:
     ) -> tuple[_ResolvedColumn | None, str]:
         if not metric_key:
             return (None, "sum")
-        if metric_key == "completion_rate":
-            return (_ResolvedColumn(table="rides", column="id", data_type="integer"), "completion_rate")
-        if metric_key in {"avg_ride_duration", "avg_pickup_minutes"}:
-            column = "duration_minutes" if metric_key == "avg_ride_duration" else "accepted_at"
-            return (_ResolvedColumn(table="rides", column=column, data_type="numeric"), metric_key)
         if metric_key == "order_count":
             return (None, "count")
         dictionary_candidate = self._dictionary_candidate(metric_key, tables, dictionary_lookup, prefer_text=False, prefer_metric=True)
@@ -705,25 +682,6 @@ class SemanticMappingAgent:
         base_alias: str,
         alias_map: dict[str, str],
     ) -> tuple[str, str]:
-        if metric_operation == "completion_rate":
-            alias = alias_map.get(measure_candidate.table, base_alias) if measure_candidate is not None else base_alias
-            return (
-                f"SUM(CASE WHEN {alias}.{self._quote_identifier('completed_at')} IS NOT NULL THEN 1 ELSE 0 END) * 1.0 "
-                f"/ NULLIF(COUNT({alias}.{self._quote_identifier('id')}), 0)",
-                "completion_rate",
-            )
-        if metric_operation == "avg_ride_duration":
-            alias = alias_map.get(measure_candidate.table, base_alias) if measure_candidate is not None else base_alias
-            return (
-                f"AVG({alias}.{self._quote_identifier('duration_minutes')})",
-                "avg_ride_duration",
-            )
-        if metric_operation == "avg_pickup_minutes":
-            alias = alias_map.get(measure_candidate.table, base_alias) if measure_candidate is not None else base_alias
-            return (
-                f"AVG((julianday({alias}.{self._quote_identifier('accepted_at')}) - julianday({alias}.{self._quote_identifier('created_at')})) * 24.0 * 60.0)",
-                "avg_pickup_minutes",
-            )
         if metric_operation == "count":
             return ("COUNT(*)", "record_count")
 

@@ -133,7 +133,6 @@ class SqlExplanationBlock(BaseModel):
 
 class SqlExplanationResponse(BaseModel):
     summary: str
-    table_choice_reasoning: str | None = None
     blocks: list[SqlExplanationBlock] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     generated_by_ai: bool = False
@@ -190,7 +189,7 @@ class StructuredPayload(BaseModel):
     assistant_message: str | None = None
     semantic_parse: SemanticParse | None = None
     actions: list[AgentAction] = Field(default_factory=list)
-    interpretation: Interpretation = Field(default_factory=Interpretation)
+    interpretation: Interpretation
     tables_used: list[TableUsage] = Field(default_factory=list)
     sql: str | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -205,7 +204,7 @@ class StructuredPayload(BaseModel):
     clarification_question: str | None = None
     clarification_options: list[ClarificationOption] | None = None
     answered_clarification_id: str | None = None
-    dialect: str = "unknown"
+    dialect: str
     query_mode: QueryMode = "fast"
     llm_model_alias: str | None = None
     complexity: Literal["simple", "complex"] = "simple"
@@ -343,7 +342,6 @@ class QueryExecutionRead(BaseModel):
     execution_time_ms: int = 0
     dataset: ExecutionDatasetRead | None = None
     chart_recommendation: ChartRecommendation | None = None
-    analysis_message: str | None = None
     error_message: str | None = None
     created_at: datetime
 

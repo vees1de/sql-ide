@@ -8,6 +8,36 @@
 
     <p class="chat-assistant-message__text">{{ displayText }}</p>
 
+    <section v-if="hasSemanticSummary" class="chat-assistant-message__semantic">
+      <div class="chat-assistant-message__semantic-head">Semantic summary</div>
+      <div class="chat-assistant-message__chips">
+        <span v-if="payload?.semantic_parse?.metric" class="chat-assistant-message__chip">
+          Метрика: {{ payload.semantic_parse.metric }}
+        </span>
+        <span
+          v-for="dimension in payload?.semantic_parse?.dimensions ?? []"
+          :key="dimension"
+          class="chat-assistant-message__chip"
+        >
+          Измерение: {{ dimension }}
+        </span>
+        <span
+          v-for="table in payload?.semantic_parse?.candidate_tables ?? []"
+          :key="table"
+          class="chat-assistant-message__chip chat-assistant-message__chip--muted"
+        >
+          Таблица: {{ table }}
+        </span>
+      </div>
+      <p
+        v-for="note in payload?.semantic_parse?.notes ?? []"
+        :key="note"
+        class="chat-assistant-message__semantic-note"
+      >
+        {{ note }}
+      </p>
+    </section>
+
     <section v-if="clarificationQuestion" class="chat-assistant-message__clarification">
       <p class="chat-assistant-message__clarification-text">{{ clarificationQuestion }}</p>
       <div v-if="clarificationOptions.length" class="chat-assistant-message__chips">
@@ -33,8 +63,6 @@
         class="chat-assistant-message__icon-btn"
         :disabled="action.disabled"
         type="button"
-        :title="action.label"
-        :aria-label="action.label"
         @click="handleAction(action.type)"
       >
         <svg v-if="action.type === 'create_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -44,19 +72,11 @@
 
       <button
         v-if="payload?.mode_suggestion && payload.mode_suggestion_reason"
-        class="chat-assistant-message__icon-btn"
+        class="chat-assistant-message__btn chat-assistant-message__btn--secondary"
         type="button"
-        :title="payload.mode_suggestion === 'thinking' ? 'Thinking' : 'Fast'"
-        :aria-label="payload.mode_suggestion === 'thinking' ? 'Thinking' : 'Fast'"
         @click="$emit('switch-mode', payload.mode_suggestion)"
       >
-        <svg v-if="payload.mode_suggestion === 'thinking'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M6.2 1.8a4.2 4.2 0 1 0 3.4 7.1h1.9l-.7 1.6-1.8.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M5.7 4.2h2.6M5.7 6h1.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-        </svg>
-        <svg v-else width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M7 2.2v9.6M2.2 7h9.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-        </svg>
+        {{ payload.mode_suggestion === 'thinking' ? 'Thinking' : 'Fast' }}
       </button>
     </section>
 
@@ -76,6 +96,20 @@
       />
     </section>
 
+    <section v-if="hasReasoning" class="chat-assistant-message__reasoning">
+      <button
+        class="chat-assistant-message__reasoning-toggle"
+        type="button"
+        :aria-expanded="!reasoningCollapsed"
+        @click="reasoningCollapsed = !reasoningCollapsed"
+      >
+        <span>Agent trace</span>
+        <span aria-hidden="true">{{ reasoningCollapsed ? '▾' : '▴' }}</span>
+      </button>
+      <div v-show="!reasoningCollapsed" class="chat-assistant-message__reasoning-body">
+        <p v-for="line in reasoningLines" :key="line">{{ line }}</p>
+      </div>
+    </section>
   </article>
 </template>
 
@@ -97,7 +131,6 @@ const emit = defineEmits<{
   (event: 'apply-sql', sql: string): void;
   (event: 'prepare-sql'): void;
   (event: 'clarification', payload: { clarificationId: string; optionId?: string | null; text?: string | null }): void;
-  (event: 'explain-sql', sql: string): void;
   (event: 'run-prepared'): void;
   (event: 'show-chart-preview'): void;
   (event: 'switch-mode', mode: ApiQueryMode): void;
@@ -105,11 +138,13 @@ const emit = defineEmits<{
 
 const payload = computed<ApiChatStructuredPayload | null>(() => props.message.structured_payload);
 const sqlCollapsed = ref(false);
+const reasoningCollapsed = ref(true);
 
 watch(
   () => props.message.id,
   () => {
     sqlCollapsed.value = false;
+    reasoningCollapsed.value = true;
   }
 );
 
@@ -164,39 +199,58 @@ const hasRunAction = computed(() =>
   Boolean(payload.value?.actions?.some(a => a.type === 'show_run_button' && !a.disabled))
 );
 
+const hasSemanticSummary = computed(() => {
+  const semantic = payload.value?.semantic_parse;
+  return Boolean(
+    semantic &&
+    (semantic.metric ||
+      semantic.dimensions.length ||
+      semantic.candidate_tables.length ||
+      semantic.notes.length)
+  );
+});
+
+const warnings = computed(() => [
+  ...(payload.value?.warnings ?? []),
+  ...(payload.value?.interpretation.ambiguities ?? []).map((item) => `Неоднозначность: ${item.replaceAll('_', ' ')}`)
+]);
+
 const showSqlSection = computed(() => Boolean(payload.value?.sql));
+const hasReasoning = computed(() => reasoningLines.value.length > 0);
+
+const reasoningLines = computed(() => {
+  const lines: string[] = [];
+  if (payload.value?.confidence_level) {
+    lines.push(`Уверенность SQL: ${payload.value.confidence_level}`);
+  }
+  if (payload.value?.tables_used?.length) {
+    lines.push(`Таблицы: ${payload.value.tables_used.map((item) => item.table).join(', ')}`);
+  }
+  if (payload.value?.semantic_parse?.unresolved_terms?.length) {
+    lines.push(
+      `Требуют уточнения: ${payload.value.semantic_parse.unresolved_terms.map((item) => item.term).join(', ')}`
+    );
+  }
+  if (payload.value?.debug_trace?.length) {
+    lines.push(...payload.value.debug_trace.map((item) => `${item.stage}: ${item.detail}`));
+  }
+  if (warnings.value.length) {
+    lines.push(`Предупреждения: ${warnings.value.join('; ')}`);
+  }
+  return lines;
+});
 
 const sqlCellContent = computed(() => ({
   sql: payload.value?.sql ?? '',
   explanation: '',
-  warnings: []
+  warnings: warnings.value
 }));
-
-async function copySql() {
-  const sql = payload.value?.sql?.trim();
-  if (!sql) {
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(sql);
-  } catch {
-    /* ignore clipboard failures */
-  }
-}
 
 function emitClarification(optionId: string) {
   emit('clarification', {
     clarificationId: clarificationId.value,
     optionId
   });
-}
-
-function emitExplain() {
-  const sql = payload.value?.sql?.trim();
-  if (!sql) {
-    return;
-  }
-  emit('explain-sql', sql);
 }
 
 function handleAction(type: ApiChatAction['type']) {
@@ -214,7 +268,6 @@ function handleAction(type: ApiChatAction['type']) {
 
 <style scoped lang="scss">
 .chat-assistant-message {
-  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 10px;
@@ -264,7 +317,9 @@ function handleAction(type: ApiChatAction['type']) {
 }
 
 .chat-assistant-message__text,
-.chat-assistant-message__clarification-text {
+.chat-assistant-message__clarification-text,
+.chat-assistant-message__semantic-note,
+.chat-assistant-message__reasoning-body p {
   margin: 0;
   color: var(--ink);
   font-size: 0.84rem;
@@ -272,8 +327,9 @@ function handleAction(type: ApiChatAction['type']) {
   white-space: pre-wrap;
 }
 
-.chat-assistant-message__clarification {
-  min-width: 0;
+.chat-assistant-message__semantic,
+.chat-assistant-message__clarification,
+.chat-assistant-message__reasoning {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 10px;
@@ -282,90 +338,63 @@ function handleAction(type: ApiChatAction['type']) {
   gap: 8px;
 }
 
-.chat-assistant-message__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.chat-assistant-message__semantic-head {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chat-assistant-message__chips,
+.chat-assistant-message__actions {
+  display: none;
+}
+
+.chat-assistant-message__chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(112, 59, 247, 0.16);
+  color: var(--ink-strong);
+  font-size: 0.72rem;
+}
+
+.chat-assistant-message__chip--muted {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
 }
 
 .chat-assistant-message__btn {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid rgba(112, 59, 247, 0.22);
-  border-radius: 999px;
-  background: rgba(112, 59, 247, 0.14);
-  color: var(--ink-strong);
-  font-size: 0.78rem;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    transform 120ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.chat-assistant-message__btn:hover:not(:disabled),
-.chat-assistant-message__btn:focus-visible:not(:disabled) {
-  border-color: rgba(112, 59, 247, 0.45);
-  background: rgba(112, 59, 247, 0.22);
-  color: #fff;
-  box-shadow: 0 0 0 3px rgba(112, 59, 247, 0.14);
-  outline: none;
-  transform: translateY(-1px);
-}
-
-.chat-assistant-message__btn:active:not(:disabled) {
-  transform: translateY(0);
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   background: rgba(112, 59, 247, 0.18);
+  color: var(--ink-strong);
+  font-size: 0.74rem;
+}
+
+.chat-assistant-message__btn--secondary {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
 }
 
 .chat-assistant-message__btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
 }
 
-.chat-assistant-message__actions {
-  display: none;
-}
-
-.chat-assistant-message__icon-btn {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  display: inline-flex;
+.chat-assistant-message__reasoning-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  display: flex;
   align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    color 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease;
+  justify-content: space-between;
+  padding: 0;
 }
 
-.chat-assistant-message__icon-btn:hover:not(:disabled),
-.chat-assistant-message__icon-btn:focus-visible:not(:disabled) {
-  color: var(--ink-strong);
-  border-color: rgba(112, 59, 247, 0.55);
-  background: rgba(112, 59, 247, 0.12);
-}
-
-.chat-assistant-message__icon-btn--primary {
-  color: #efe9ff;
-  border-color: rgba(112, 59, 247, 0.7);
-  background: rgba(112, 59, 247, 0.22);
-}
-
-.chat-assistant-message__icon-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.chat-assistant-message__reasoning-body {
+  display: grid;
+  gap: 4px;
 }
 </style>

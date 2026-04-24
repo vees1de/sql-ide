@@ -290,11 +290,6 @@ class LLMSqlRepairPayload(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class LLMEmptyResultAnalysisPayload(BaseModel):
-    message: str
-    suggestions: list[str] = Field(default_factory=list)
-
-
 class LLMChartSuggestionPayload(BaseModel):
     chart_type: str | None = None
     variant: str | None = None
@@ -324,7 +319,6 @@ class LLMSqlExplanationPayload(BaseModel):
     summary: str
     blocks: list[LLMSqlExplanationBlock] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    table_choice_reasoning: str | None = None
 
 
 class LLMService:
@@ -399,7 +393,7 @@ class LLMService:
             "period, ask for the period and keep sql=null. Only use the full observed history when the "
             "user explicitly asks for 'all time', 'весь период', 'за всё время', or equivalent.\n"
             "10. Keep warnings concise.\n"
-            "11. Match the user's language in clarification text, but if the query is mixed or ambiguous, ask the follow-up in Russian by default.\n"
+            "11. Match the user's language in clarification text.\n"
             "12. Use conversation history when provided to resolve follow-up intent.\n"
             "13. Prefer join paths that are present in relationship_graph when choosing table traversal.\n"
             "14. When you set clarification_question, ALSO populate clarification_options with 3–5 concrete, "
@@ -730,60 +724,6 @@ class LLMService:
             logger.warning("LLM SQL repair failed: %s", exc)
             return None
 
-    def summarize_empty_result(
-        self,
-        *,
-        prompt: str,
-        sql: str,
-        columns: list[str] | None = None,
-        model: str | None = None,
-    ) -> LLMEmptyResultAnalysisPayload | None:
-        target_model = model or settings.llm_model
-        if not self._configured_for_model(target_model):
-            return None
-
-        system_prompt = (
-            "You explain why a SQL query returned zero rows. "
-            "Return exactly one JSON object and no markdown. "
-            "Do not rewrite SQL. Do not broaden filters. "
-            "Write a concise user-facing message in the same language as the prompt. "
-            "If helpful, add 1-3 concrete suggestions that help the user debug the filters, "
-            "time range, join path, or enum values.\n"
-            "{"
-            '"message":"string",'
-            '"suggestions":["string"]'
-            "}"
-        )
-        user_prompt = json.dumps(
-            {
-                "user_prompt": prompt,
-                "sql": sql,
-                "columns": columns or [],
-                "row_count": 0,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-
-        try:
-            content = self._chat_json(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=320,
-                temperature=0.1,
-                model=target_model,
-            )
-            payload = json.loads(self._extract_json_object(content))
-            result = LLMEmptyResultAnalysisPayload.model_validate(payload)
-            if not result.message.strip():
-                return None
-            return result
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("LLM empty-result analysis failed: %s", exc)
-            return None
-
     def summarize_result(
         self,
         prompt: str,
@@ -906,7 +846,6 @@ class LLMService:
         *,
         sql: str,
         dialect: str | None = None,
-        user_question: str | None = None,
         model: str | None = None,
     ) -> SqlExplanationResponse | None:
         target_model = model or settings.llm_model
@@ -914,28 +853,18 @@ class LLMService:
             return self._fallback_sql_explanation(sql, dialect=dialect)
 
         line_map = self._numbered_sql(sql)
-        table_choice_instruction = (
-            ' Если "user_question" предоставлен, также заполни "table_choice_reasoning" 1-3 предложениями'
-            " на русском языке, объясняя, почему именно эти таблицы, joins и ключевые колонки были выбраны —"
-            " какой вклад вносит каждая таблица, какие колонки были использованы и почему альтернативы не нужны."
-            ' Если пользовательский вопрос отсутствует, установи "table_choice_reasoning" в null.'
-        ) if user_question else ' Set "table_choice_reasoning" to null.'
         system_prompt = (
-            "Ты — опытный SQL-репетитор. "
+            "You are a senior SQL tutor. "
             "Return exactly one JSON object and no markdown. "
-            "Отвечай на русском языке, независимо от языка вопроса пользователя. "
-            "Разбирай запрос по блокам. "
-            "Объяснение должно строго соответствовать SQL и использовать исходные номера строк. "
-            "Для нетривиального SQL предпочитай 3-8 связных блоков. "
-            "Если запрос простой, можно сделать меньше блоков. "
-            "Каждый блок должен описывать один оператор или одну логическую часть запроса и содержать "
-            "точный фрагмент SQL из исходника. "
-            "Не придумывай таблицы, колонки, фильтры или бизнес-смысл. "
-            "Когда объясняешь выбор таблиц, явно указывай основные колонки или выражения, из-за которых эта таблица нужна."
-            + table_choice_instruction + "\n"
+            "Explain the query block by block in the user's language. "
+            "The explanation must stay faithful to the SQL and use the original line numbers. "
+            "Prefer 3-8 coherent blocks for non-trivial SQL. "
+            "If the query is simple, it is fine to produce fewer blocks. "
+            "Each block must describe one clause or one logical part of the query and should include the "
+            "exact SQL excerpt copied from the source. "
+            "Do not invent tables, columns, filters, or business meaning.\n"
             "{"
             '"summary":"string",'
-            '"table_choice_reasoning":"string|null",'
             '"blocks":[{'
             '"index":"number",'
             '"kind":"cte|select|from|join|where|group_by|having|order_by|limit|compound|other",'
@@ -951,7 +880,6 @@ class LLMService:
         user_prompt = json.dumps(
             {
                 "dialect": dialect,
-                "user_question": user_question,
                 "sql": sql,
                 "numbered_sql": line_map,
             },
@@ -965,7 +893,7 @@ class LLMService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=1600,
+                max_tokens=1400,
                 temperature=0.1,
                 model=str(target_model),
             )
@@ -976,7 +904,6 @@ class LLMService:
                 return self._fallback_sql_explanation(sql, dialect=dialect)
             return SqlExplanationResponse(
                 summary=result.summary.strip(),
-                table_choice_reasoning=result.table_choice_reasoning.strip() if result.table_choice_reasoning else None,
                 blocks=blocks,
                 warnings=[warning.strip() for warning in result.warnings if str(warning).strip()],
                 generated_by_ai=True,
@@ -1448,7 +1375,7 @@ class LLMService:
             summary=summary,
             blocks=blocks,
             warnings=[
-                "AI-разбор недоступен, поэтому запрос показан в структурированном виде."
+                "AI explanation is unavailable, so the query is shown with a structural SQL breakdown."
             ],
             generated_by_ai=False,
         )
@@ -1510,7 +1437,7 @@ class LLMService:
 
     def _fallback_sql_summary(self, blocks: list[SqlExplanationBlock], *, dialect: str | None = None, sql: str) -> str:
         if not blocks:
-            return "SQL не удалось разбить на блоки, но ниже показан исходный текст."
+            return "SQL query could not be split into blocks, but the raw text is available below."
         if len(blocks) == 1:
             return "Запрос состоит из одного логического блока, поэтому он показан как единая последовательность."
         dialect_suffix = f" для {dialect}" if dialect else ""

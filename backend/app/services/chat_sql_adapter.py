@@ -93,8 +93,7 @@ class ChatSqlAdapter:
             raise ValueError("Chat session not found.")
 
         previous_intent = self._load_previous_intent(session.last_intent_json)
-        analytical_context = self._build_analytical_context(session.last_intent_json, previous_intent)
-        history_text = self._build_history_text(session.messages, analytical_context)
+        history_text = self._build_history_text(session.messages)
         dictionary_entries = self._load_dictionary_entries(db)
         complexity = self._classify_prompt_complexity(user_text, previous_intent)
         mode_warnings: list[str] = []
@@ -588,10 +587,7 @@ class ChatSqlAdapter:
         llm_model = resolve_llm_model_from_alias(llm_model_alias) if llm_model_alias else settings.llm_model
         complexity = self._classify_prompt_complexity(previous_intent.raw_prompt, previous_intent)
         schema = self.analytics_agent.schema_provider.get_schema_for_llm(db, session.database_connection_id)
-        history_text = self._build_history_text(
-            session.messages,
-            self._build_analytical_context(session.last_intent_json, previous_intent),
-        )
+        history_text = self._build_history_text(session.messages)
         dictionary_entries = self._load_dictionary_entries(db)
         semantic_catalog = None
         semantic_contract = None
@@ -999,9 +995,7 @@ class ChatSqlAdapter:
             commit=False,
         )
 
-        intent_payload = intent.model_dump(mode="json")
-        intent_payload["_analytical_context"] = self._build_analytical_context(intent_payload, intent)
-        session.last_intent_json = intent_payload
+        session.last_intent_json = intent.model_dump(mode="json")
         if sql_draft is not None:
             session.current_sql_draft = sql_draft
             session.sql_draft_version = (session.sql_draft_version or 0) + 1
@@ -1294,16 +1288,14 @@ class ChatSqlAdapter:
     def _semantic_intent_summary(self, intent: IntentPayload) -> str | None:
         parts: list[str] = []
         if intent.metric:
-            parts.append(f"метрика {intent.metric}")
+            parts.append(f"metric={intent.metric}")
         if intent.dimensions:
-            parts.append(f"группировка по {', '.join(intent.dimensions)}")
+            parts.append(f"dimensions={', '.join(intent.dimensions)}")
         if intent.date_range:
-            parts.append(f"период {intent.date_range.kind}")
+            parts.append(f"time={intent.date_range.kind}")
         if intent.comparison:
-            parts.append(f"сравнение {intent.comparison}")
-        if not parts:
-            return None
-        return f"Поняла запрос как: {', '.join(parts)}."
+            parts.append(f"comparison={intent.comparison}")
+        return "; ".join(parts) or None
 
     def _build_actions(self, *, state: str, sql: str | None) -> list[Any]:
         normalized_state = "SQL_READY" if state == "success" else state
@@ -1462,42 +1454,15 @@ class ChatSqlAdapter:
         except Exception:  # noqa: BLE001
             return None
 
-    def _build_history_text(self, messages: list[ChatMessageModel], analytical_context: str | None = None) -> str:
+    def _build_history_text(self, messages: list[ChatMessageModel]) -> str:
         recent_messages = messages[-6:]
+        if not recent_messages:
+            return ""
         lines: list[str] = []
-        if analytical_context:
-            lines.append(f"[context] {analytical_context}")
         for message in recent_messages:
             role = "user" if message.role == "user" else "assistant"
             lines.append(f"[{role}] {message.text.strip()}")
         return "\n".join(lines)
-
-    def _build_analytical_context(
-        self,
-        session_intent_payload: dict[str, Any] | None,
-        intent: IntentPayload | None,
-    ) -> str | None:
-        source = intent
-        if source is None and session_intent_payload is not None:
-            source = self._load_previous_intent(session_intent_payload)
-        if source is None:
-            return None
-
-        parts: list[str] = []
-        if source.metric:
-            parts.append(f"metric={source.metric}")
-        if source.dimensions:
-            parts.append(f"dimensions={', '.join(source.dimensions)}")
-        if source.date_range is not None:
-            start = source.date_range.start.isoformat() if source.date_range.start else "?"
-            end = source.date_range.end.isoformat() if source.date_range.end else "?"
-            parts.append(f"date_range={start}..{end}")
-        if source.filters:
-            filter_parts = [f"{item.field}{item.operator}{item.value}" for item in source.filters]
-            parts.append(f"filters={'; '.join(filter_parts)}")
-        if source.comparison:
-            parts.append(f"comparison={source.comparison}")
-        return "; ".join(parts) or None
 
     def _latest_assistant_payload(self, messages: list[ChatMessageModel]) -> dict[str, Any]:
         for message in reversed(messages):

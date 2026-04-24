@@ -140,11 +140,10 @@ def _ensure_chat_query_execution_dataset_column(engine: Engine) -> None:
         if "chat_query_executions" not in inspector.get_table_names():
             return
         columns = {col["name"] for col in inspector.get_columns("chat_query_executions")}
+        if "dataset_id" in columns:
+            return
         with engine.begin() as connection:
-            if "dataset_id" not in columns:
-                connection.execute(text("ALTER TABLE chat_query_executions ADD COLUMN dataset_id VARCHAR(32)"))
-            if "analysis_message" not in columns:
-                connection.execute(text("ALTER TABLE chat_query_executions ADD COLUMN analysis_message TEXT"))
+            connection.execute(text("ALTER TABLE chat_query_executions ADD COLUMN dataset_id VARCHAR(32)"))
     except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
         pass
 
@@ -165,13 +164,6 @@ def _ensure_widget_dataset_columns(engine: Engine) -> None:
 
 
 def bootstrap_application() -> None:
-    apply_schema_migrations()
-    with Session(service_engine) as session:
-        _cleanup_legacy_demo_data(session)
-        seed_service_data(session)
-
-
-def apply_schema_migrations() -> None:
     Base.metadata.create_all(bind=service_engine)
     _ensure_database_connections_allowed_tables_column(service_engine)
     _ensure_semantic_dictionary_context_columns(service_engine)
@@ -180,6 +172,9 @@ def apply_schema_migrations() -> None:
     _ensure_dashboard_hidden_column(service_engine)
     _ensure_chat_query_execution_dataset_column(service_engine)
     _ensure_widget_dataset_columns(service_engine)
+    with Session(service_engine) as session:
+        _cleanup_legacy_demo_data(session)
+        seed_service_data(session)
 
 
 def seed_service_data(session: Session) -> None:

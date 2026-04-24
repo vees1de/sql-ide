@@ -119,19 +119,15 @@ const highlightedSql = computed(() => {
 </script>
 
 <style scoped lang="scss">
-.sql-cell {
-  min-width: 0;
-}
-
 .sql-cell__toolbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.7rem;
   margin-bottom: 0.55rem;
 }
 
-.sql-cell__explanation {
+.sql-cell__toolbar p {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
@@ -263,7 +259,6 @@ const highlightedSql = computed(() => {
 pre {
   margin: 0;
   padding: 0.75rem 0.9rem;
-  max-width: 100%;
   overflow-x: auto;
   border-radius: var(--radius);
   background: var(--canvas);
@@ -285,16 +280,6 @@ pre {
 
 :deep(.sql-number) {
   color: #8ab4f8;
-}
-
-@keyframes sql-cell-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
 }
 
 </style>

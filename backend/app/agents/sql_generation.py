@@ -141,10 +141,7 @@ class SQLGenerationAgent:
 
         for filter_mapping in semantic.filter_mappings:
             operator = filter_mapping.operator or "="
-            if operator.upper() in {"IS NULL", "IS NOT NULL"}:
-                clauses.append(f"{filter_mapping.expression} {operator}")
-            else:
-                clauses.append(f"{filter_mapping.expression} {operator} {self._quote(filter_mapping.value)}")
+            clauses.append(f"{filter_mapping.expression} {operator} {self._quote(filter_mapping.value)}")
 
         return clauses
 

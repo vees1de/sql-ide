@@ -322,7 +322,6 @@ export interface ApiChatExecutionRead {
   execution_time_ms: number;
   dataset?: ApiChatExecutionDataset | null;
   chart_recommendation: ApiChatExecutionRecommendation | null;
-  analysis_message: string | null;
   error_message: string | null;
   created_at: string;
 }
@@ -361,7 +360,6 @@ export interface ApiSqlExplanationBlock {
 
 export interface ApiSqlExplanationResponse {
   summary: string;
-  table_choice_reasoning?: string | null;
   blocks: ApiSqlExplanationBlock[];
   warnings: string[];
   generated_by_ai: boolean;

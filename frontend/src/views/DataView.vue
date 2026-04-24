@@ -29,12 +29,14 @@
           <header class="data-view__head">
             <div>
               <p class="eyebrow">Слой знаний о БД</p>
-              <h1>Центр управления данными</h1>
-              <p class="data-view__hint">
-                Здесь команда запускает парсинг БД, следит за запусками
-                сканирования, редактирует семантику таблиц и колонок и смотрит
-                ERD без ручного импорта сырой схемы в словарь.
-              </p>
+              <h1>
+                Центр управления данными
+                <AppTooltip>
+                  Здесь команда запускает парсинг БД, следит за запусками
+                  сканирования, редактирует семантику таблиц и колонок и смотрит
+                  ERD без ручного импорта сырой схемы в словарь.</AppTooltip
+                >
+              </h1>
             </div>
             <div class="data-view__actions">
               <button
@@ -146,13 +148,15 @@
           <header class="data-view__head">
             <div>
               <p class="eyebrow">Слой знаний о БД</p>
-              <h2>Семантический слой и метаданные</h2>
-              <p class="data-view__hint">
-                Здесь хранится всё, что влияет на понимание базы: описание
-                предметной области, словарь, запуски сканирования, semantic
-                overrides таблиц и колонок, а также отдельные флаги скрытия от
-                LLM.
-              </p>
+              <h2>
+                Семантический слой и метаданные
+                <AppTooltip>
+                  Здесь хранится всё, что влияет на понимание базы: описание
+                  предметной области, словарь, запуски сканирования, semantic
+                  overrides таблиц и колонок, а также отдельные флаги скрытия от
+                  LLM.</AppTooltip
+                >
+              </h2>
             </div>
             <div class="data-view__semantic-actions">
               <label class="data-view__toggle">
@@ -177,7 +181,11 @@
                 :disabled="isDeletingSemantic"
                 @click="deleteSemanticCatalog"
               >
-                {{ isDeletingSemantic ? "Удаляем проекцию…" : "Сбросить LLM-проекцию" }}
+                {{
+                  isDeletingSemantic
+                    ? "Удаляем проекцию…"
+                    : "Сбросить LLM-проекцию"
+                }}
               </button>
             </div>
           </header>
@@ -231,8 +239,10 @@
                     formatTimestamp(run.finished_at || run.started_at)
                   }}</small>
                   <span>
-                    таблиц {{ numberFromSummary(run.summary, "active_tables") }},
-                    колонок {{ numberFromSummary(run.summary, "active_columns") }},
+                    таблиц
+                    {{ numberFromSummary(run.summary, "active_tables") }},
+                    колонок
+                    {{ numberFromSummary(run.summary, "active_columns") }},
                     связей
                     {{ numberFromSummary(run.summary, "active_relationships") }}
                   </span>
@@ -269,53 +279,60 @@
                   type="text"
                   placeholder="Синонимы через запятую"
                 />
-                <button class="app-button" type="submit" :disabled="isCreatingTerm">
+                <button
+                  class="app-button"
+                  type="submit"
+                  :disabled="isCreatingTerm"
+                >
                   {{ isCreatingTerm ? "Сохранение…" : "Добавить термин" }}
                 </button>
               </form>
               <p v-if="dictionaryFeedback" class="data-view__feedback">
                 {{ dictionaryFeedback }}
               </p>
-              <div
-                v-if="!databaseDictionary.length"
-                class="data-view__empty"
-              >
+              <div v-if="!databaseDictionary.length" class="data-view__empty">
                 Словарь пуст. После сканирования он может автоматически
                 наполняться терминами таблиц и колонок.
               </div>
-              <table v-else class="data-view__table">
-                <thead>
-                  <tr>
-                    <th>Термин</th>
-                    <th>Выражение</th>
-                    <th>Описание</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="term in databaseDictionary" :key="term.id">
-                    <td>
-                      <strong>{{ term.term }}</strong>
-                      <p v-if="term.synonyms.length" class="data-view__syn">
-                        {{ term.synonyms.join(", ") }}
-                      </p>
-                    </td>
-                    <td>
-                      <code>{{ term.mapped_expression }}</code>
-                    </td>
-                    <td>{{ term.description }}</td>
-                    <td>
-                      <button
-                        class="app-button app-button--link app-button--tiny"
-                        type="button"
-                        @click="removeTerm(term.id)"
-                      >
-                        Удалить
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <AppExpander
+                v-else
+                :items="databaseDictionary"
+                v-slot="{ items: visibleTerms }"
+              >
+                <table class="data-view__table">
+                  <thead>
+                    <tr>
+                      <th>Термин</th>
+                      <th>Выражение</th>
+                      <th>Описание</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="term in visibleTerms" :key="term.id">
+                      <td>
+                        <strong>{{ term.term }}</strong>
+                        <p v-if="term.synonyms.length" class="data-view__syn">
+                          {{ term.synonyms.join(", ") }}
+                        </p>
+                      </td>
+                      <td>
+                        <code>{{ term.mapped_expression }}</code>
+                      </td>
+                      <td>{{ term.description }}</td>
+                      <td>
+                        <button
+                          class="app-button app-button--link app-button--tiny"
+                          type="button"
+                          @click="removeTerm(term.id)"
+                        >
+                          Удалить
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </AppExpander>
             </section>
           </div>
 
@@ -362,11 +379,11 @@
                       {{ selectedTable.schema_name }}.{{
                         selectedTable.table_name
                       }}
+                      <AppTooltip>
+                        Ручные поля сохраняются между сканами. Автополя
+                        пересчитываются при каждом парсинге.</AppTooltip
+                      >
                     </h2>
-                    <p class="data-view__hint">
-                      Ручные поля сохраняются между сканами. Автополя
-                      пересчитываются при каждом парсинге.
-                    </p>
                   </div>
                   <button
                     class="app-button app-button--ghost"
@@ -527,65 +544,70 @@
                       LLM.
                     </p>
                   </header>
-                  <div class="data-view__column-list">
-                    <article
-                      v-for="column in selectedTable.columns || []"
-                      :key="column.id"
-                      class="data-view__column-card"
-                    >
-                      <div class="data-view__column-meta">
-                        <strong>{{ column.column_name }}</strong>
-                        <span
-                          >{{ column.data_type }} ·
-                          {{
-                            column.is_nullable
-                              ? "может быть NULL"
-                              : "обязательно"
-                          }}</span
-                        >
-                        <small
-                          >примеры:
-                          {{ column.sample_values.join(", ") || "—" }}</small
-                        >
-                      </div>
-                      <div class="data-view__column-edit">
-                        <input
-                          v-model="getColumnDraft(column).semanticLabel"
-                          type="text"
-                          placeholder="семантическая метка"
-                        />
-                        <input
-                          v-model="getColumnDraft(column).synonyms"
-                          type="text"
-                          placeholder="синонимы через запятую"
-                        />
-                        <input
-                          v-model="getColumnDraft(column).sensitivity"
-                          type="text"
-                          placeholder="чувствительность"
-                        />
-                        <label class="data-view__check">
+                  <AppExpander
+                    :items="selectedTable.columns || []"
+                    v-slot="{ items: visibleColumns }"
+                  >
+                    <div class="data-view__column-list">
+                      <article
+                        v-for="column in visibleColumns"
+                        :key="column.id"
+                        class="data-view__column-card"
+                      >
+                        <div class="data-view__column-meta">
+                          <strong>{{ column.column_name }}</strong>
+                          <span
+                            >{{ column.data_type }} ·
+                            {{
+                              column.is_nullable
+                                ? "может быть NULL"
+                                : "обязательно"
+                            }}</span
+                          >
+                          <small
+                            >примеры:
+                            {{ column.sample_values.join(", ") || "—" }}</small
+                          >
+                        </div>
+                        <div class="data-view__column-edit">
                           <input
-                            v-model="getColumnDraft(column).hiddenForLlm"
-                            type="checkbox"
+                            v-model="getColumnDraft(column).semanticLabel"
+                            type="text"
+                            placeholder="семантическая метка"
                           />
-                          <span>Скрыть от LLM</span>
-                        </label>
-                        <textarea
-                          v-model="getColumnDraft(column).description"
-                          rows="2"
-                          placeholder="описание колонки"
-                        ></textarea>
-                        <button
-                          class="app-button app-button--ghost app-button--tiny"
-                          type="button"
-                          @click="saveColumn(column.id)"
-                        >
-                          Сохранить колонку
-                        </button>
-                      </div>
-                    </article>
-                  </div>
+                          <input
+                            v-model="getColumnDraft(column).synonyms"
+                            type="text"
+                            placeholder="синонимы через запятую"
+                          />
+                          <input
+                            v-model="getColumnDraft(column).sensitivity"
+                            type="text"
+                            placeholder="чувствительность"
+                          />
+                          <label class="data-view__check">
+                            <input
+                              v-model="getColumnDraft(column).hiddenForLlm"
+                              type="checkbox"
+                            />
+                            <span>Скрыть от LLM</span>
+                          </label>
+                          <textarea
+                            v-model="getColumnDraft(column).description"
+                            rows="2"
+                            placeholder="описание колонки"
+                          ></textarea>
+                          <button
+                            class="app-button app-button--ghost app-button--tiny"
+                            type="button"
+                            @click="saveColumn(column.id)"
+                          >
+                            Сохранить колонку
+                          </button>
+                        </div>
+                      </article>
+                    </div>
+                  </AppExpander>
                 </section>
 
                 <section class="data-view__subpanel">
@@ -691,10 +713,13 @@
           <header class="data-view__head data-view__head--compact">
             <div>
               <p class="eyebrow">ERD</p>
-              <h2>Граф связей</h2>
-              <p class="data-view__hint">
-                Физический FK-граф по последнему снимку сканирования.
-              </p>
+              <h2>
+                Граф связей
+                <AppTooltip>
+                  Физический FK-граф по последнему снимку
+                  сканирования.</AppTooltip
+                >
+              </h2>
             </div>
             <div class="data-view__graph-controls">
               <label class="data-view__toggle">
@@ -718,12 +743,14 @@
           <header class="data-view__head data-view__head--compact">
             <div>
               <p class="eyebrow">LLM-Прослойка</p>
-              <h2>Semantic Catalog Preview</h2>
-              <p class="data-view__hint">
-                Это вычисленная проекция knowledge layer для LLM. Редактирование
-                выполняется в блоке «Слой знаний о БД», а здесь показан итог,
-                который получит агент.
-              </p>
+              <h2>
+                Semantic Catalog Preview
+                <AppTooltip>
+                  Это вычисленная проекция knowledge layer для LLM.
+                  Редактирование выполняется в блоке «Слой знаний о БД», а здесь
+                  показан итог, который получит агент.</AppTooltip
+                >
+              </h2>
             </div>
           </header>
           <div class="data-view__semantic-grid">
@@ -744,11 +771,17 @@
               <strong>{{ semanticCatalog.dialect }}</strong>
             </article>
           </div>
-          <section class="data-view__subpanel data-view__subpanel--tight" style="margin-top:1rem">
+          <section
+            class="data-view__subpanel data-view__subpanel--tight"
+            style="margin-top: 1rem"
+          >
             <header class="data-view__subhead">
               <h3>Граф связей для LLM</h3>
             </header>
-            <div v-if="semanticCatalog.relationship_graph.length" class="data-view__graph-list">
+            <div
+              v-if="semanticCatalog.relationship_graph.length"
+              class="data-view__graph-list"
+            >
               <article
                 v-for="edge in semanticCatalog.relationship_graph"
                 :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
@@ -774,7 +807,9 @@
       :database-name="selectedDatabase?.name ?? ''"
       :database-description="semanticDescription"
       :table-descriptions-text="semanticActivationTableDescriptionsText"
-      :relationship-descriptions-text="semanticActivationRelationshipDescriptionsText"
+      :relationship-descriptions-text="
+        semanticActivationRelationshipDescriptionsText
+      "
       :column-descriptions-text="semanticActivationColumnDescriptionsText"
       :submitting="semanticActivationSubmitting"
       @close="closeSemanticActivationModal"
@@ -791,6 +826,7 @@ import { api } from "@/api/client";
 import AddDatabaseModal from "@/components/layout/AddDatabaseModal.vue";
 import SemanticActivationModal from "@/components/layout/SemanticActivationModal.vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
+import AppExpander from "@/components/ui/AppExpander.vue";
 import type {
   ApiDictionaryEntryRead,
   ApiERDGraph,
@@ -802,6 +838,7 @@ import type {
 } from "@/api/types";
 import { useChatStore } from "@/stores/chat";
 import { useWorkspaceStore } from "@/stores/workspace";
+import AppTooltip from "@/components/ui/AppTooltip.vue";
 
 const store = useWorkspaceStore();
 const chat = useChatStore();
@@ -1430,16 +1467,17 @@ function buildSemanticDatabaseDescription() {
 
 function formatTableDescriptions() {
   return (semanticCatalog.value?.tables ?? [])
-    .map((table) => `${table.table_name}: ${table.business_description ?? ""}`.trim())
+    .map((table) =>
+      `${table.table_name}: ${table.business_description ?? ""}`.trim(),
+    )
     .filter(Boolean)
     .join("\n");
 }
 
 function formatRelationshipDescriptions() {
   return (semanticCatalog.value?.relationships ?? [])
-    .map(
-      (relationship) =>
-        `${relationship.from_table}.${relationship.from_column} -> ${relationship.to_table}.${relationship.to_column}: ${relationship.business_meaning ?? ""}`.trim(),
+    .map((relationship) =>
+      `${relationship.from_table}.${relationship.from_column} -> ${relationship.to_table}.${relationship.to_column}: ${relationship.business_meaning ?? ""}`.trim(),
     )
     .filter(Boolean)
     .join("\n");
@@ -1470,7 +1508,10 @@ function parseTableDescriptions(text: string) {
         business_description: match[2].trim(),
       };
     })
-    .filter((item): item is { table_name: string; business_description: string } => Boolean(item));
+    .filter(
+      (item): item is { table_name: string; business_description: string } =>
+        Boolean(item),
+    );
 }
 
 function parseRelationshipDescriptions(text: string) {
@@ -1603,12 +1644,13 @@ async function loadKnowledge() {
 
   knowledgeFeedback.value = "";
   semanticFeedback.value = "";
-  const [summaryResult, graphResult, semanticResult] =
-    await Promise.allSettled([
+  const [summaryResult, graphResult, semanticResult] = await Promise.allSettled(
+    [
       api.getKnowledge(selectedDatabaseId.value),
       api.getERD(selectedDatabaseId.value),
       api.getSemanticCatalog(selectedDatabaseId.value),
-    ]);
+    ],
+  );
 
   if (summaryResult.status === "fulfilled") {
     const summary = summaryResult.value;
@@ -1738,12 +1780,15 @@ async function submitSemanticActivation(payload: {
       relationship_descriptions: parseRelationshipDescriptions(
         payload.relationshipDescriptionsText,
       ),
-      column_descriptions: parseColumnDescriptions(payload.columnDescriptionsText),
+      column_descriptions: parseColumnDescriptions(
+        payload.columnDescriptionsText,
+      ),
     });
     const lastScanId = knowledgeSummary.value?.last_scan?.id ?? "no-scan";
     semanticAutoRefreshKey.value = `${selectedDatabaseId.value}::${lastScanId}::${buildSemanticDatabaseDescription()}`;
     if (knowledgeSummary.value) {
-      knowledgeSummary.value.database_description = payload.databaseDescription || null;
+      knowledgeSummary.value.database_description =
+        payload.databaseDescription || null;
     }
     semanticFeedback.value = `Семантический каталог активирован для ${selectedDatabase.value?.name ?? selectedDatabaseId.value}.`;
     showSemanticActivationModal.value = false;
@@ -2020,7 +2065,9 @@ function openTableEdit(table: ApiSemanticCatalog["tables"][number]) {
   tablePatchDraft.grain = table.grain ?? "";
   tablePatchDraft.main_date_column = table.main_date_column ?? "";
   tablePatchDraft.synonyms_raw = (table.synonyms ?? []).join(", ");
-  tablePatchDraft.important_metrics_raw = (table.important_metrics ?? []).join("\n");
+  tablePatchDraft.important_metrics_raw = (table.important_metrics ?? []).join(
+    "\n",
+  );
 }
 
 async function saveTablePatch(tableName: string) {
@@ -2030,7 +2077,14 @@ async function saveTablePatch(tableName: string) {
     await api.patchSemanticTable(selectedDatabaseId.value, tableName, {
       label: tablePatchDraft.label || null,
       business_description: tablePatchDraft.business_description || null,
-      table_role: (tablePatchDraft.table_role as "fact" | "dimension" | "bridge" | "lookup" | "event" | "snapshot") || null,
+      table_role:
+        (tablePatchDraft.table_role as
+          | "fact"
+          | "dimension"
+          | "bridge"
+          | "lookup"
+          | "event"
+          | "snapshot") || null,
       grain: tablePatchDraft.grain || null,
       main_date_column: tablePatchDraft.main_date_column || null,
       synonyms: splitCsv(tablePatchDraft.synonyms_raw),
@@ -2039,18 +2093,23 @@ async function saveTablePatch(tableName: string) {
         .map((item) => item.trim())
         .filter(Boolean),
     });
-    semanticCatalog.value = await api.getSemanticCatalog(selectedDatabaseId.value);
+    semanticCatalog.value = await api.getSemanticCatalog(
+      selectedDatabaseId.value,
+    );
     editingTable.value = null;
     semanticFeedback.value = `Таблица «${tableName}» обновлена.`;
   } catch (error) {
-    semanticFeedback.value = error instanceof Error ? error.message : "Не удалось сохранить таблицу.";
+    semanticFeedback.value =
+      error instanceof Error ? error.message : "Не удалось сохранить таблицу.";
   } finally {
     isSavingSemanticTable.value = false;
   }
 }
 
 function openColumnEdit(tableName: string, columnName: string) {
-  const table = semanticCatalog.value?.tables.find((t) => t.table_name === tableName);
+  const table = semanticCatalog.value?.tables.find(
+    (t) => t.table_name === tableName,
+  );
   const col = table?.columns.find((c) => c.column_name === columnName);
   editingColumn.value = `${tableName}.${columnName}`;
   columnPatchDraft.label = col?.label ?? "";
@@ -2062,16 +2121,24 @@ async function saveColumnPatch(tableName: string, columnName: string) {
   if (!selectedDatabaseId.value) return;
   isSavingSemanticColumn.value = true;
   try {
-    await api.patchSemanticColumn(selectedDatabaseId.value, tableName, columnName, {
-      label: columnPatchDraft.label || null,
-      business_description: columnPatchDraft.business_description || null,
-      synonyms: splitCsv(columnPatchDraft.synonyms_raw),
-    });
-    semanticCatalog.value = await api.getSemanticCatalog(selectedDatabaseId.value);
+    await api.patchSemanticColumn(
+      selectedDatabaseId.value,
+      tableName,
+      columnName,
+      {
+        label: columnPatchDraft.label || null,
+        business_description: columnPatchDraft.business_description || null,
+        synonyms: splitCsv(columnPatchDraft.synonyms_raw),
+      },
+    );
+    semanticCatalog.value = await api.getSemanticCatalog(
+      selectedDatabaseId.value,
+    );
     editingColumn.value = null;
     semanticFeedback.value = `Колонка «${tableName}.${columnName}» обновлена.`;
   } catch (error) {
-    semanticFeedback.value = error instanceof Error ? error.message : "Не удалось сохранить колонку.";
+    semanticFeedback.value =
+      error instanceof Error ? error.message : "Не удалось сохранить колонку.";
   } finally {
     isSavingSemanticColumn.value = false;
   }
@@ -2079,7 +2146,9 @@ async function saveColumnPatch(tableName: string, columnName: string) {
 
 async function deleteSemanticCatalog() {
   if (!selectedDatabaseId.value) return;
-  const confirmed = window.confirm("Удалить активный семантический каталог? Его можно будет пересоздать.");
+  const confirmed = window.confirm(
+    "Удалить активный семантический каталог? Его можно будет пересоздать.",
+  );
   if (!confirmed) return;
   isDeletingSemantic.value = true;
   try {
@@ -2087,7 +2156,8 @@ async function deleteSemanticCatalog() {
     semanticCatalog.value = null;
     semanticFeedback.value = "Семантический каталог удалён.";
   } catch (error) {
-    semanticFeedback.value = error instanceof Error ? error.message : "Не удалось удалить каталог.";
+    semanticFeedback.value =
+      error instanceof Error ? error.message : "Не удалось удалить каталог.";
   } finally {
     isDeletingSemantic.value = false;
   }
@@ -2099,7 +2169,9 @@ async function loadDatabaseDictionary() {
     return;
   }
   try {
-    databaseDictionary.value = await api.getDictionary(selectedDatabaseId.value);
+    databaseDictionary.value = await api.getDictionary(
+      selectedDatabaseId.value,
+    );
   } catch {
     databaseDictionary.value = [];
   }
@@ -2161,16 +2233,17 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   min-height: 0;
   display: grid;
   grid-template-columns: var(--app-shell-sidebar-width) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
   gap: var(--app-shell-gap);
   padding: var(--app-shell-gap);
   background: var(--bg);
+  transition: grid-template-columns 220ms ease;
 }
 
 .data-shell__sidebar {
   min-height: 0;
   width: var(--app-shell-sidebar-width);
   max-width: 100%;
+  transition: width 220ms ease;
 }
 
 .data-shell__content {
@@ -2239,14 +2312,6 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__head h2 {
   font-size: 1.04rem;
-}
-
-.data-view__hint {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.86rem;
-  line-height: 1.45;
-  max-width: 760px;
 }
 
 .data-view__actions {
@@ -2364,8 +2429,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__knowledge-overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
+  gap: 32px;
   margin-bottom: 1rem;
 }
 

@@ -30,11 +30,11 @@
           </div>
 
           <div class="form-field">
-            <label class="form-field__label">Набор данных</label>
+            <label class="form-field__label">Dataset</label>
             <input
               class="form-field__input"
               type="text"
-              :value="props.execution.dataset?.dataset_id ?? 'создастся после выполнения'"
+              :value="props.execution.dataset?.dataset_id ?? 'создастся после execute'"
               disabled
             />
           </div>

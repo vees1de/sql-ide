@@ -61,29 +61,27 @@ def merge_with_context(current: IntentPayload, previous: IntentPayload | None) -
 
 def looks_like_follow_up(prompt: str) -> bool:
     lowered = normalize_text(prompt)
-    padded = f" {lowered} "
-    # Word-boundary markers: must be surrounded by spaces or string edges
-    word_markers = (
-        " теперь ",
-        " сравни ",
-        " добавь ",
-        " оставь ",
-        " только ",
-        " убери ",
-        " ещё ",
-        " еще ",
-        " затем ",
-        " после этого ",
-        " после ",
-        " а теперь ",
-        " также ",
-        " compare ",
-        " now ",
-        " only ",
-        " also ",
-        " filter ",
+    markers = (
+        "теперь",
+        "сравни",
+        "добавь",
+        "оставь",
+        "только",
+        "убери",
+        "ещё",
+        "еще",
+        "затем",
+        "после этого",
+        "после",
+        "а теперь",
+        "также",
+        "compare",
+        "now",
+        "only",
+        "also",
+        "filter",
     )
-    return any(marker in padded for marker in word_markers) or len(lowered.split()) <= 5
+    return any(marker in lowered for marker in markers) or len(lowered.split()) <= 5
 
 
 def start_of_current_quarter(anchor: date) -> date:

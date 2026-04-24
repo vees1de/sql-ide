@@ -268,11 +268,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         llmModelAliases.value = nextAliases;
         defaultLlmModelAlias.value = nextDefaultAlias;
 
-        const HIDDEN_DB_IDS = new Set(['analytics']);
         workspace.value = buildWorkspaceData({
           defaultModelAlias: nextDefaultAlias,
           workspace: workspaces[0] ?? null,
-          databases: databases.filter((db) => !HIDDEN_DB_IDS.has(db.id)),
+          databases,
           reports,
           dictionary,
           templates,

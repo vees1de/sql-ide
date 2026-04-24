@@ -1,6 +1,6 @@
 <template>
-  <main class="chat-view" :class="{ 'chat-view--bi-mode': isBiMode }">
-    <div v-show="!isBiMode" class="chat-view__layout">
+  <main class="chat-view">
+    <div class="chat-view__layout">
       <ChatSidebar
         :active-db-id="chat.activeDbId"
         :active-session-id="chat.activeSessionId"
@@ -25,6 +25,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -44,7 +45,6 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
-                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -57,7 +57,6 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
-                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -76,6 +75,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -118,7 +118,6 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
-              @explain-sql="requestSqlExplanation"
               @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
@@ -145,7 +144,6 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
-              @explain-sql="requestSqlExplanation"
               @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
@@ -185,6 +183,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -204,7 +203,6 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
-                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -217,7 +215,6 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
-                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -236,6 +233,7 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
+                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -245,17 +243,6 @@
         </template>
       </section>
     </div>
-
-    <section v-show="isBiMode" class="chat-view__bi-mode app-route-section">
-      <ChatResultPanel
-        :execution="chat.executionResult"
-        :view="chat.resultView"
-        :sql-text="chat.sqlDraft"
-        :database-connection-id="chat.activeDbId"
-        v-model:bi-mode="isBiMode"
-        @change-view="chat.setResultMode"
-      />
-    </section>
 
     <ExplainSqlModal
       :open="sqlExplanationOpen"
@@ -270,8 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, onMounted, ref } from "vue";
 import { chatApi } from "@/api/chat";
 import type { ApiSqlExplanationResponse } from "@/api/types";
 import ChatAssistant from "@/components/chat/ChatAssistant.vue";
@@ -282,18 +268,17 @@ import ChatSqlEditor from "@/components/chat/ChatSqlEditor.vue";
 import { useChatStore } from "@/stores/chat";
 
 const chat = useChatStore();
-const route = useRoute();
-const router = useRouter();
 
 const LS_KEY = "chat-panel-layout";
 const CHAT_WIDTH_MIN = 240;
+const CHAT_WIDTH_MAX = 800;
 const CENTER_TOP_MIN = 180;
+const CENTER_TOP_MAX = 900;
 
 const chatWidth = ref(360);
 const centerTopHeight = ref(420);
 const panelSwapped = ref(false);
 const centerPanelSwapped = ref(false);
-const isBiMode = ref(false);
 const panelsEl = ref<HTMLElement | null>(null);
 const centerPanelEl = ref<HTMLElement | null>(null);
 const sqlExplanationOpen = ref(false);
@@ -383,29 +368,23 @@ function startCenterResize(e: MouseEvent) {
   document.body.style.userSelect = "none";
 }
 
-const CENTER_WIDTH_MIN = 280;
-
-function maxAllowedChatWidth(): number {
-  const containerWidth = panelsEl.value?.clientWidth ?? 0;
-  return Math.max(CHAT_WIDTH_MIN, containerWidth - 16 - CENTER_WIDTH_MIN);
-}
-
-function clampChatWidth() {
-  chatWidth.value = Math.max(CHAT_WIDTH_MIN, Math.min(maxAllowedChatWidth(), chatWidth.value));
-}
-
 function onResize(e: MouseEvent) {
   const delta = e.clientX - dragStartX;
+  // when chat is on the right (not swapped): move left = wider chat
+  // when chat is on the left (swapped): move right = wider chat
   const newWidth = dragSwapped
     ? dragStartWidth + delta
     : dragStartWidth - delta;
-  chatWidth.value = Math.max(CHAT_WIDTH_MIN, Math.min(maxAllowedChatWidth(), newWidth));
+  chatWidth.value = Math.max(
+    CHAT_WIDTH_MIN,
+    Math.min(CHAT_WIDTH_MAX, newWidth),
+  );
 }
 
 function onCenterResize(e: MouseEvent) {
   const delta = e.clientY - centerDragStartY;
   const newHeight = centerDragStartHeight + delta;
-  const availableHeight = centerPanelEl.value?.clientHeight ?? 900;
+  const availableHeight = centerPanelEl.value?.clientHeight ?? CENTER_TOP_MAX;
   const maxHeight = Math.max(CENTER_TOP_MIN, availableHeight - 220);
   centerTopHeight.value = Math.max(
     CENTER_TOP_MIN,
@@ -429,32 +408,11 @@ function stopCenterResize() {
   saveLayout();
 }
 
-// Keep ?session= in sync with active session
-watch(() => chat.activeSessionId, (id) => {
-  if (id && route.query.session !== id) {
-    void router.replace({ query: { ...route.query, session: id } });
-  }
-});
-
-watch(
-  () => chat.executionResult?.id,
-  () => {
-    isBiMode.value = false;
-  }
-);
-
 onMounted(() => {
   loadLayout();
-  requestAnimationFrame(clampChatWidth);
-  window.addEventListener("resize", clampChatWidth);
-  const sessionFromUrl = route.query.session as string | undefined;
-  void chat.initialize(sessionFromUrl || undefined).catch(() => {
+  void chat.initialize().catch(() => {
     /* store already captures the error */
   });
-});
-
-onUnmounted(() => {
-  window.removeEventListener("resize", clampChatWidth);
 });
 
 function selectDatabase(databaseId: string) {
@@ -567,10 +525,6 @@ function prepareSql() {
   display: flex;
 }
 
-.chat-view--bi-mode {
-  padding: 0;
-}
-
 .chat-view__layout {
   display: flex;
   gap: var(--app-shell-gap);
@@ -579,21 +533,12 @@ function prepareSql() {
   height: 100%;
 }
 
-.chat-view__bi-mode {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-
-.chat-view__bi-mode :deep(.chat-result-panel) {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-}
-
 .chat-view__layout > :deep(.chat-sidebar) {
   width: var(--app-shell-sidebar-width);
   flex: 0 0 var(--app-shell-sidebar-width);
+  transition:
+    width 220ms ease,
+    flex-basis 220ms ease;
 }
 
 .chat-view__panels {
@@ -636,10 +581,7 @@ function prepareSql() {
 .chat-view__panel--center-bottom {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .chat-view__panel--chat {
@@ -649,13 +591,9 @@ function prepareSql() {
   min-height: 0;
 }
 
-.chat-view__panel--center-top :deep(.chat-sql-editor) {
-  height: 100%;
-}
-
+.chat-view__panel--center-top :deep(.chat-sql-editor),
 .chat-view__panel--center-bottom :deep(.chat-result-panel) {
-  flex: 1;
-  min-height: 0;
+  height: 100%;
 }
 
 .chat-view__panel--chat :deep(.chat-assistant) {

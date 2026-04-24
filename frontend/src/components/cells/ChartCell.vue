@@ -1,5 +1,17 @@
 <template>
   <div class="chart-cell">
+    <div v-if="showHeader" class="chart-cell__head">
+      <div>
+        <strong>{{ content.title }}</strong>
+        <p :title="content.explanation ?? content.subtitle ?? ''">
+          {{ content.subtitle }}
+        </p>
+      </div>
+      <div v-if="content.ruleId" class="chart-cell__pill" :title="content.explanation ?? ''">
+        {{ content.ruleId }} · {{ confidenceLabel }}
+      </div>
+    </div>
+
     <div v-if="content.chartType === 'metric_card'" class="chart-cell__metric">
       <div class="chart-cell__metric-value">{{ formatValue(content.value, content.valueFormat) }}</div>
       <div class="chart-cell__metric-label">{{ content.metricLabel ?? 'Value' }}</div>
@@ -201,17 +213,9 @@ const chartOption = computed(() => {
   white-space: nowrap;
 }
 
-.chart-cell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
 .chart-cell__plot {
-  flex: 1;
   width: 100%;
-  min-height: 200px;
+  height: 280px;
   padding: 0.5rem;
   background: var(--canvas);
   border: 1px solid var(--line);
@@ -257,11 +261,11 @@ const chartOption = computed(() => {
 
 @media (max-width: 760px) {
   .chart-cell__plot {
-    min-height: 180px;
+    height: 220px;
   }
 
   .chart-cell__metric {
-    min-height: 180px;
+    min-height: 220px;
   }
 }
 </style>
