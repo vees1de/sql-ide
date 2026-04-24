@@ -33,7 +33,7 @@
                 <!-- Как я понял запрос -->
                 <div v-if="intentBlock(message)" class="r-block">
                   <p class="r-label">
-                    <v-icon name="md-accesstime" style="font-size: 12px" />
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 4v2.5l1.5 1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
                     Как я понял запрос
                   </p>
                   <p class="r-lead">{{ intentBlock(message).summary }}</p>
@@ -50,7 +50,7 @@
                 <!-- Почему выбраны таблицы и колонки -->
                 <div v-if="tablesBlock(message).length" class="r-block">
                   <p class="r-label">
-                    <v-icon name="md-tablechart" style="font-size: 12px" />
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><rect x="1.5" y="2.5" width="9" height="7" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h9" stroke="currentColor" stroke-width="1.1"/><path d="M5 5v4.5" stroke="currentColor" stroke-width="1.1"/></svg>
                     Почему выбраны эти таблицы
                   </p>
                   <div class="r-table-list">
@@ -68,7 +68,7 @@
                 <!-- Почему выбраны эти столбцы -->
                 <div v-if="columnsBlock(message).length" class="r-block">
                   <p class="r-label">
-                    <v-icon name="md-tablerows" style="font-size: 12px" />
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 2h6v8H3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M3 4.5h6M3 7h6" stroke="currentColor" stroke-width="1"/></svg>
                     Почему выбраны эти столбцы
                   </p>
                   <div class="r-col-list">
@@ -93,7 +93,7 @@
                 <!-- Как термины запроса легли на поля БД -->
                 <div v-if="termsBlock(message).length" class="r-block">
                   <p class="r-label">
-                    <v-icon name="md-arrowforward" style="font-size: 12px" />
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6h8M7 3.5 9.5 6 7 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Как слова запроса стали полями
                   </p>
                   <div class="r-term-list">
@@ -103,7 +103,7 @@
                       class="r-term-row"
                     >
                       <span class="r-term-user">{{ t.term }}</span>
-                      <v-icon name="md-arrowforward" class="r-term-arrow" style="font-size: 12px" />
+                      <svg class="r-term-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6h8M7 3.5 9.5 6 7 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                       <span class="r-term-match">{{ t.match }}</span>
                       <span class="r-term-kind r-tag" :class="`r-tag--${t.kind}`">{{ t.kindLabel }}</span>
                       <span v-if="t.note" class="r-term-note">{{ t.note }}</span>
@@ -115,7 +115,7 @@
                 <div v-if="metaBlock(message)" class="r-block r-block--meta">
                   <div v-if="metaBlock(message)!.confidence" class="r-confidence">
                     <span class="r-label r-label--inline">
-                      <v-icon name="md-star" style="font-size: 12px" />
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1.5 7.2 4.4l3.1.3-2.2 2 .7 3L6 8.1l-2.8 1.6.7-3L1.7 4.7l3.1-.3Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
                       Уверенность
                     </span>
                     <span class="r-confidence-bar">
@@ -127,7 +127,7 @@
                   </div>
                   <div v-if="metaBlock(message)!.filters.length" class="r-filters">
                     <span class="r-label r-label--inline">
-                      <v-icon name="md-filterlist" style="font-size: 12px" />
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M1.5 3h9M3 6h6M4.5 9h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
                       Фильтры
                     </span>
                     <span
@@ -141,7 +141,7 @@
                 <!-- Предупреждения -->
                 <div v-if="warnings(message).length" class="r-block r-block--warnings">
                   <p class="r-label">
-                    <v-icon name="md-warning" style="font-size: 12px" />
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1.5 11 10.5H1L6 1.5Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/><path d="M6 5v2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="9" r="0.6" fill="currentColor"/></svg>
                     Обратите внимание
                   </p>
                   <div class="r-warning-list">

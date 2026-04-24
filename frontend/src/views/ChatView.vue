@@ -33,7 +33,7 @@
 
               <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
                 <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
-                  <v-icon name="md-swapvert" style="font-size: 14px" />
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/></svg>
                 </button>
               </div>
 
@@ -61,7 +61,7 @@
 
               <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
                 <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
-                  <v-icon name="md-swapvert" style="font-size: 14px" />
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/></svg>
                 </button>
               </div>
 
@@ -85,7 +85,7 @@
               @click.stop="swapPanels"
               title="Поменять панели"
             >
-              <v-icon name="md-swapvert" style="font-size: 14px" />
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/></svg>
             </button>
           </div>
 
@@ -145,7 +145,7 @@
               @click.stop="swapPanels"
               title="Поменять панели 1113"
             >
-              <v-icon name="md-swapvert" style="font-size: 14px" />
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/></svg>
             </button>
           </div>
 
@@ -165,7 +165,7 @@
 
               <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
                 <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
-                  <v-icon name="md-swapvert" style="font-size: 14px" />
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/></svg>
                 </button>
               </div>
 
@@ -193,7 +193,7 @@
 
               <div class="chat-view__resizer chat-view__resizer--horizontal" @mousedown="startCenterResize">
                 <button class="chat-view__swap-btn" @click.stop="swapCenterPanels" title="Поменять верх и низ">
-                  <v-icon name="md-swapvert" style="font-size: 14px" />
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3l3 3-3 3M2 6h12M5 13l-3-3 3-3M14 10H2"/></svg>
                 </button>
               </div>
 
