@@ -53,17 +53,21 @@
       </div>
     </section>
 
-    <section v-if="visibleActions.length" class="chat-assistant-message__actions">
+    <section
+      v-if="visibleActions.length || (payload?.mode_suggestion && payload.mode_suggestion_reason)"
+      class="chat-assistant-message__actions"
+    >
       <button
         v-for="action in visibleActions"
         :key="action.type"
-        class="chat-assistant-message__btn"
-        :class="{ 'chat-assistant-message__btn--secondary': !action.primary }"
+        class="chat-assistant-message__icon-btn"
         :disabled="action.disabled"
         type="button"
         @click="handleAction(action.type)"
       >
-        {{ action.label }}
+        <svg v-if="action.type === 'create_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M7 2.2v9.6M2.2 7h9.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
       </button>
 
       <button
@@ -77,7 +81,19 @@
     </section>
 
     <section v-if="showSqlSection" class="chat-assistant-message__sql">
-      <SQLCell :content="sqlCellContent" :collapsed="sqlCollapsed" />
+      <SQLCell
+        :content="sqlCellContent"
+        :collapsed="sqlCollapsed"
+        :busy="false"
+        :show-explain-button="Boolean(payload?.sql)"
+        :show-copy-button="Boolean(payload?.sql)"
+        :show-toggle-sql-button="hasToggleSqlAction"
+        :show-run-button="hasRunAction"
+        @explain="emitExplain"
+        @copy="copySql"
+        @toggle-sql="sqlCollapsed = !sqlCollapsed"
+        @run="emit('run-prepared')"
+      />
     </section>
 
     <section v-if="hasReasoning" class="chat-assistant-message__reasoning">
@@ -172,7 +188,16 @@ const clarificationOptions = computed(
   () => payload.value?.clarification?.options || payload.value?.clarification_options || []
 );
 
-const visibleActions = computed<ApiChatAction[]>(() => payload.value?.actions ?? []);
+const HIDDEN_ACTION_TYPES = new Set(['show_sql', 'save_report', 'show_chart_preview', 'show_run_button']);
+const visibleActions = computed<ApiChatAction[]>(() =>
+  (payload.value?.actions ?? []).filter(a => !HIDDEN_ACTION_TYPES.has(a.type))
+);
+const hasToggleSqlAction = computed(() =>
+  Boolean(payload.value?.actions?.some(a => a.type === 'show_sql'))
+);
+const hasRunAction = computed(() =>
+  Boolean(payload.value?.actions?.some(a => a.type === 'show_run_button' && !a.disabled))
+);
 
 const hasSemanticSummary = computed(() => {
   const semantic = payload.value?.semantic_parse;
@@ -236,18 +261,6 @@ function handleAction(type: ApiChatAction['type']) {
       } else {
         emit('prepare-sql');
       }
-      break;
-    case 'show_sql':
-      sqlCollapsed.value = !sqlCollapsed.value;
-      break;
-    case 'show_run_button':
-      emit('run-prepared');
-      break;
-    case 'show_chart_preview':
-      emit('show-chart-preview');
-      break;
-    case 'save_report':
-      emit('show-chart-preview');
       break;
   }
 }
@@ -334,9 +347,7 @@ function handleAction(type: ApiChatAction['type']) {
 
 .chat-assistant-message__chips,
 .chat-assistant-message__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: none;
 }
 
 .chat-assistant-message__chip {

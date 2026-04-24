@@ -28,6 +28,196 @@ except ImportError:  # pragma: no cover - runtime optional dependency
 logger = logging.getLogger(__name__)
 
 
+_ALLOWED_AGENT_STATES = {"CLARIFYING", "SQL_DRAFTING", "SQL_READY", "ERROR"}
+_ALLOWED_SEMANTIC_SOURCES = {"semantic_catalog", "schema", "dictionary", "user_input", "unknown"}
+_ALLOWED_VISUALIZATION_HINTS = {"line", "bar", "pie", "table", "metric_card"}
+_ALLOWED_ANALYSIS_MODES = {"compare", "trend", "compose", "rank", "correlate", "distribute", "delta"}
+_ALLOWED_TIME_ROLES = {"primary", "secondary", "none"}
+_ALLOWED_COMPARISON_GOALS = {"absolute", "composition", "delta", "rank"}
+_ALLOWED_PREFERRED_MARKS = {"line", "bar", "area", "point", "arc", "stat"}
+_ALLOWED_TIME_GRAIN = {"day", "week", "month", "quarter", "year"}
+_ALLOWED_COMPARISON_KINDS = {"period_over_period", "entity_vs_entity", "none"}
+_SEMANTIC_TERM_KIND_ALIASES = {
+    "metric": "metric",
+    "metric_definition": "metric",
+    "metric_column": "metric",
+    "measure": "metric",
+    "measure_column": "metric",
+    "kpi": "metric",
+    "dimension": "dimension",
+    "time_dimension": "dimension",
+    "category": "dimension",
+    "grouping": "dimension",
+    "filter": "filter",
+    "status_value": "filter",
+    "enum": "filter",
+    "enum_value": "filter",
+    "predicate": "filter",
+    "table": "table",
+    "column": "column",
+    "field": "column",
+    "timestamp": "column",
+    "time_event": "column",
+    "relationship": "relationship",
+    "join_path": "relationship",
+    "join": "relationship",
+    "fk": "relationship",
+    "entity_fk": "relationship",
+    "term": "term",
+}
+
+
+def _normalize_agent_state(value: Any, *, payload: dict[str, Any]) -> str | None:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return None
+    if candidate in _ALLOWED_AGENT_STATES:
+        return candidate
+
+    normalized = candidate.upper().replace("-", "_").replace(" ", "_")
+    if normalized in _ALLOWED_AGENT_STATES:
+        return normalized
+
+    has_sql = bool(payload.get("sql"))
+    intent = payload.get("intent") or {}
+    has_clarification = bool(intent.get("clarification_question"))
+
+    if "CLARIFYING" in normalized and has_clarification and not has_sql:
+        return "CLARIFYING"
+    if "SQL_READY" in normalized and has_sql:
+        return "SQL_READY"
+    if "SQL_DRAFTING" in normalized:
+        return "SQL_DRAFTING"
+    if "ERROR" in normalized:
+        return "ERROR"
+    return None
+
+
+def _normalize_date_range_payload(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+
+    payload = dict(value)
+    kind = str(payload.get("kind") or "").strip().lower()
+    if kind in {"absolute", "relative", "all", "ytd"}:
+        payload["kind"] = kind
+    elif payload.get("lookback_value") is not None or payload.get("lookback_unit"):
+        payload["kind"] = "relative"
+    elif payload.get("start") or payload.get("end"):
+        payload["kind"] = "absolute"
+    else:
+        payload["kind"] = "absolute"
+    return payload
+
+
+def _normalize_semantic_term_kind(value: Any) -> str:
+    candidate = str(value or "").strip().lower()
+    if not candidate:
+        return "term"
+    if candidate in _SEMANTIC_TERM_KIND_ALIASES:
+        return _SEMANTIC_TERM_KIND_ALIASES[candidate]
+    if "metric" in candidate or "measure" in candidate or "kpi" in candidate:
+        return "metric"
+    if "dimension" in candidate or "group" in candidate or "time" in candidate:
+        return "dimension"
+    if "filter" in candidate or "status" in candidate or "enum" in candidate or "predicate" in candidate:
+        return "filter"
+    if "table" in candidate:
+        return "table"
+    if "column" in candidate or "field" in candidate or "timestamp" in candidate:
+        return "column"
+    if "relationship" in candidate or "join" in candidate or "fk" in candidate:
+        return "relationship"
+    return "term"
+
+
+def _normalize_semantic_source(value: Any) -> str:
+    candidate = str(value or "").strip().lower()
+    return candidate if candidate in _ALLOWED_SEMANTIC_SOURCES else "unknown"
+
+
+def _normalize_semantic_term_bindings(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+
+    bindings: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        binding = dict(item)
+        binding["kind"] = _normalize_semantic_term_kind(binding.get("kind"))
+        binding["source"] = _normalize_semantic_source(binding.get("source"))
+        bindings.append(binding)
+    return bindings
+
+
+def _normalize_visualization_hint(value: Any) -> str | None:
+    candidate = str(value or "").strip().lower()
+    return candidate if candidate in _ALLOWED_VISUALIZATION_HINTS else None
+
+
+def _normalize_intent_payload(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+
+    payload = dict(value)
+    payload["date_range"] = _normalize_date_range_payload(payload.get("date_range"))
+    payload["clarification_options"] = list(payload.get("clarification_options") or [])
+    payload["visualization_preference"] = _normalize_visualization_hint(payload.get("visualization_preference"))
+    return payload
+
+
+def _normalize_semantics_payload(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+
+    payload = dict(value)
+    analysis_mode = str(payload.get("analysis_mode") or "").strip().lower()
+    payload["analysis_mode"] = analysis_mode if analysis_mode in _ALLOWED_ANALYSIS_MODES else None
+
+    time_role = str(payload.get("time_role") or "").strip().lower()
+    payload["time_role"] = time_role if time_role in _ALLOWED_TIME_ROLES else None
+
+    comparison_goal = str(payload.get("comparison_goal") or "").strip().lower()
+    payload["comparison_goal"] = comparison_goal if comparison_goal in _ALLOWED_COMPARISON_GOALS else None
+
+    preferred_mark = str(payload.get("preferred_mark") or "").strip().lower()
+    payload["preferred_mark"] = preferred_mark if preferred_mark in _ALLOWED_PREFERRED_MARKS else None
+
+    payload["visualization_hint"] = _normalize_visualization_hint(payload.get("visualization_hint"))
+
+    time_payload = payload.get("time")
+    if isinstance(time_payload, dict):
+        normalized_time = dict(time_payload)
+        granularity = str(normalized_time.get("granularity") or "").strip().lower()
+        normalized_time["granularity"] = granularity if granularity in _ALLOWED_TIME_GRAIN else None
+        normalized_time["range"] = _normalize_date_range_payload(normalized_time.get("range"))
+        payload["time"] = normalized_time
+
+    comparison_payload = payload.get("comparison")
+    if isinstance(comparison_payload, dict):
+        normalized_comparison = dict(comparison_payload)
+        comparison_kind = str(normalized_comparison.get("kind") or "").strip().lower()
+        normalized_comparison["kind"] = comparison_kind if comparison_kind in _ALLOWED_COMPARISON_KINDS else "none"
+        normalized_comparison["baseline_period"] = _normalize_date_range_payload(
+            normalized_comparison.get("baseline_period")
+        )
+        payload["comparison"] = normalized_comparison
+
+    return payload
+
+
+def _normalize_semantic_parse_payload(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+
+    payload = dict(value)
+    payload["date_range"] = _normalize_date_range_payload(payload.get("date_range"))
+    payload["resolved_terms"] = _normalize_semantic_term_bindings(payload.get("resolved_terms"))
+    payload["unresolved_terms"] = _normalize_semantic_term_bindings(payload.get("unresolved_terms"))
+    return payload
+
+
 class LLMQueryPlan(BaseModel):
     state: AgentState | None = None
     assistant_message: str | None = None
@@ -50,6 +240,13 @@ class LLMQueryPlan(BaseModel):
             return value
 
         payload = dict(value)
+        payload["state"] = _normalize_agent_state(payload.get("state"), payload=payload)
+        payload["intent"] = _normalize_intent_payload(payload.get("intent") or {})
+        payload["semantic_parse"] = _normalize_semantic_parse_payload(payload.get("semantic_parse") or {})
+        payload["semantics"] = _normalize_semantics_payload(payload.get("semantics") or {})
+        payload["chart_type"] = _normalize_visualization_hint(payload.get("chart_type"))
+        payload["visualization_hint"] = _normalize_visualization_hint(payload.get("visualization_hint"))
+
         intent = payload.get("intent") or {}
         semantic_parse = payload.get("semantic_parse") or {}
 
@@ -190,6 +387,11 @@ class LLMService:
             "that produces all of them as separate columns; do NOT ask which metric to pick. Set "
             "clarification_question to null and populate sql whenever the request is specific enough "
             "to write a safe SELECT.\n"
+            "9b. NEVER silently invent a full-history date filter from the observed min/max range. "
+            "If the request is a broad analytical summary, comparison, trend, funnel, conversion, "
+            "operational performance analysis, or asks 'where / when / how often' without an explicit "
+            "period, ask for the period and keep sql=null. Only use the full observed history when the "
+            "user explicitly asks for 'all time', 'весь период', 'за всё время', or equivalent.\n"
             "10. Keep warnings concise.\n"
             "11. Match the user's language in clarification text.\n"
             "12. Use conversation history when provided to resolve follow-up intent.\n"
@@ -268,11 +470,12 @@ class LLMService:
             "schema truth also says it is absent.\n"
             "25. FACTS BEFORE GUESSES — prefer semantic_contract facts and rule-derived profiles over text hints. "
             "Use llm-style semantic guesses only as low-confidence tie-breakers.\n"
+            f"{self._drivee_domain_guidance(schema)}"
             f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
             f"{self._alias_contract_guidance()}"
             f"{self._semantic_catalog_guidance(enabled=semantic_catalog is not None)}"
             "{"
-            '"state":"CLARIFYING|SQL_READY|ERROR",'
+            '"state":"CLARIFYING|SQL_DRAFTING|SQL_READY|ERROR",'
             '"assistant_message":"string",'
             '"semantic_parse":{"intent_summary":"string|null","metric":"string|null","dimensions":["string"],'
             '"filters":[{"field":"string","operator":"string","value":"any"}],"comparison":"string|null",'
@@ -909,6 +1112,51 @@ class LLMService:
                 base_url=settings.llm_api_base_url,
             )
         return self._client
+
+    def _drivee_domain_guidance(self, schema: SchemaMetadataResponse) -> str:
+        table = next((item for item in schema.tables if item.name == "train"), None)
+        if table is None:
+            return ""
+
+        column_names = {column.name for column in table.columns}
+        required_columns = {
+            "order_timestamp",
+            "driveraccept_timestamp",
+            "driverarrived_timestamp",
+            "driverstarttheride_timestamp",
+            "driverdone_timestamp",
+            "clientcancel_timestamp",
+            "drivercancel_timestamp",
+            "cancel_before_accept_local",
+            "city_id",
+            "driver_id",
+            "duration_in_seconds",
+            "price_order_local",
+            "price_tender_local",
+        }
+        if not required_columns.issubset(column_names):
+            return ""
+
+        return (
+            "26. DRIVEE / TRAIN TABLE PLAYBOOK — when the schema contains the single fact table `train` with "
+            "lifecycle timestamps, interpret operational ride questions using these event columns: "
+            "`order_timestamp` = order created, `driveraccept_timestamp` = driver assigned/accepted, "
+            "`driverarrived_timestamp` = driver arrived, `driverstarttheride_timestamp` = ride started, "
+            "`driverdone_timestamp` = ride completed, `clientcancel_timestamp` = client cancelled, "
+            "`drivercancel_timestamp` = driver cancelled, `cancel_before_accept_local` = cancelled before accept. "
+            "For lifecycle / funnel questions, include stage counts, loss counts between stages, and average plus "
+            "p95 durations between stages when those timestamps exist. For assignment-speed questions, measure "
+            "`driveraccept_timestamp - order_timestamp`; for arrival-speed questions, measure "
+            "`driverarrived_timestamp - driveraccept_timestamp`. For 'time of day' analysis, group by hour "
+            "(`DATE_TRUNC('hour', order_timestamp)` or `EXTRACT(HOUR FROM order_timestamp)`), not by calendar date. "
+            "For full-cycle questions, split results by final outcome (completed, client_cancelled, "
+            "driver_cancelled, cancelled_before_accept) instead of blending all outcomes into one average. "
+            "For price-formation questions, compare `price_tender_local` against `price_order_local` using average "
+            "delta, average delta percent, and distribution-friendly columns rather than only total sums. "
+            "For long unfinished orders followed by 'what do they have in common', produce grouped pattern analysis "
+            "over meaningful dimensions instead of returning only raw order rows. For city-comparison questions, "
+            "service speed means at least minutes_to_accept and minutes_to_arrival; ride duration alone is not enough.\n"
+        )
 
     def _format_schema(self, schema: SchemaMetadataResponse) -> dict[str, Any]:
         def _column_entry(column: Any) -> dict[str, Any]:

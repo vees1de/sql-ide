@@ -435,6 +435,28 @@ class ChatSqlAdapter:
     ) -> AdapterResult | None:
         intent = plan.intent
         mode_warnings: list[str] = []
+        requires_time_range = self.analytics_agent.intent_agent.requires_explicit_time_range(
+            user_text,
+            intent,
+            previous_intent=previous_intent,
+        )
+        if requires_time_range:
+            if "time_range" not in intent.ambiguities:
+                intent.ambiguities.append("time_range")
+            intent.clarification_question = intent.clarification_question or "За какой период показать данные?"
+            return self._build_clarification_result(
+                db=db,
+                session=session,
+                intent=intent,
+                schema=schema,
+                user_text=user_text,
+                dialect=schema.dialect,
+                commit_updates=True,
+                previous_intent=previous_intent,
+                query_mode=query_mode,
+                complexity=complexity,
+                llm_model_alias=llm_model_alias,
+            )
         if intent.clarification_question and not plan.sql:
             if query_mode == "fast":
                 intent, mode_warnings = self._apply_fast_mode_defaults(intent, previous_intent)
@@ -1353,10 +1375,10 @@ class ChatSqlAdapter:
         ambiguities = {item.lower() for item in (intent.ambiguities or [])}
         if "metric" in ambiguities or intent.metric is None:
             return "metric"
-        if "dimension" in ambiguities or not intent.dimensions:
-            return "dimension"
         if "time_range" in ambiguities or intent.date_range is None:
             return "time_range"
+        if "dimension" in ambiguities or not intent.dimensions:
+            return "dimension"
         return "other"
 
     def _confidence_level(

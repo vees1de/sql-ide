@@ -29,6 +29,7 @@ from app.schemas.metadata import SchemaMetadataResponse
 from app.schemas.query import (
     ClarificationAnswerRecord,
     ChartSpec,
+    DateRange,
     IntentPayload,
     QueryExecutionResult,
     QuerySemantics,
@@ -36,6 +37,7 @@ from app.schemas.query import (
     SemanticComparisonPayload,
     SemanticDataRolesPayload,
     SemanticFlagsPayload,
+    SemanticMappingPayload,
     SemanticMetricPayload,
     SemanticTimePayload,
     ValidationPayload,
@@ -179,26 +181,59 @@ class AnalyticsAgentService:
         if answers:
             intent = apply_answers(intent, answers)
 
-        unresolved_terms = self.semantic_catalog_service.resolve_intent_terms(
-            intent,
-            semantic_catalog,
-            dictionary_entries,
-        )
-        if unresolved_terms.requires_clarification:
-            clarification = self._build_term_clarification(intent, unresolved_terms)
-            return AnalyticsPlan(
-                intent=intent,
-                semantic=None,
-                sql=None,
-                dialect=dialect,
-                validation_errors=[],
-                validation_warnings=[],
-                validation=None,
-                clarification=clarification,
-                dashboard_recommendation=self.dashboard_service.recommend(intent, context),
-                status="clarification_required",
-                state="CLARIFYING",
+        template_schema = schema if self._is_drivee_train_schema(schema) else fallback_schema
+        drivee_template_candidate = self._is_drivee_template_candidate(intent.raw_prompt, template_schema)
+        if drivee_template_candidate and intent.date_range is None:
+            intent.clarification_question = None
+            intent.ambiguities = [item for item in intent.ambiguities if item.lower() != "metric"]
+
+        if drivee_template_candidate:
+            template_sql = self._build_drivee_template_sql(intent, template_schema, dialect)
+            if template_sql is not None:
+                template_semantic = self._build_drivee_template_semantic(intent, dialect)
+                validation = self.validation_agent.run(
+                    template_sql,
+                    dialect,
+                    allowed_tables=allowed_tables,
+                    schema=template_schema,
+                    semantic_catalog=None,
+                )
+                if validation.valid:
+                    return AnalyticsPlan(
+                        intent=intent,
+                        semantic=template_semantic,
+                        sql=validation.sql,
+                        dialect=dialect,
+                        validation_errors=validation.errors,
+                        validation_warnings=validation.warnings,
+                        validation=validation,
+                        clarification=None,
+                        dashboard_recommendation=self.dashboard_service.recommend(intent, context),
+                        status="success",
+                        state="SQL_READY",
+                    )
+
+        if not (drivee_template_candidate and intent.date_range is None):
+            unresolved_terms = self.semantic_catalog_service.resolve_intent_terms(
+                intent,
+                semantic_catalog,
+                dictionary_entries,
             )
+            if unresolved_terms.requires_clarification:
+                clarification = self._build_term_clarification(intent, unresolved_terms)
+                return AnalyticsPlan(
+                    intent=intent,
+                    semantic=None,
+                    sql=None,
+                    dialect=dialect,
+                    validation_errors=[],
+                    validation_warnings=[],
+                    validation=None,
+                    clarification=clarification,
+                    dashboard_recommendation=self.dashboard_service.recommend(intent, context),
+                    status="clarification_required",
+                    state="CLARIFYING",
+                )
 
         if self._needs_clarification(intent, schema, skip_confidence_check=bool(answers)):
             return AnalyticsPlan(
@@ -477,6 +512,8 @@ class AnalyticsAgentService:
     ) -> bool:
         if intent.clarification_question:
             return True
+        if self.intent_agent.requires_explicit_time_range(intent.raw_prompt, intent):
+            return True
         if not skip_confidence_check and intent.confidence < self.clarification_threshold:
             return True
         if not intent.metric:
@@ -493,6 +530,15 @@ class AnalyticsAgentService:
         schema: SchemaMetadataResponse,
     ) -> list[ClarificationQuestion]:
         questions: list[ClarificationQuestion] = []
+        if self._is_drivee_template_candidate(intent.raw_prompt, schema) and intent.date_range is None:
+            return [
+                ClarificationQuestion(
+                    id="time_range",
+                    text=self._build_time_range_question(schema),
+                    options=["Последние 30 дней", "Последние 90 дней", "С начала года", "За всё время"],
+                )
+            ]
+        requires_time_range = self.intent_agent.requires_explicit_time_range(intent.raw_prompt, intent)
 
         if not intent.metric or "metric" in {item.lower() for item in intent.ambiguities}:
             clarification = self.clarification_agent.run(intent, schema=schema)
@@ -504,7 +550,16 @@ class AnalyticsAgentService:
                 )
             )
 
-        if not intent.dimensions:
+        if requires_time_range:
+            questions.append(
+                ClarificationQuestion(
+                    id="time_range",
+                    text=self._build_time_range_question(schema),
+                    options=["Последние 30 дней", "Последние 90 дней", "С начала года", "За всё время"],
+                )
+            )
+
+        if not intent.dimensions and not requires_time_range:
             questions.append(
                 ClarificationQuestion(
                     id="dimension",
@@ -513,12 +568,12 @@ class AnalyticsAgentService:
                 )
             )
 
-        if not intent.date_range:
+        if not intent.date_range and not requires_time_range:
             questions.append(
                 ClarificationQuestion(
                     id="time_range",
-                    text="Which time range should we use?",
-                    options=["Last 30 days", "Last 90 days", "Year to date", "All time"],
+                    text=self._build_time_range_question(schema),
+                    options=["Последние 30 дней", "Последние 90 дней", "С начала года", "За всё время"],
                 )
             )
 
@@ -575,6 +630,28 @@ class AnalyticsAgentService:
                     return options
         return options
 
+    def _build_time_range_question(self, schema: SchemaMetadataResponse) -> str:
+        primary_range = self._primary_time_range(schema)
+        if primary_range is None:
+            return "Какой временной диапазон использовать?"
+        return (
+            "Какой временной диапазон использовать? "
+            f"В доступных данных основной диапазон: {primary_range[0]} .. {primary_range[1]}."
+        )
+
+    def _primary_time_range(self, schema: SchemaMetadataResponse) -> tuple[str, str] | None:
+        candidates = []
+        for table in schema.tables:
+            for column in table.columns:
+                if not column.min_value or not column.max_value:
+                    continue
+                name = column.name.lower()
+                if name == "order_timestamp":
+                    return (str(column.min_value)[:10], str(column.max_value)[:10])
+                if "timestamp" in name or name.endswith("_date") or name == "date":
+                    candidates.append((str(column.min_value)[:10], str(column.max_value)[:10]))
+        return candidates[0] if candidates else None
+
     def _normalize_with_dictionary(self, query: str, entries: list[DictionaryEntryRead]) -> str:
         normalized = query
         replacements: list[tuple[str, str]] = []
@@ -591,3 +668,475 @@ class AnalyticsAgentService:
             pattern = re.compile(rf"\b{re.escape(source)}\b", re.IGNORECASE)
             normalized = pattern.sub(target, normalized)
         return normalized
+
+    def _build_drivee_template_sql(
+        self,
+        intent: IntentPayload,
+        schema: SchemaMetadataResponse,
+        dialect: str,
+    ) -> str | None:
+        if dialect != "postgresql":
+            return None
+        if intent.date_range is None:
+            return None
+        if not self._is_drivee_train_schema(schema):
+            return None
+
+        prompt = intent.raw_prompt.lower()
+        date_filter = self._date_filter_sql(intent.date_range, column="order_timestamp")
+        where_prefix = f"WHERE {date_filter}" if date_filter else ""
+
+        if "от создания до завершения" in prompt or ("каждый этап" in prompt and "теряем" in prompt):
+            return f"""
+WITH filtered AS (
+    SELECT *
+    FROM train
+    {where_prefix}
+)
+SELECT
+    stage,
+    stage_population,
+    drop_off_orders,
+    ROUND(drop_off_orders::numeric / NULLIF(stage_population, 0), 4) AS drop_off_rate,
+    ROUND(avg_stage_minutes, 2) AS avg_stage_minutes,
+    ROUND(CAST(p95_stage_minutes AS numeric), 2) AS p95_stage_minutes
+FROM (
+    SELECT
+        'created_to_accepted' AS stage,
+        COUNT(*) AS stage_population,
+        COUNT(*) FILTER (WHERE driveraccept_timestamp IS NULL) AS drop_off_orders,
+        AVG(EXTRACT(EPOCH FROM (driveraccept_timestamp - order_timestamp)) / 60.0)
+            FILTER (WHERE driveraccept_timestamp IS NOT NULL) AS avg_stage_minutes,
+        (
+            SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (f2.driveraccept_timestamp - f2.order_timestamp)) / 60.0
+            )
+            FROM filtered f2
+            WHERE f2.driveraccept_timestamp IS NOT NULL
+        ) AS p95_stage_minutes
+    FROM filtered
+
+    UNION ALL
+
+    SELECT
+        'accepted_to_arrived' AS stage,
+        COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL) AS stage_population,
+        COUNT(*) FILTER (
+            WHERE driveraccept_timestamp IS NOT NULL
+              AND driverarrived_timestamp IS NULL
+        ) AS drop_off_orders,
+        AVG(EXTRACT(EPOCH FROM (driverarrived_timestamp - driveraccept_timestamp)) / 60.0)
+            FILTER (
+                WHERE driveraccept_timestamp IS NOT NULL
+                  AND driverarrived_timestamp IS NOT NULL
+            ) AS avg_stage_minutes,
+        (
+            SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (f2.driverarrived_timestamp - f2.driveraccept_timestamp)) / 60.0
+            )
+            FROM filtered f2
+            WHERE f2.driveraccept_timestamp IS NOT NULL
+              AND f2.driverarrived_timestamp IS NOT NULL
+        ) AS p95_stage_minutes
+    FROM filtered
+
+    UNION ALL
+
+    SELECT
+        'arrived_to_started' AS stage,
+        COUNT(*) FILTER (WHERE driverarrived_timestamp IS NOT NULL) AS stage_population,
+        COUNT(*) FILTER (
+            WHERE driverarrived_timestamp IS NOT NULL
+              AND driverstarttheride_timestamp IS NULL
+        ) AS drop_off_orders,
+        AVG(EXTRACT(EPOCH FROM (driverstarttheride_timestamp - driverarrived_timestamp)) / 60.0)
+            FILTER (
+                WHERE driverarrived_timestamp IS NOT NULL
+                  AND driverstarttheride_timestamp IS NOT NULL
+            ) AS avg_stage_minutes,
+        (
+            SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (f2.driverstarttheride_timestamp - f2.driverarrived_timestamp)) / 60.0
+            )
+            FROM filtered f2
+            WHERE f2.driverarrived_timestamp IS NOT NULL
+              AND f2.driverstarttheride_timestamp IS NOT NULL
+        ) AS p95_stage_minutes
+    FROM filtered
+
+    UNION ALL
+
+    SELECT
+        'started_to_completed' AS stage,
+        COUNT(*) FILTER (WHERE driverstarttheride_timestamp IS NOT NULL) AS stage_population,
+        COUNT(*) FILTER (
+            WHERE driverstarttheride_timestamp IS NOT NULL
+              AND driverdone_timestamp IS NULL
+        ) AS drop_off_orders,
+        AVG(EXTRACT(EPOCH FROM (driverdone_timestamp - driverstarttheride_timestamp)) / 60.0)
+            FILTER (
+                WHERE driverstarttheride_timestamp IS NOT NULL
+                  AND driverdone_timestamp IS NOT NULL
+            ) AS avg_stage_minutes,
+        (
+            SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (f2.driverdone_timestamp - f2.driverstarttheride_timestamp)) / 60.0
+            )
+            FROM filtered f2
+            WHERE f2.driverstarttheride_timestamp IS NOT NULL
+              AND f2.driverdone_timestamp IS NOT NULL
+        ) AS p95_stage_minutes
+    FROM filtered
+) stage_metrics
+ORDER BY drop_off_orders DESC, stage;
+""".strip()
+
+        if "клиенты отменяют" in prompt and ("до того" in prompt or "до назначения" in prompt or "им нашли водителя" in prompt):
+            return f"""
+SELECT
+    city_id,
+    EXTRACT(HOUR FROM order_timestamp)::int AS hour_of_day,
+    COUNT(*) FILTER (
+        WHERE clientcancel_timestamp IS NOT NULL
+          AND driveraccept_timestamp IS NULL
+    ) AS cancelled_before_assignment,
+    COUNT(*) AS total_orders,
+    ROUND(
+        COUNT(*) FILTER (
+            WHERE clientcancel_timestamp IS NOT NULL
+              AND driveraccept_timestamp IS NULL
+        )::numeric / NULLIF(COUNT(*), 0),
+        4
+    ) AS cancel_before_assignment_rate
+FROM train
+{where_prefix}
+GROUP BY city_id, hour_of_day
+ORDER BY cancel_before_assignment_rate DESC, cancelled_before_assignment DESC, city_id, hour_of_day;
+""".strip()
+
+        if "назначаем водителя" in prompt or "после создания заказа" in prompt:
+            return f"""
+WITH filtered AS (
+    SELECT
+        city_id,
+        EXTRACT(HOUR FROM order_timestamp)::int AS hour_of_day,
+        EXTRACT(EPOCH FROM (driveraccept_timestamp - order_timestamp)) / 60.0 AS minutes_to_accept
+    FROM train
+    {where_prefix}
+      AND driveraccept_timestamp IS NOT NULL
+)
+SELECT
+    city_id,
+    hour_of_day,
+    COUNT(*) AS accepted_orders,
+    ROUND(AVG(minutes_to_accept), 2) AS avg_minutes_to_accept,
+    ROUND(CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY minutes_to_accept) AS numeric), 2) AS p95_minutes_to_accept
+FROM filtered
+GROUP BY city_id, hour_of_day
+ORDER BY p95_minutes_to_accept DESC, avg_minutes_to_accept DESC, city_id, hour_of_day;
+""".strip()
+
+        if "от назначения водителя до его прибытия" in prompt or "скоростью подачи" in prompt:
+            return f"""
+WITH filtered AS (
+    SELECT
+        city_id,
+        EXTRACT(HOUR FROM order_timestamp)::int AS hour_of_day,
+        EXTRACT(EPOCH FROM (driverarrived_timestamp - driveraccept_timestamp)) / 60.0 AS minutes_to_arrival
+    FROM train
+    {where_prefix}
+      AND driveraccept_timestamp IS NOT NULL
+      AND driverarrived_timestamp IS NOT NULL
+)
+SELECT
+    city_id,
+    hour_of_day,
+    COUNT(*) AS arrived_orders,
+    ROUND(AVG(minutes_to_arrival), 2) AS avg_minutes_to_arrival,
+    ROUND(CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY minutes_to_arrival) AS numeric), 2) AS p95_minutes_to_arrival
+FROM filtered
+GROUP BY city_id, hour_of_day
+ORDER BY p95_minutes_to_arrival DESC, avg_minutes_to_arrival DESC, city_id, hour_of_day;
+""".strip()
+
+        if "водители отменяют" in prompt and "приняли" in prompt:
+            return f"""
+SELECT
+    city_id,
+    EXTRACT(HOUR FROM order_timestamp)::int AS hour_of_day,
+    COUNT(*) FILTER (
+        WHERE driveraccept_timestamp IS NOT NULL
+          AND drivercancel_timestamp IS NOT NULL
+    ) AS driver_cancels_after_accept,
+    COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL) AS accepted_orders,
+    ROUND(
+        COUNT(*) FILTER (
+            WHERE driveraccept_timestamp IS NOT NULL
+              AND drivercancel_timestamp IS NOT NULL
+        )::numeric / NULLIF(COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL), 0),
+        4
+    ) AS driver_cancel_rate_after_accept
+FROM train
+{where_prefix}
+GROUP BY city_id, hour_of_day
+HAVING COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL) > 0
+ORDER BY driver_cancel_rate_after_accept DESC, driver_cancels_after_accept DESC, city_id, hour_of_day;
+""".strip()
+
+        if "успешность заказов" in prompt and ("в течение дня" in prompt or "в какие часы" in prompt):
+            return f"""
+SELECT
+    EXTRACT(HOUR FROM order_timestamp)::int AS hour_of_day,
+    COUNT(*) AS total_orders,
+    COUNT(*) FILTER (WHERE driverdone_timestamp IS NOT NULL) AS completed_orders,
+    ROUND(
+        COUNT(*) FILTER (WHERE driverdone_timestamp IS NOT NULL)::numeric / NULLIF(COUNT(*), 0),
+        4
+    ) AS completion_rate
+FROM train
+{where_prefix}
+GROUP BY hour_of_day
+ORDER BY hour_of_day;
+""".strip()
+
+        if "полный цикл заказа" in prompt or "финального результата" in prompt:
+            return f"""
+WITH classified AS (
+    SELECT
+        CASE
+            WHEN driverdone_timestamp IS NOT NULL THEN 'completed'
+            WHEN clientcancel_timestamp IS NOT NULL AND driveraccept_timestamp IS NULL THEN 'client_cancelled_before_accept'
+            WHEN clientcancel_timestamp IS NOT NULL THEN 'client_cancelled_after_accept'
+            WHEN drivercancel_timestamp IS NOT NULL THEN 'driver_cancelled'
+            WHEN cancel_before_accept_local IS NOT NULL THEN 'cancelled_before_accept'
+            ELSE 'open_or_unknown'
+        END AS final_outcome,
+        order_timestamp,
+        COALESCE(
+            driverdone_timestamp,
+            clientcancel_timestamp,
+            drivercancel_timestamp,
+            cancel_before_accept_local,
+            order_modified_local
+        ) AS final_timestamp
+    FROM train
+    {where_prefix}
+),
+cycles AS (
+    SELECT
+        final_outcome,
+        EXTRACT(EPOCH FROM (final_timestamp - order_timestamp)) / 60.0 AS cycle_minutes
+    FROM classified
+    WHERE final_timestamp IS NOT NULL
+)
+SELECT
+    final_outcome,
+    COUNT(*) AS orders,
+    ROUND(AVG(cycle_minutes), 2) AS avg_cycle_minutes,
+    ROUND(CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY cycle_minutes) AS numeric), 2) AS p95_cycle_minutes
+FROM cycles
+GROUP BY final_outcome
+ORDER BY orders DESC, final_outcome;
+""".strip()
+
+        if "итоговая стоимость" in prompt and "начальной оценки" in prompt:
+            return f"""
+WITH priced AS (
+    SELECT
+        price_order_local,
+        price_tender_local,
+        price_tender_local - price_order_local AS price_delta,
+        CASE
+            WHEN price_order_local <> 0
+            THEN (price_tender_local - price_order_local) / price_order_local
+        END AS price_delta_ratio
+    FROM train
+    {where_prefix}
+      AND price_order_local IS NOT NULL
+      AND price_tender_local IS NOT NULL
+)
+SELECT
+    COUNT(*) AS priced_orders,
+    ROUND(AVG(price_order_local), 2) AS avg_initial_estimate,
+    ROUND(AVG(price_tender_local), 2) AS avg_final_price,
+    ROUND(AVG(price_delta), 2) AS avg_price_delta,
+    ROUND(AVG(price_delta_ratio), 4) AS avg_price_delta_ratio,
+    ROUND(CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price_delta) AS numeric), 2) AS median_price_delta,
+    ROUND(CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY price_delta) AS numeric), 2) AS p95_price_delta
+FROM priced;
+""".strip()
+
+        if "слишком долго" in prompt and "не завершились" in prompt:
+            return f"""
+WITH long_unfinished AS (
+    SELECT
+        city_id,
+        status_order,
+        driver_id,
+        order_timestamp,
+        COALESCE(
+            duration_in_seconds::numeric,
+            EXTRACT(EPOCH FROM (
+                COALESCE(
+                    clientcancel_timestamp,
+                    drivercancel_timestamp,
+                    cancel_before_accept_local,
+                    order_modified_local
+                ) - order_timestamp
+            ))
+        ) / 60.0 AS observed_minutes
+    FROM train
+    {where_prefix}
+      AND driverdone_timestamp IS NULL
+)
+SELECT
+    city_id,
+    status_order,
+    EXTRACT(HOUR FROM order_timestamp)::int AS hour_of_day,
+    COUNT(*) AS long_unfinished_orders,
+    ROUND(AVG(observed_minutes), 2) AS avg_observed_minutes,
+    COUNT(DISTINCT driver_id) AS distinct_drivers
+FROM long_unfinished
+WHERE observed_minutes > 30
+GROUP BY city_id, status_order, hour_of_day
+ORDER BY long_unfinished_orders DESC, avg_observed_minutes DESC, city_id, status_order, hour_of_day
+LIMIT 20;
+""".strip()
+
+        if "сравни города" in prompt and "конверс" in prompt and "заверш" in prompt:
+            return f"""
+WITH filtered AS (
+    SELECT *
+    FROM train
+    {where_prefix}
+),
+counts AS (
+    SELECT
+        city_id,
+        COUNT(*) AS total_orders,
+        ROUND(
+            COUNT(*) FILTER (WHERE driveraccept_timestamp IS NOT NULL)::numeric / NULLIF(COUNT(*), 0),
+            4
+        ) AS conversion_rate,
+        ROUND(
+            COUNT(*) FILTER (WHERE driverdone_timestamp IS NOT NULL)::numeric / NULLIF(COUNT(*), 0),
+            4
+        ) AS completion_rate
+    FROM filtered
+    GROUP BY city_id
+),
+accept_stats AS (
+    SELECT
+        city_id,
+        ROUND(AVG(minutes_to_accept), 2) AS avg_minutes_to_accept,
+        ROUND(CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY minutes_to_accept) AS numeric), 2) AS p95_minutes_to_accept
+    FROM (
+        SELECT
+            city_id,
+            EXTRACT(EPOCH FROM (driveraccept_timestamp - order_timestamp)) / 60.0 AS minutes_to_accept
+        FROM filtered
+        WHERE driveraccept_timestamp IS NOT NULL
+    ) accept_events
+    GROUP BY city_id
+),
+arrival_stats AS (
+    SELECT
+        city_id,
+        ROUND(AVG(minutes_to_arrival), 2) AS avg_minutes_to_arrival,
+        ROUND(CAST(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY minutes_to_arrival) AS numeric), 2) AS p95_minutes_to_arrival
+    FROM (
+        SELECT
+            city_id,
+            EXTRACT(EPOCH FROM (driverarrived_timestamp - driveraccept_timestamp)) / 60.0 AS minutes_to_arrival
+        FROM filtered
+        WHERE driveraccept_timestamp IS NOT NULL
+          AND driverarrived_timestamp IS NOT NULL
+    ) arrival_events
+    GROUP BY city_id
+)
+SELECT
+    counts.city_id,
+    counts.total_orders,
+    accept_stats.avg_minutes_to_accept,
+    accept_stats.p95_minutes_to_accept,
+    arrival_stats.avg_minutes_to_arrival,
+    arrival_stats.p95_minutes_to_arrival,
+    counts.conversion_rate,
+    counts.completion_rate
+FROM counts
+LEFT JOIN accept_stats USING (city_id)
+LEFT JOIN arrival_stats USING (city_id)
+ORDER BY completion_rate DESC, conversion_rate DESC, avg_minutes_to_accept ASC, avg_minutes_to_arrival ASC;
+""".strip()
+
+        return None
+
+    def _build_drivee_template_semantic(self, intent: IntentPayload, dialect: str) -> SemanticMappingPayload:
+        return SemanticMappingPayload(
+            metric_key=intent.metric,
+            metric_expression=None,
+            metric_alias=None,
+            time_expression="order_timestamp" if intent.date_range is not None else None,
+            tables=["train"],
+            base_table="train",
+            joins=[],
+            warnings=["SQL generated from the Drivee train-table template layer."],
+            dialect=dialect,
+        )
+
+    def _is_drivee_template_candidate(self, prompt: str, schema: SchemaMetadataResponse) -> bool:
+        if not self._is_drivee_train_schema(schema):
+            return False
+        lowered = prompt.lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "от создания до завершения",
+                "каждый этап",
+                "клиенты отменяют",
+                "назначаем водителя",
+                "после создания заказа",
+                "от назначения водителя до его прибытия",
+                "скоростью подачи",
+                "водители отменяют",
+                "успешность заказов",
+                "в какие часы",
+                "полный цикл заказа",
+                "финального результата",
+                "итоговая стоимость",
+                "начальной оценки",
+                "слишком долго",
+                "не завершились",
+                "сравни города",
+            )
+        )
+
+    def _is_drivee_train_schema(self, schema: SchemaMetadataResponse) -> bool:
+        table = next((item for item in schema.tables if item.name == "train"), None)
+        if table is None:
+            return False
+        columns = {column.name for column in table.columns}
+        required = {
+            "order_timestamp",
+            "driveraccept_timestamp",
+            "driverarrived_timestamp",
+            "driverstarttheride_timestamp",
+            "driverdone_timestamp",
+            "clientcancel_timestamp",
+            "drivercancel_timestamp",
+            "cancel_before_accept_local",
+            "city_id",
+            "driver_id",
+            "duration_in_seconds",
+            "price_order_local",
+            "price_tender_local",
+        }
+        return required.issubset(columns)
+
+    def _date_filter_sql(self, date_range: DateRange, *, column: str) -> str:
+        clauses: list[str] = []
+        if date_range.start is not None:
+            clauses.append(f"{column} >= DATE '{date_range.start.isoformat()}'")
+        if date_range.end is not None:
+            clauses.append(f"{column} < DATE '{date_range.end.isoformat()}' + INTERVAL '1 day'")
+        return " AND ".join(clauses)
