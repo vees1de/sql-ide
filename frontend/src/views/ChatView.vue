@@ -118,6 +118,7 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
+              @explain-sql="requestSqlExplanation"
               @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
@@ -144,6 +145,7 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
+              @explain-sql="requestSqlExplanation"
               @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"

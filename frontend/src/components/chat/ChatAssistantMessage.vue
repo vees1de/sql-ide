@@ -131,6 +131,7 @@ const emit = defineEmits<{
   (event: 'apply-sql', sql: string): void;
   (event: 'prepare-sql'): void;
   (event: 'clarification', payload: { clarificationId: string; optionId?: string | null; text?: string | null }): void;
+  (event: 'explain-sql', sql: string): void;
   (event: 'run-prepared'): void;
   (event: 'show-chart-preview'): void;
   (event: 'switch-mode', mode: ApiQueryMode): void;
@@ -246,11 +247,31 @@ const sqlCellContent = computed(() => ({
   warnings: warnings.value
 }));
 
+async function copySql() {
+  const sql = payload.value?.sql?.trim();
+  if (!sql) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(sql);
+  } catch {
+    /* ignore clipboard failures */
+  }
+}
+
 function emitClarification(optionId: string) {
   emit('clarification', {
     clarificationId: clarificationId.value,
     optionId
   });
+}
+
+function emitExplain() {
+  const sql = payload.value?.sql?.trim();
+  if (!sql) {
+    return;
+  }
+  emit('explain-sql', sql);
 }
 
 function handleAction(type: ApiChatAction['type']) {

@@ -78,6 +78,61 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function getSessionsForDatabase(databaseId: string) {
+    return sessions.value
+      .filter((session) => session.database_connection_id === databaseId)
+      .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at));
+  }
+
+  function replaceSessionsForDatabase(
+    databaseId: string,
+    nextSessions: ApiChatSessionRead[],
+  ) {
+    sessions.value = [
+      ...sessions.value.filter(
+        (session) => session.database_connection_id !== databaseId,
+      ),
+      ...nextSessions
+    ];
+  }
+
+  function resetConversationState() {
+    activeSessionId.value = '';
+    messages.value = [];
+    pendingUserMessage.value = '';
+    setSessionDraft('', 0);
+    applyAssistantState(null);
+    setSessionResult(null);
+  }
+
+  async function activateDatabase(databaseId: string, preferredSessionId = '') {
+    if (!databaseId) {
+      return;
+    }
+
+    activeDbId.value = databaseId;
+    const databaseSessions = getSessionsForDatabase(databaseId);
+
+    if (!databaseSessions.length) {
+      resetConversationState();
+      await createSession(databaseId);
+      return;
+    }
+
+    const targetSessionId =
+      preferredSessionId &&
+      databaseSessions.some((session) => session.id === preferredSessionId)
+        ? preferredSessionId
+        : databaseSessions[0]?.id ?? '';
+
+    if (!targetSessionId) {
+      resetConversationState();
+      return;
+    }
+
+    await selectSession(targetSessionId);
+  }
+
   function setSessionDraft(sql: string | null | undefined, version: number) {
     sqlDraft.value = sql ?? '';
     preparedSql.value = sqlDraft.value || null;
@@ -149,20 +204,32 @@ export const useChatStore = defineStore('chat', () => {
 
     loadingSessions.value = true;
     try {
-      sessions.value = await chatApi.getSessions(databaseId);
-      activeDbId.value = databaseId;
+      const databaseSessions = await chatApi.getSessions(databaseId);
+      replaceSessionsForDatabase(databaseId, databaseSessions);
+      await activateDatabase(databaseId, activeSessionId.value);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Не удалось загрузить чаты.');
+      throw error;
+    } finally {
+      loadingSessions.value = false;
+    }
+  }
 
-      if (!sessions.value.length) {
-        await createSession(databaseId);
-        return;
-      }
+  async function loadAllSessions() {
+    if (!databases.value.length) {
+      sessions.value = [];
+      return;
+    }
 
-      if (!activeSessionId.value || !sessions.value.some((session) => session.id === activeSessionId.value)) {
-        await selectSession(sessions.value[0]?.id ?? '');
-        return;
-      }
-
-      await selectSession(activeSessionId.value);
+    loadingSessions.value = true;
+    try {
+      const groups = await Promise.all(
+        databases.value.map(async (database) => ({
+          databaseId: database.id,
+          sessions: await chatApi.getSessions(database.id)
+        }))
+      );
+      sessions.value = groups.flatMap((group) => group.sessions);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Не удалось загрузить чаты.');
       throw error;
@@ -196,7 +263,8 @@ export const useChatStore = defineStore('chat', () => {
     await loadLlmModels();
     await loadDatabases();
     if (activeDbId.value) {
-      await loadSessions(activeDbId.value);
+      await loadAllSessions();
+      await activateDatabase(activeDbId.value, activeSessionId.value);
     }
   }
 
@@ -212,9 +280,6 @@ export const useChatStore = defineStore('chat', () => {
 
     const createPromise = (async () => {
       const session = await chatApi.createSession(databaseId);
-      if (databaseId !== activeDbId.value) {
-        sessions.value = [];
-      }
       activeDbId.value = databaseId;
       syncSession(session);
       activeSessionId.value = session.id;
@@ -236,17 +301,14 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function selectDatabase(databaseId: string) {
-    if (!databaseId || databaseId === activeDbId.value) {
+    if (!databaseId) {
       return;
     }
-    activeDbId.value = databaseId;
-    activeSessionId.value = '';
-    messages.value = [];
-    pendingUserMessage.value = '';
-    setSessionDraft('', 0);
-    applyAssistantState(null);
-    setSessionResult(null);
-    await loadSessions(databaseId);
+    if (databaseId === activeDbId.value && activeSessionId.value) {
+      return;
+    }
+    resetConversationState();
+    await activateDatabase(databaseId);
   }
 
   async function selectSession(sessionId: string) {
@@ -285,21 +347,23 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function deleteSession(sessionId: string) {
+    const deletedSession = sessions.value.find((session) => session.id === sessionId);
+    const deletedDatabaseId = deletedSession?.database_connection_id || activeDbId.value;
     await chatApi.deleteSession(sessionId);
     const nextSessions = sessions.value.filter((session) => session.id !== sessionId);
     sessions.value = nextSessions;
     pendingUserMessage.value = '';
 
     if (activeSessionId.value === sessionId) {
-      activeSessionId.value = '';
-      messages.value = [];
-      setSessionDraft('', 0);
-      applyAssistantState(null);
-      setSessionResult(null);
-      if (nextSessions.length) {
-        await selectSession(nextSessions[0].id);
-      } else if (activeDbId.value) {
-        await createSession(activeDbId.value);
+      resetConversationState();
+      const nextDatabaseSessions = deletedDatabaseId
+        ? getSessionsForDatabase(deletedDatabaseId)
+        : [];
+      if (nextDatabaseSessions.length) {
+        await activateDatabase(deletedDatabaseId, nextDatabaseSessions[0]?.id ?? '');
+      } else if (deletedDatabaseId) {
+        activeDbId.value = deletedDatabaseId;
+        await createSession(deletedDatabaseId);
       }
     }
   }

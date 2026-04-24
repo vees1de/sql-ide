@@ -108,6 +108,7 @@
         <div
           class="chat-sidebar__panel"
           :class="{
+            'chat-sidebar__panel--chat': isChatMode,
             'chat-sidebar__panel--sources': isDatabaseMode,
             'chat-sidebar__panel--dashboards': isDashboardsMode,
           }"
@@ -131,38 +132,6 @@
                 type="search"
                 placeholder="Поиск дашбордов и виджетов"
               />
-            </div>
-          </template>
-
-          <template v-else>
-            <div class="chat-sidebar__section-head">
-              <div>
-                <p class="chat-sidebar__eyebrow">Навигатор</p>
-                <h2 class="chat-sidebar__title">
-                  {{ sectionTitle }}
-                </h2>
-              </div>
-
-              <button
-                class="chat-sidebar__new"
-                type="button"
-                :disabled="!activeDbId"
-                @click="$emit('create-session', activeDbId)"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                Новый чат
-              </button>
             </div>
           </template>
 
@@ -652,6 +621,28 @@
             </svg>
             Добавить базу данных
           </button>
+
+          <button
+            v-if="isChatMode"
+            class="chat-sidebar__new chat-sidebar__new--chat"
+            type="button"
+            :disabled="!activeDbId"
+            @click="$emit('create-session', activeDbId)"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Новый чат
+          </button>
         </div>
       </section>
     </Transition>
@@ -796,6 +787,7 @@ const isCollapsed = ref(
 );
 const isDatabaseMode = computed(() => props.mode === "database");
 const isDashboardsMode = computed(() => props.mode === "dashboards");
+const isChatMode = computed(() => (props.mode ?? "chat") === "chat");
 const dashboardView = computed(() => props.dashboardView ?? "dashboards");
 const sectionTitleByMode = {
   chat: "Чаты",
@@ -930,7 +922,7 @@ watch(
   () => props.activeDbId,
   (id) => {
     if (id) {
-      openIds.value = new Set([...openIds.value, id]);
+      openIds.value = new Set([id]);
     }
   },
   { immediate: true },
@@ -941,10 +933,7 @@ watch(
   (sessionId) => {
     const session = props.sessions.find((item) => item.id === sessionId);
     if (session?.database_connection_id) {
-      openIds.value = new Set([
-        ...openIds.value,
-        session.database_connection_id,
-      ]);
+      openIds.value = new Set([session.database_connection_id]);
     }
   },
   { immediate: true },
@@ -975,11 +964,12 @@ watch(
       return;
     }
 
-    const next = new Set(openIds.value);
-    for (const database of treeDatabases.value) {
-      next.add(database.id);
-    }
-    openIds.value = next;
+    const nextOpenId =
+      treeDatabases.value.find((database) => database.id === props.activeDbId)
+        ?.id ??
+      treeDatabases.value[0]?.id ??
+      "";
+    openIds.value = nextOpenId ? new Set([nextOpenId]) : new Set();
   },
 );
 
@@ -1069,13 +1059,7 @@ function toggle(id: string) {
     selectDatabase(id);
     return;
   }
-  const next = new Set(openIds.value);
-  if (next.has(id)) {
-    next.delete(id);
-  } else {
-    next.add(id);
-  }
-  openIds.value = next;
+  openIds.value = openIds.value.has(id) ? new Set() : new Set([id]);
   if (id !== props.activeDbId) {
     emit("select-database", id);
   }
@@ -1503,6 +1487,7 @@ function formatTime(value: string) {
   height: 100%;
 }
 
+.chat-sidebar__panel--chat,
 .chat-sidebar__panel--sources,
 .chat-sidebar__panel--dashboards {
   border: none;
@@ -1565,7 +1550,8 @@ function formatTime(value: string) {
   cursor: not-allowed;
 }
 
-.chat-sidebar__new--sources {
+.chat-sidebar__new--sources,
+.chat-sidebar__new--chat {
   display: flex;
   justify-content: center;
   width: 100%;
@@ -1801,16 +1787,16 @@ function formatTime(value: string) {
 .chat-sidebar__folder {
   display: flex;
   flex-direction: column;
-  border: 1px solid transparent;
+  border: 1px solid #262626;
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.02);
+  background: #262626;
   min-height: 0;
 }
 
 .chat-sidebar__folder--active {
-  border-color: rgba(112, 59, 247, 0.28);
-  background: rgba(112, 59, 247, 0.08);
+  border-color: #2a1f3d;
+  background: #262626;
 }
 
 .chat-sidebar__folder-head {
@@ -1821,16 +1807,20 @@ function formatTime(value: string) {
   width: 100%;
   padding: 0.55rem 0.6rem;
   border: none;
-  background: transparent;
+  background: #262626;
   color: var(--ink);
   text-align: left;
   font-size: 0.84rem;
   transition: background 140ms ease;
 }
 
+.chat-sidebar__folder--active .chat-sidebar__folder-head {
+  background: #2a1f3d;
+}
+
 .chat-sidebar__folder:not(.chat-sidebar__folder--active)
   .chat-sidebar__folder-head:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: #1a1a1a;
 }
 
 .chat-sidebar__folder-chevron {
@@ -1877,6 +1867,7 @@ function formatTime(value: string) {
   gap: 8px;
   min-height: 0;
   padding: 0 0.6rem 0.65rem 1.2rem;
+  background: #1a1a1a;
 }
 
 .chat-sidebar__folder--active.chat-sidebar__folder--open
@@ -1890,6 +1881,7 @@ function formatTime(value: string) {
   padding: 0.55rem 0.6rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
+  background: #1a1a1a;
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -1909,7 +1901,7 @@ function formatTime(value: string) {
   padding: 0.45rem 0.55rem;
   border: none;
   border-radius: 10px;
-  background: transparent;
+  background: #262626;
   text-align: left;
   color: var(--ink);
   transition:
@@ -1920,15 +1912,16 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__session:hover:not(.chat-sidebar__session--active) {
-  background: rgba(255, 255, 255, 0.04);
+  background: #1a1a1a;
 }
 
 .chat-sidebar__session--active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: #2a1f3d;
+  color: var(--ink-strong);
 }
 
 .chat-sidebar__session--create {
+  background: #1a1a1a;
   color: var(--muted);
   flex-shrink: 0;
 }

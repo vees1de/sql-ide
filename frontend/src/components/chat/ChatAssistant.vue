@@ -2,8 +2,7 @@
   <section class="chat-assistant">
     <div ref="scrollRef" class="chat-assistant__feed">
       <template v-if="messages.length">
-        <component
-          :is="message.role === 'user' ? ChatUserMessage : ChatAssistantMessage"
+        <template
           v-for="message in messages"
           :key="message.id"
         >
@@ -203,7 +202,11 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import ChatAssistantMessage from "@/components/chat/ChatAssistantMessage.vue";
 import ChatInput from "@/components/chat/ChatInput.vue";
 import ChatUserMessage from "@/components/chat/ChatUserMessage.vue";
-import type { ApiChatMessageRead, ApiQueryMode } from "@/api/types";
+import type {
+  ApiChatMessageRead,
+  ApiChatStructuredPayload,
+  ApiQueryMode,
+} from "@/api/types";
 
 const props = withDefaults(
   defineProps<{
@@ -225,6 +228,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: "send", text: string, mode: ApiQueryMode): void;
   (event: "apply-sql", sql: string): void;
+  (event: "explain-sql", sql: string): void;
   (event: "prepare-sql"): void;
   (
     event: "clarification",
@@ -242,6 +246,7 @@ const emit = defineEmits<{
 
 const draft = ref("");
 const scrollRef = ref<HTMLElement | null>(null);
+const openReasoning = ref<Record<string, boolean>>({});
 const pendingMessage = computed<ApiChatMessageRead | null>(() => {
   const text = props.pendingUserMessage?.trim();
   if (!text) {
