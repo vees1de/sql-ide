@@ -1,0 +1,113 @@
+[
+  {
+    "id": "mt_01",
+    "user_prompt": "А теперь убери разбивку по городам и покажи по тарифам.",
+    "context": {
+      "previous_intent": {
+        "metric": "completion_rate",
+        "dimensions": ["city"],
+        "filters": [],
+        "date_range": {
+          "kind": "relative",
+          "lookback_value": 1,
+          "lookback_unit": "weeks",
+          "start": "2026-04-17",
+          "end": "2026-04-24"
+        }
+      },
+      "history": ["Покажи конверсию в завершенные поездки по городам за последнюю неделю."]
+    },
+    "expected_intent": {
+      "metric": "completion_rate",
+      "dimensions": ["tariff_type"],
+      "filters": [],
+      "date_range": {
+        "kind": "relative",
+        "lookback_value": 1,
+        "lookback_unit": "weeks"
+      }
+    },
+    "expected_sql_logic": "Must NOT contain city. Must group by tariff_type. Must keep completion_rate and the last-week date window.",
+    "expected_columns": ["tariff_type", "completion_rate"],
+    "reference_sql": "SELECT t.tariff_type AS tariff_type, ROUND(SUM(CASE WHEN r.completed_at IS NOT NULL THEN 1 ELSE 0 END) * 1.0 / NULLIF(COUNT(r.id), 0), 4) AS completion_rate FROM rides r JOIN tariffs t ON t.id = r.tariff_id WHERE date(r.created_at) >= '2026-04-17' AND date(r.created_at) <= '2026-04-24' GROUP BY t.tariff_type ORDER BY t.tariff_type"
+  },
+  {
+    "id": "mt_02",
+    "user_prompt": "Теперь только завершённые поездки и покажи среднюю длительность по городам.",
+    "context": {
+      "previous_intent": {
+        "metric": "completion_rate",
+        "dimensions": ["tariff_type"],
+        "filters": [],
+        "date_range": {
+          "kind": "relative",
+          "lookback_value": 1,
+          "lookback_unit": "weeks",
+          "start": "2026-04-17",
+          "end": "2026-04-24"
+        }
+      },
+      "history": [
+        "Покажи конверсию в завершенные поездки по городам за последнюю неделю.",
+        "А теперь убери разбивку по городам и покажи по тарифам."
+      ]
+    },
+    "expected_intent": {
+      "metric": "avg_ride_duration",
+      "dimensions": ["city"],
+      "filters": [
+        {
+          "field": "status",
+          "operator": "=",
+          "value": "completed"
+        }
+      ],
+      "date_range": {
+        "kind": "relative",
+        "lookback_value": 1,
+        "lookback_unit": "weeks"
+      }
+    },
+    "expected_sql_logic": "Must keep the last-week date window. Must group by city. Must filter only completed rides. Must compute avg_ride_duration.",
+    "expected_columns": ["city", "avg_ride_duration"],
+    "reference_sql": "SELECT u.city AS city, ROUND(AVG(r.duration_minutes), 4) AS avg_ride_duration FROM rides r JOIN users u ON u.id = r.user_id WHERE date(r.created_at) >= '2026-04-17' AND date(r.created_at) <= '2026-04-24' AND r.status = 'completed' GROUP BY u.city ORDER BY u.city"
+  },
+  {
+    "id": "mt_03",
+    "user_prompt": "Теперь только по Москве.",
+    "context": {
+      "previous_intent": {
+        "metric": "completion_rate",
+        "dimensions": ["city"],
+        "filters": [],
+        "date_range": {
+          "kind": "relative",
+          "lookback_value": 1,
+          "lookback_unit": "weeks",
+          "start": "2026-04-17",
+          "end": "2026-04-24"
+        }
+      },
+      "history": ["Покажи конверсию в завершенные поездки по городам за последнюю неделю."]
+    },
+    "expected_intent": {
+      "metric": "completion_rate",
+      "dimensions": ["city"],
+      "filters": [
+        {
+          "field": "city",
+          "operator": "=",
+          "value": "Moscow"
+        }
+      ],
+      "date_range": {
+        "kind": "relative",
+        "lookback_value": 1,
+        "lookback_unit": "weeks"
+      }
+    },
+    "expected_sql_logic": "Must keep the city grouping and add a Moscow filter. Must keep completion_rate and the last-week date window.",
+    "expected_columns": ["city", "completion_rate"],
+    "reference_sql": "SELECT u.city AS city, ROUND(SUM(CASE WHEN r.completed_at IS NOT NULL THEN 1 ELSE 0 END) * 1.0 / NULLIF(COUNT(r.id), 0), 4) AS completion_rate FROM rides r JOIN users u ON u.id = r.user_id WHERE date(r.created_at) >= '2026-04-17' AND date(r.created_at) <= '2026-04-24' AND u.city = 'Moscow' GROUP BY u.city ORDER BY u.city"
+  }
+]

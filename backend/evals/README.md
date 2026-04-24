@@ -224,6 +224,34 @@ cd backend
   --output-dir evals/runs/drivee_retry_check
 ```
 
+## Static eval runner
+
+Для отдельного ride-domain eval-пайплайна используйте:
+
+```bash
+./backend/.venv/bin/python backend/evals/runner.py \
+  --output-dir /tmp/sql-ide-eval-run
+```
+
+Он поднимает статичную SQLite-базу, прогоняет:
+
+- `backend/evals/evals_single_shot.json`
+- `backend/evals/evals_multi_turn.json`
+- `backend/evals/evals_edge_cases.json`
+
+И пишет `results.json`, `summary.json`, `report.md` в `--output-dir`.
+
+Для drivee SQL suite:
+
+```bash
+cd backend
+.venv/bin/python scripts/eval_chat_text_to_sql.py \
+  --cases evals/drivee_db_tests.json \
+  --query-mode thinking \
+  --model-alias gpt120 \
+  --output-dir evals/runs/drivee_db_tests
+```
+
 ## Что делать, если проблема выглядит как transient LLM failure
 
 Симптомы:

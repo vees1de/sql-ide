@@ -1272,14 +1272,16 @@ class ChatSqlAdapter:
     def _semantic_intent_summary(self, intent: IntentPayload) -> str | None:
         parts: list[str] = []
         if intent.metric:
-            parts.append(f"metric={intent.metric}")
+            parts.append(f"метрика {intent.metric}")
         if intent.dimensions:
-            parts.append(f"dimensions={', '.join(intent.dimensions)}")
+            parts.append(f"группировка по {', '.join(intent.dimensions)}")
         if intent.date_range:
-            parts.append(f"time={intent.date_range.kind}")
+            parts.append(f"период {intent.date_range.kind}")
         if intent.comparison:
-            parts.append(f"comparison={intent.comparison}")
-        return "; ".join(parts) or None
+            parts.append(f"сравнение {intent.comparison}")
+        if not parts:
+            return None
+        return f"Поняла запрос как: {', '.join(parts)}."
 
     def _build_actions(self, *, state: str, sql: str | None) -> list[Any]:
         normalized_state = "SQL_READY" if state == "success" else state

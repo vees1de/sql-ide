@@ -1,7 +1,7 @@
 <template>
   <section class="chat-result-panel">
     <div class="chat-result-panel__toolbar">
-      <div class="chat-result-panel__tabs">
+      <div v-if="!isBiMode" class="chat-result-panel__tabs">
         <button
           class="chat-result-panel__tab"
           :class="{ 'chat-result-panel__tab--active': view === 'table' }"
@@ -102,6 +102,43 @@
         >
           Сохранить график
         </button>
+        <button
+          v-if="execution && !execution.error_message"
+          class="chat-result-panel__icon-btn"
+          type="button"
+          :title="isBiMode ? 'Свернуть BI-режим' : 'Открыть BI-режим'"
+          :aria-pressed="isBiMode"
+          @click="toggleBiMode"
+        >
+          <svg
+            v-if="!isBiMode"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M3 1.5H1.5V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M11 1.5H12.5V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M11 12.5H12.5V11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M3 12.5H1.5V11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M2.25 6.75H11.75M2.25 7.25H11.75" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
+          <svg
+            v-else
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M5 1.5H1.5V5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M9 1.5H12.5V5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M9 12.5H12.5V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M5 12.5H1.5V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            <path d="M4 7H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -115,13 +152,13 @@
 
     <template v-else-if="execution">
       <ChatResultTable
-        v-if="view === 'table'"
+        v-if="!isBiMode && view === 'table'"
         :columns="execution.columns ?? []"
         :rows="execution.rows_preview ?? []"
         :truncated="Boolean(execution.rows_preview_truncated)"
       />
 
-      <section v-else class="chat-result-panel__chart-view">
+      <section v-else-if="!isBiMode" class="chat-result-panel__chart-view">
         <div class="chat-result-panel__section-head">
           <div>
             <strong>Визуализация</strong>
@@ -159,6 +196,96 @@
           <p class="chat-result-panel__empty-note">
             Попробуйте выбрать поля вручную или попросить ИИ предложить более подходящую визуализацию.
           </p>
+        </div>
+      </section>
+
+      <section v-else class="chat-result-panel__bi-view">
+        <aside class="chat-result-panel__bi-columns">
+          <div class="chat-result-panel__section-head">
+            <div>
+              <strong>Колонки набора данных</strong>
+              <p>{{ biColumnCountLabel }}</p>
+            </div>
+          </div>
+
+          <label class="chat-result-panel__bi-search">
+            <span>Поиск</span>
+            <input
+              v-model="columnSearch"
+              type="search"
+              placeholder="Фильтр по имени или типу"
+            />
+          </label>
+
+          <div class="chat-result-panel__bi-column-list">
+            <button
+              v-for="column in filteredDatasetColumns"
+              :key="column.name"
+              class="chat-result-panel__bi-column"
+              type="button"
+            >
+              <span>{{ column.name }}</span>
+              <small>{{ column.type }}</small>
+            </button>
+          </div>
+        </aside>
+
+        <div class="chat-result-panel__bi-main">
+          <div class="chat-result-panel__bi-grid">
+            <section class="chat-result-panel__bi-card">
+              <div class="chat-result-panel__section-head">
+                <div>
+                  <strong>Таблица</strong>
+                  <p>{{ biTableHint }}</p>
+                </div>
+              </div>
+              <ChatResultTable
+                :columns="execution.columns ?? []"
+                :rows="execution.rows_preview ?? []"
+                :truncated="Boolean(execution.rows_preview_truncated)"
+              />
+            </section>
+
+            <section class="chat-result-panel__bi-card chat-result-panel__bi-card--chart">
+              <div class="chat-result-panel__section-head">
+                <div>
+                  <strong>График</strong>
+                  <p>{{ biChartHint }}</p>
+                </div>
+                <div v-if="sourceOptions.length" class="chat-result-panel__source-switcher">
+                  <button
+                    v-for="option in sourceOptions"
+                    :key="option.key"
+                    class="chat-result-panel__source-btn"
+                    :class="{ 'chat-result-panel__source-btn--active': activeSource === option.key }"
+                    type="button"
+                    @click="activeSource = option.key"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="showInterpretation && currentInterpretation" class="chat-result-panel__interpretation">
+                <strong>Как система поняла запрос</strong>
+                <p>{{ currentInterpretation.short_explanation ?? currentSubtitle }}</p>
+                <div class="chat-result-panel__chips">
+                  <span v-if="currentInterpretation.intent">{{ currentInterpretation.intent }}</span>
+                  <span v-if="currentInterpretation.time_dimension">X: {{ currentInterpretation.time_dimension }}</span>
+                  <span v-if="currentInterpretation.series_dimension">Series: {{ currentInterpretation.series_dimension }}</span>
+                  <span v-if="primaryMetric">Metric: {{ primaryMetric }}</span>
+                </div>
+              </div>
+
+              <ChartCell v-if="previewContent" :content="previewContent" :show-header="showChartHeader" />
+              <div v-else class="chat-result-panel__empty">
+                <p>{{ emptyChartMessage }}</p>
+                <p class="chat-result-panel__empty-note">
+                  Попробуйте выбрать поля вручную или попросить ИИ предложить более подходящую визуализацию.
+                </p>
+              </div>
+            </section>
+          </div>
         </div>
       </section>
     </template>
@@ -205,10 +332,12 @@ const props = defineProps<{
   view: 'table' | 'chart';
   sqlText?: string | null;
   databaseConnectionId?: string | null;
+  biMode?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'change-view', value: 'table' | 'chart'): void;
+  (event: 'update:biMode', value: boolean): void;
 }>();
 
 const chat = useChatStore();
@@ -216,8 +345,15 @@ const showSaveModal = ref(false);
 const showInterpretation = ref(false);
 const showChartHeader = ref(true);
 const showBuilder = ref(false);
+const columnSearch = ref('');
 const activeSource = ref<'heuristic' | 'ai' | 'manual'>('heuristic');
 const manualChartSpec = ref<ApiChatChartSpec | null>(null);
+const isBiMode = computed({
+  get: () => Boolean(props.biMode),
+  set: (value: boolean) => {
+    emit('update:biMode', value);
+  },
+});
 
 const recommendation = computed(() => props.execution?.chart_recommendation ?? null);
 const defaultChartSpec = computed(() => recommendation.value?.chart_spec ?? null);
@@ -278,6 +414,51 @@ const summary = computed(() => {
   return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} мс`;
 });
 
+const datasetColumns = computed(() => {
+  const schema = props.execution?.dataset?.columns_schema ?? [];
+  if (schema.length) {
+    return schema;
+  }
+  return props.execution?.columns ?? [];
+});
+
+const filteredDatasetColumns = computed(() => {
+  const search = columnSearch.value.trim().toLowerCase();
+  if (!search) {
+    return datasetColumns.value;
+  }
+  return datasetColumns.value.filter((column) =>
+    `${column.name} ${column.type}`.toLowerCase().includes(search)
+  );
+});
+
+const biColumnCountLabel = computed(() => {
+  const total = datasetColumns.value.length;
+  const visible = filteredDatasetColumns.value.length;
+  if (!total) {
+    return 'Схема пока недоступна.';
+  }
+  return visible === total
+    ? `${total} полей`
+    : `Показано ${visible} из ${total}`;
+});
+
+const biTableHint = computed(() => {
+  const total = props.execution?.rows_preview?.length ?? 0;
+  return total > 0
+    ? `Предпросмотр ${total} строк результата`
+    : 'Табличный предпросмотр результата';
+});
+
+const biChartHint = computed(() => {
+  const source = activeSource.value === 'manual'
+    ? 'Ручная настройка'
+    : activeSource.value === 'ai'
+      ? 'AI-предложение'
+      : 'Автоматический вариант';
+  return source;
+});
+
 const visualizationLead = computed(() => {
   if (activeSource.value === 'manual') {
     return 'Текущий preview собран из вручную отредактированного ChartSpec.';
@@ -300,6 +481,10 @@ const emptyChartMessage = computed(() => {
   }
   return 'Для этого результата график не построен.';
 });
+
+function toggleBiMode() {
+  isBiMode.value = !isBiMode.value;
+}
 
 async function requestAiSuggestion() {
   try {
@@ -326,6 +511,10 @@ watch(
     showInterpretation.value = false;
     showChartHeader.value = true;
     showBuilder.value = false;
+    columnSearch.value = '';
+    if (props.biMode) {
+      emit('update:biMode', false);
+    }
   }
 );
 </script>
@@ -517,6 +706,135 @@ watch(
   display: none;
 }
 
+.chat-result-panel__bi-view {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.chat-result-panel__bi-columns,
+.chat-result-panel__bi-main,
+.chat-result-panel__bi-card {
+  min-height: 0;
+}
+
+.chat-result-panel__bi-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.chat-result-panel__bi-columns .chat-result-panel__section-head {
+  display: flex;
+}
+
+.chat-result-panel__bi-search {
+  display: grid;
+  gap: 6px;
+}
+
+.chat-result-panel__bi-search span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.chat-result-panel__bi-search input {
+  width: 100%;
+  min-height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 0.78rem;
+  padding: 0 10px;
+  outline: none;
+}
+
+.chat-result-panel__bi-search input:focus {
+  border-color: rgba(112, 59, 247, 0.75);
+}
+
+.chat-result-panel__bi-column-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+}
+
+.chat-result-panel__bi-column {
+  display: grid;
+  gap: 4px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ink);
+  text-align: left;
+  cursor: default;
+}
+
+.chat-result-panel__bi-column span {
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.chat-result-panel__bi-column small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.chat-result-panel__bi-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-result-panel__bi-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 12px;
+}
+
+.chat-result-panel__bi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.chat-result-panel__bi-card--chart {
+  background:
+    radial-gradient(circle at top right, rgba(112, 59, 247, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.02);
+}
+
+.chat-result-panel__bi-card .chat-result-panel__section-head {
+  display: flex;
+}
+
+.chat-result-panel__bi-card :deep(.chat-result-table) {
+  flex: 1;
+}
+
 .chat-result-panel__section-head strong {
   display: block;
   color: var(--ink-strong);
@@ -607,5 +925,15 @@ watch(
   border-color: rgba(255, 107, 107, 0.6);
   background: rgba(255, 107, 107, 0.12);
   color: #ffb3b3;
+}
+
+@media (max-width: 1180px) {
+  .chat-result-panel__bi-view {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-result-panel__bi-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

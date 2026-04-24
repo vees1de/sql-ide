@@ -197,7 +197,7 @@ class LLMService:
             "clarification_question to null and populate sql whenever the request is specific enough "
             "to write a safe SELECT.\n"
             "10. Keep warnings concise.\n"
-            "11. Match the user's language in clarification text.\n"
+            "11. Match the user's language in clarification text, but if the query is mixed or ambiguous, ask the follow-up in Russian by default.\n"
             "12. Use conversation history when provided to resolve follow-up intent.\n"
             "13. Prefer join paths that are present in relationship_graph when choosing table traversal.\n"
             "14. When you set clarification_question, ALSO populate clarification_options with 3–5 concrete, "
@@ -712,21 +712,23 @@ class LLMService:
 
         line_map = self._numbered_sql(sql)
         table_choice_instruction = (
-            ' If "user_question" is provided, also fill "table_choice_reasoning" with 1-3 sentences'
-            " explaining why exactly these tables (and joins) were used to answer that question —"
-            " what data each table contributes and why alternatives were not needed."
-            ' If no user question is given, set "table_choice_reasoning" to null.'
+            ' Если "user_question" предоставлен, также заполни "table_choice_reasoning" 1-3 предложениями'
+            " на русском языке, объясняя, почему именно эти таблицы, joins и ключевые колонки были выбраны —"
+            " какой вклад вносит каждая таблица, какие колонки были использованы и почему альтернативы не нужны."
+            ' Если пользовательский вопрос отсутствует, установи "table_choice_reasoning" в null.'
         ) if user_question else ' Set "table_choice_reasoning" to null.'
         system_prompt = (
-            "You are a senior SQL tutor. "
+            "Ты — опытный SQL-репетитор. "
             "Return exactly one JSON object and no markdown. "
-            "Explain the query block by block in the user's language. "
-            "The explanation must stay faithful to the SQL and use the original line numbers. "
-            "Prefer 3-8 coherent blocks for non-trivial SQL. "
-            "If the query is simple, it is fine to produce fewer blocks. "
-            "Each block must describe one clause or one logical part of the query and should include the "
-            "exact SQL excerpt copied from the source. "
-            "Do not invent tables, columns, filters, or business meaning."
+            "Отвечай на русском языке, независимо от языка вопроса пользователя. "
+            "Разбирай запрос по блокам. "
+            "Объяснение должно строго соответствовать SQL и использовать исходные номера строк. "
+            "Для нетривиального SQL предпочитай 3-8 связных блоков. "
+            "Если запрос простой, можно сделать меньше блоков. "
+            "Каждый блок должен описывать один оператор или одну логическую часть запроса и содержать "
+            "точный фрагмент SQL из исходника. "
+            "Не придумывай таблицы, колонки, фильтры или бизнес-смысл. "
+            "Когда объясняешь выбор таблиц, явно указывай основные колонки или выражения, из-за которых эта таблица нужна."
             + table_choice_instruction + "\n"
             "{"
             '"summary":"string",'
@@ -1198,7 +1200,7 @@ class LLMService:
             summary=summary,
             blocks=blocks,
             warnings=[
-                "AI explanation is unavailable, so the query is shown with a structural SQL breakdown."
+                "AI-разбор недоступен, поэтому запрос показан в структурированном виде."
             ],
             generated_by_ai=False,
         )
@@ -1260,7 +1262,7 @@ class LLMService:
 
     def _fallback_sql_summary(self, blocks: list[SqlExplanationBlock], *, dialect: str | None = None, sql: str) -> str:
         if not blocks:
-            return "SQL query could not be split into blocks, but the raw text is available below."
+            return "SQL не удалось разбить на блоки, но ниже показан исходный текст."
         if len(blocks) == 1:
             return "Запрос состоит из одного логического блока, поэтому он показан как единая последовательность."
         dialect_suffix = f" для {dialect}" if dialect else ""

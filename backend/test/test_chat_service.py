@@ -4,6 +4,7 @@ from app.db.models import ChatMessageModel, ChatSessionModel
 from app.schemas.chat import (
     CreateSqlAction,
     SaveReportAction,
+    StructuredPayload,
     ShowChartPreviewAction,
     ShowRunButtonAction,
     ShowSqlAction,
@@ -113,3 +114,19 @@ def test_action_models_expose_default_type_discriminators() -> None:
         "show_sql",
         "save_report",
     ]
+
+
+def test_structured_payload_accepts_legacy_payloads() -> None:
+    legacy_payload = {
+        "state": "SQL_READY",
+        "assistant_message": "SQL готов.",
+        "actions": [],
+        "message_kind": "answer",
+        "needs_clarification": False,
+        "sql": "SELECT 1",
+    }
+
+    payload = StructuredPayload.model_validate(legacy_payload)
+
+    assert payload.interpretation.metric is None
+    assert payload.dialect == "unknown"

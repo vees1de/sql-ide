@@ -190,7 +190,7 @@ class StructuredPayload(BaseModel):
     assistant_message: str | None = None
     semantic_parse: SemanticParse | None = None
     actions: list[AgentAction] = Field(default_factory=list)
-    interpretation: Interpretation
+    interpretation: Interpretation = Field(default_factory=Interpretation)
     tables_used: list[TableUsage] = Field(default_factory=list)
     sql: str | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -205,7 +205,7 @@ class StructuredPayload(BaseModel):
     clarification_question: str | None = None
     clarification_options: list[ClarificationOption] | None = None
     answered_clarification_id: str | None = None
-    dialect: str
+    dialect: str = "unknown"
     query_mode: QueryMode = "fast"
     llm_model_alias: str | None = None
     complexity: Literal["simple", "complex"] = "simple"

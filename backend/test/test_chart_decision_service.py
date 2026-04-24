@@ -223,3 +223,21 @@ def test_category_limit_adds_other_bucket_for_ranking_payload() -> None:
     assert decision.encoding.category_limit == 10
     assert payload["x"]["values"][-1] == "Other"
     assert len(payload["x"]["values"]) == 10
+
+
+def test_decide_does_not_pass_unknown_keyword_to_x_candidates() -> None:
+    service = ChartDecisionService()
+    execution = _execution(
+        ["hour", "city", "orders"],
+        [
+            {"hour": "2026-04-14T10:00:00", "city": "Kazan", "orders": 3},
+            {"hour": "2026-04-14T11:00:00", "city": "Moscow", "orders": 4},
+        ],
+    )
+
+    decision = service.decide(
+        _semantics(intent="comparison_over_time", x="hour", y="orders", series="city"),
+        execution,
+    )
+
+    assert decision.encoding.x_field == "hour"

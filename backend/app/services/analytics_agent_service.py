@@ -458,9 +458,10 @@ class AnalyticsAgentService:
 
     def _apply_context(self, intent: IntentPayload, context: AnalyticsContext) -> IntentPayload:
         patched = intent.model_copy(deep=True)
-        for dimension in context.active_dimensions:
-            if dimension not in patched.dimensions:
-                patched.dimensions.append(dimension)
+        if not patched.dimensions:
+            for dimension in context.active_dimensions:
+                if dimension not in patched.dimensions:
+                    patched.dimensions.append(dimension)
         if context.active_filters:
             merged_filters = {item.field: item for item in patched.filters}
             for filter_item in context.active_filters:
@@ -508,7 +509,7 @@ class AnalyticsAgentService:
             questions.append(
                 ClarificationQuestion(
                     id="dimension",
-                    text="How should the result be grouped?",
+                    text="Как сгруппировать результат?",
                     options=self._dimension_options(schema),
                 )
             )
@@ -517,8 +518,8 @@ class AnalyticsAgentService:
             questions.append(
                 ClarificationQuestion(
                     id="time_range",
-                    text="Which time range should we use?",
-                    options=["Last 30 days", "Last 90 days", "Year to date", "All time"],
+                    text="Какой временной диапазон использовать?",
+                    options=["Последние 30 дней", "Последние 90 дней", "С начала года", "За всё время"],
                 )
             )
 
@@ -526,8 +527,8 @@ class AnalyticsAgentService:
             questions.append(
                 ClarificationQuestion(
                     id="metric",
-                    text="What metric do you want to analyze?",
-                    options=["Revenue", "Number of orders", "Average order value"],
+                    text="Какую метрику нужно проанализировать?",
+                    options=["Выручка", "Количество заказов", "Средний чек"],
                 )
             )
         return questions[:3]

@@ -1,5 +1,22 @@
 <template>
   <div class="sql-cell">
+    <div v-if="hasHeader" class="sql-cell__toolbar">
+      <p v-if="content.explanation" class="sql-cell__explanation">
+        {{ content.explanation }}
+      </p>
+      <button
+        v-if="showExplainButton"
+        class="sql-cell__help"
+        type="button"
+        :disabled="busy"
+        aria-label="Объяснить SQL код"
+        @click="$emit('explain')"
+      >
+        ?
+        <span class="sql-cell__help-tooltip">ИИ объяснит, почему выбраны таблицы и колонки</span>
+      </button>
+    </div>
+
     <div v-if="content.warnings?.length" class="sql-cell__warnings">
       <span
         v-for="warning in content.warnings"
@@ -21,6 +38,12 @@ import type { SqlCellContent } from '@/types/app';
 const props = defineProps<{
   content: SqlCellContent;
   collapsed?: boolean;
+  busy?: boolean;
+  showExplainButton?: boolean;
+}>();
+
+defineEmits<{
+  (event: 'explain'): void;
 }>();
 
 function escapeHtml(value: string) {
@@ -29,6 +52,8 @@ function escapeHtml(value: string) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 }
+
+const hasHeader = computed(() => Boolean(props.content.explanation || props.showExplainButton));
 
 const highlightedSql = computed(() => {
   const escaped = escapeHtml(props.content.sql ?? '');
@@ -51,15 +76,72 @@ const highlightedSql = computed(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.7rem;
+  gap: 0.75rem;
   margin-bottom: 0.55rem;
 }
 
-.sql-cell__toolbar p {
+.sql-cell__explanation {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.sql-cell__help {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(112, 59, 247, 0.7);
+  background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));
+  color: #efe9ff;
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(112, 59, 247, 0.18);
+  animation: sql-cell-float 3.2s ease-in-out infinite;
+}
+
+.sql-cell__help:hover:not(:disabled),
+.sql-cell__help:focus-visible:not(:disabled) {
+  border-color: rgba(164, 126, 255, 0.92);
+  background: linear-gradient(180deg, rgba(112, 59, 247, 0.42), rgba(112, 59, 247, 0.26));
+}
+
+.sql-cell__help:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  animation: none;
+}
+
+.sql-cell__help-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 240px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 20, 0.96);
+  color: var(--ink);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.sql-cell__help:hover .sql-cell__help-tooltip,
+.sql-cell__help:focus-visible .sql-cell__help-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .sql-cell__warnings {
@@ -94,6 +176,16 @@ pre {
 
 :deep(.sql-number) {
   color: #8ab4f8;
+}
+
+@keyframes sql-cell-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 </style>

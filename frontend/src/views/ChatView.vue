@@ -1,6 +1,6 @@
 <template>
-  <main class="chat-view">
-    <div class="chat-view__layout">
+  <main class="chat-view" :class="{ 'chat-view--bi-mode': isBiMode }">
+    <div v-show="!isBiMode" class="chat-view__layout">
       <ChatSidebar
         :active-db-id="chat.activeDbId"
         :active-session-id="chat.activeSessionId"
@@ -25,7 +25,6 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
-                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -45,6 +44,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -57,6 +57,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -75,7 +76,6 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
-                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -118,6 +118,7 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
+              @explain-sql="requestSqlExplanation"
               @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
@@ -144,6 +145,7 @@
                 chat.llmModelAliases?.length ? chat.llmModelAliases : ['gpt120']
               "
               @apply-sql="applySql"
+              @explain-sql="requestSqlExplanation"
               @prepare-sql="prepareSql"
               @clarification="sendClarification"
               @run-prepared="runPreparedSql"
@@ -183,7 +185,6 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
-                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -203,6 +204,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -215,6 +217,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  v-model:bi-mode="isBiMode"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -233,7 +236,6 @@
                   :model-value="chat.sqlDraft"
                   :status="editorStatus"
                   :state="chat.state"
-                  @explain="requestSqlExplanation"
                   @run="runSql"
                   @update:modelValue="updateSqlDraft"
                 />
@@ -243,6 +245,17 @@
         </template>
       </section>
     </div>
+
+    <section v-show="isBiMode" class="chat-view__bi-mode app-route-section">
+      <ChatResultPanel
+        :execution="chat.executionResult"
+        :view="chat.resultView"
+        :sql-text="chat.sqlDraft"
+        :database-connection-id="chat.activeDbId"
+        v-model:bi-mode="isBiMode"
+        @change-view="chat.setResultMode"
+      />
+    </section>
 
     <ExplainSqlModal
       :open="sqlExplanationOpen"
@@ -280,6 +293,7 @@ const chatWidth = ref(360);
 const centerTopHeight = ref(420);
 const panelSwapped = ref(false);
 const centerPanelSwapped = ref(false);
+const isBiMode = ref(false);
 const panelsEl = ref<HTMLElement | null>(null);
 const centerPanelEl = ref<HTMLElement | null>(null);
 const sqlExplanationOpen = ref(false);
@@ -422,6 +436,13 @@ watch(() => chat.activeSessionId, (id) => {
   }
 });
 
+watch(
+  () => chat.executionResult?.id,
+  () => {
+    isBiMode.value = false;
+  }
+);
+
 onMounted(() => {
   loadLayout();
   requestAnimationFrame(clampChatWidth);
@@ -546,9 +567,25 @@ function prepareSql() {
   display: flex;
 }
 
+.chat-view--bi-mode {
+  padding: 0;
+}
+
 .chat-view__layout {
   display: flex;
   gap: var(--app-shell-gap);
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.chat-view__bi-mode {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.chat-view__bi-mode :deep(.chat-result-panel) {
   flex: 1;
   min-height: 0;
   height: 100%;

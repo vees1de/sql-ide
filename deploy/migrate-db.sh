@@ -15,8 +15,8 @@ fi
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "set -e
 cd '${REMOTE_BACKEND_DIR}'
 .venv/bin/python - <<'PY'
-from app.services.bootstrap import bootstrap_application
+from app.services.bootstrap import apply_schema_migrations
 
-bootstrap_application()
+apply_schema_migrations()
 PY
 "

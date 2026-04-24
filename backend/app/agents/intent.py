@@ -17,6 +17,16 @@ from app.schemas.query import DateRange, FilterCondition, IntentPayload
 
 class IntentAgent:
     METRIC_PATTERNS: dict[str, tuple[str, ...]] = {
+        "completion_rate": (
+            "completion rate",
+            "completion_rate",
+            "conversion rate",
+            "conversion",
+            "конверси",
+            "доля заверш",
+            "доля выполн",
+            "коэффициент заверш",
+        ),
         "revenue": (
             "выруч",
             "revenue",
@@ -46,6 +56,23 @@ class IntentAgent:
             "топ",
             "top",
         ),
+        "avg_ride_duration": (
+            "длительност",
+            "duration",
+            "ride duration",
+            "trip duration",
+            "время поездк",
+            "среднее время поездк",
+        ),
+        "avg_pickup_minutes": (
+            "время подачи",
+            "время до подачи",
+            "accept to arrival",
+            "pickup",
+            "подач",
+            "прибыт",
+            "arrival time",
+        ),
         "avg_order_value": ("средний чек", "average order value", "aov", "average", "avg", "mean", "средн"),
     }
     DIMENSION_PATTERNS: dict[str, tuple[str, ...]] = {
@@ -54,7 +81,9 @@ class IntentAgent:
         "week": ("по недел", "weekly", "by week"),
         "day": ("по дням", "ежеднев", "daily", "by day"),
         "region": ("по регион", "by region", "regions"),
-        "city": ("по город", "город", "by city", "cities"),
+        "city": ("по город", "город", "city", "by city", "cities"),
+        "driver_id": ("по водител", "водителям", "driver", "drivers", "driver_id"),
+        "tariff_type": ("по тариф", "тариф", "tariff", "tariff_type"),
         "segment": ("по сегмент", "by segment", "segments"),
         "channel": ("по канал", "by channel", "channels", "источник"),
         "campaign": ("по кампан", "by campaign", "campaigns"),
@@ -104,6 +133,16 @@ class IntentAgent:
         "referral": "Referral",
         "партнер": "Referral",
     }
+    TARIFF_VALUES = {
+        "economy": "economy",
+        "эконом": "economy",
+        "comfort": "comfort",
+        "комфорт": "comfort",
+        "business": "business",
+        "бизнес": "business",
+        "premium": "premium",
+        "премиум": "premium",
+    }
     SEGMENT_VALUES = {
         "enterprise": "Enterprise",
         "энтерпрайз": "Enterprise",
@@ -142,6 +181,8 @@ class IntentAgent:
 
         if intent.comparison and not intent.dimensions:
             intent.dimensions = ["month"]
+        if previous_intent and intent.follow_up:
+            intent.confidence = max(intent.confidence, previous_intent.confidence * 0.95)
         if intent.metric is None and previous_intent and intent.follow_up:
             intent.metric = previous_intent.metric
             intent.confidence = max(intent.confidence, previous_intent.confidence * 0.95)
@@ -163,6 +204,11 @@ class IntentAgent:
         for dimension_key, markers in self.DIMENSION_PATTERNS.items():
             if any(marker in prompt for marker in markers):
                 dimensions.append(dimension_key)
+
+        remove_markers = ("убери", "remove", "without", "без", "drop")
+        if any(marker in prompt for marker in remove_markers):
+            if "city" in dimensions and ("tariff" in prompt or "тариф" in prompt):
+                dimensions = [dimension for dimension in dimensions if dimension != "city"]
         return dimensions
 
     def _extract_comparison(self, prompt: str) -> str | None:
@@ -209,10 +255,29 @@ class IntentAgent:
             if token in prompt:
                 filters.append(FilterCondition(field="channel", value=value))
                 break
+        for token, value in self.TARIFF_VALUES.items():
+            if token in prompt:
+                filters.append(FilterCondition(field="tariff_type", value=value))
+                break
         for token, value in self.SEGMENT_VALUES.items():
             if token in prompt:
                 filters.append(FilterCondition(field="segment", value=value))
                 break
+
+        if "banned" in prompt or "забан" in prompt or "blocked" in prompt:
+            if "водител" in prompt or "driver" in prompt or "драйвер" in prompt:
+                filters.append(FilterCondition(field="driver_status", value="banned"))
+        ride_completion_markers = ("завершен", "завершён", "completed", "done", "status")
+        if any(marker in prompt for marker in ride_completion_markers) and (
+            "поезд" in prompt or "ride" in prompt or "trip" in prompt
+        ):
+            if (
+                "не заверш" not in prompt
+                and "not completed" not in prompt
+                and "not done" not in prompt
+                and ("только" in prompt or "only" in prompt or "лишь" in prompt or "заверш" in prompt or "completed" in prompt or "done" in prompt)
+            ):
+                filters.append(FilterCondition(field="status", value="completed"))
 
         campaign_match = re.search(r"(?:campaign|кампан(?:ии|ия)|кампании)\s+([a-z0-9\-\s]+)", prompt)
         if campaign_match:

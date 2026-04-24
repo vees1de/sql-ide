@@ -112,6 +112,9 @@ function buildSqlExplanation(run: ApiQueryRunRead | undefined) {
     return 'SQL будет показан после запуска аналитического шага.';
   }
 
+  const tableChoiceReasoning = run.explanation.table_choice_reasoning
+    ? `${String(run.explanation.table_choice_reasoning).trim()} `
+    : '';
   const dimensions = Array.isArray(run.explanation.dimensions)
     ? (run.explanation.dimensions as string[])
     : [];
@@ -126,7 +129,7 @@ function buildSqlExplanation(run: ApiQueryRunRead | undefined) {
     ? ` и фильтрами ${filters.map((item) => `${item.field}: ${item.value}`).join(', ')}`
     : '';
 
-  return `Агент посчитал ${metricLabel(run.explanation.metric)}${dimensionText}${filterText}.`;
+  return `${tableChoiceReasoning}Агент посчитал ${metricLabel(run.explanation.metric)}${dimensionText}${filterText}.`.trim();
 }
 
 function extractRunQueryMode(run: ApiQueryRunRead | undefined): QueryMode {
