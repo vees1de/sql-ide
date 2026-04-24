@@ -13,9 +13,7 @@
           aria-label="Запустить SQL"
           @click="$emit('run')"
         >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M4.5 3.3v7.4L10.8 7 4.5 3.3Z" fill="currentColor"/>
-          </svg>
+          <v-icon name="md-playarrow" style="font-size: 13px" />
           <span>Запустить</span>
         </button>
         <button
@@ -26,11 +24,7 @@
           :aria-label="collapsed ? 'Показать SQL' : 'Скрыть SQL'"
           @click="$emit('toggle-sql')"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M5 4.2 2.8 7l2.2 2.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M9 4.2 11.2 7 9 9.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M7 3.2 6 10.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          </svg>
+          <v-icon name="md-code" style="font-size: 14px" />
         </button>
         <button
           v-if="showExplainButton"
@@ -52,12 +46,7 @@
           aria-label="Скопировать SQL код"
           @click="$emit('copy')"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <rect x="4" y="1.5" width="7.5" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
-            <path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            <path d="M5.5 5.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            <path d="M5.5 7.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          </svg>
+          <v-icon name="md-contentcopy" style="font-size: 14px" />
         </button>
       </div>
     </div>

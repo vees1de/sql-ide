@@ -9,8 +9,8 @@
   >
     <div class="jcell__gutter">
       <button class="jcell__run" type="button" :title="`Run ${cell.type}`">
-        <svg v-if="!running" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 4.5v15l13-7.5z"/></svg>
-        <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+        <v-icon v-if="!running" name="md-playarrow" style="font-size: 14px" />
+        <v-icon v-else name="md-stop" style="font-size: 14px" />
       </button>
       <span class="jcell__index">[{{ cell.order }}]</span>
     </div>

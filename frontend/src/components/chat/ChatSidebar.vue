@@ -17,18 +17,7 @@
           :aria-expanded="!isCollapsed"
           @click="toggleSidebarRail"
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <v-icon name="md-chevronleft" style="font-size: 16px" />
         </button>
       </div>
 
@@ -43,52 +32,9 @@
           :aria-label="item.label"
         >
           <span class="chat-sidebar__nav-icon" aria-hidden="true">
-            <svg
-              v-if="item.key === 'chat'"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
-              />
-            </svg>
-            <svg
-              v-else-if="item.key === 'dashboards'"
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="4" y="4" width="7" height="7" rx="1.5" />
-              <rect x="13" y="4" width="7" height="7" rx="1.5" />
-              <rect x="4" y="13" width="7" height="7" rx="1.5" />
-              <rect x="13" y="13" width="7" height="7" rx="1.5" />
-            </svg>
-            <svg
-              v-else
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.9"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <ellipse cx="12" cy="5" rx="8" ry="3" />
-              <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-              <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-            </svg>
+            <v-icon v-if="item.key === 'chat'" name="md-chatbubbleoutline" style="font-size: 16px" />
+            <v-icon v-else-if="item.key === 'dashboards'" name="md-dashboard" style="font-size: 16px" />
+            <v-icon v-else name="md-storage" style="font-size: 16px" />
           </span>
           <span class="chat-sidebar__nav-label">{{ item.label }}</span>
         </RouterLink>
@@ -102,13 +48,6 @@
       >
         <div class="chat-sidebar__panel">
           <div class="chat-sidebar__section-head">
-            <div>
-              <p class="chat-sidebar__eyebrow">Навигатор</p>
-              <h2 class="chat-sidebar__title">
-                {{ sectionTitle }}
-              </h2>
-            </div>
-
             <button
               class="chat-sidebar__new"
               type="button"
@@ -119,18 +58,7 @@
                   : $emit('create-session', activeDbId)
               "
             >
-              <svg
-                viewBox="0 0 24 24"
-                width="14"
-                height="14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
+              <v-icon name="md-add" style="font-size: 14px" />
               {{ isDatabaseMode ? "Добавить БД" : "Новый чат" }}
             </button>
           </div>
@@ -235,39 +163,8 @@
                 }"
               >
                 <span class="chat-sidebar__db-icon" aria-hidden="true">
-                  <svg
-                    v-if="dashboardView === 'widgets'"
-                    viewBox="0 0 24 24"
-                    width="15"
-                    height="15"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M4 19V5" />
-                    <path d="M4 19h16" />
-                    <path d="M8 15V9" />
-                    <path d="M12 15V7" />
-                    <path d="M16 15v-4" />
-                  </svg>
-                  <svg
-                    v-else
-                    viewBox="0 0 24 24"
-                    width="15"
-                    height="15"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <rect x="4" y="4" width="7" height="7" rx="1.5" />
-                    <rect x="13" y="4" width="7" height="7" rx="1.5" />
-                    <rect x="4" y="13" width="7" height="7" rx="1.5" />
-                    <rect x="13" y="13" width="7" height="7" rx="1.5" />
-                  </svg>
+                  <v-icon v-if="dashboardView === 'widgets'" name="md-barchart" style="font-size: 15px" />
+                  <v-icon v-else name="md-dashboard" style="font-size: 15px" />
                 </span>
 
                 <span class="chat-sidebar__db-text">
@@ -317,20 +214,7 @@
                 @keydown.space.prevent="selectDatabase(database.id)"
               >
                 <span class="chat-sidebar__db-icon" aria-hidden="true">
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="15"
-                    height="15"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <ellipse cx="12" cy="5" rx="8" ry="3" />
-                    <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-                    <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-                  </svg>
+                  <v-icon name="md-storage" style="font-size: 15px" />
                 </span>
 
                 <span class="chat-sidebar__db-text">
@@ -371,7 +255,7 @@
                     type="button"
                     title="Переименовать"
                     aria-label="Переименовать"
-                    :disabled="database.isBuiltin"
+                    :disabled="database.is_builtin"
                     @click.stop="renameDatabase(database)"
                   >
                     ✎
@@ -381,7 +265,7 @@
                     type="button"
                     title="Удалить"
                     aria-label="Удалить"
-                    :disabled="database.isBuiltin"
+                    :disabled="database.is_builtin"
                     @click.stop="remove(database)"
                   >
                     ×
@@ -412,34 +296,10 @@
                       'chat-sidebar__folder-chevron--open': isOpen(database.id),
                     }"
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="14"
-                      height="14"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <polyline points="9 6 15 12 9 18" />
-                    </svg>
+                    <v-icon name="md-chevronright" style="font-size: 14px" />
                   </span>
                   <span class="chat-sidebar__folder-icon" aria-hidden="true">
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="15"
-                      height="15"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="1.8"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <ellipse cx="12" cy="5" rx="8" ry="3" />
-                      <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-                      <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
-                    </svg>
+                    <v-icon name="md-storage" style="font-size: 15px" />
                   </span>
                   <span class="chat-sidebar__folder-name">{{
                     database.name
@@ -462,18 +322,7 @@
                     @click="$emit('create-session', database.id)"
                   >
                     <span class="chat-sidebar__session-icon" aria-hidden="true">
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="13"
-                        height="13"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M12 5v14M5 12h14" />
-                      </svg>
+                      <v-icon name="md-add" style="font-size: 13px" />
                     </span>
                     <span class="chat-sidebar__session-text">
                       <span class="chat-sidebar__session-title">Новый чат</span>
@@ -509,20 +358,7 @@
                         class="chat-sidebar__session-icon"
                         aria-hidden="true"
                       >
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="13"
-                          height="13"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="1.8"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path
-                            d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
-                          />
-                        </svg>
+                        <v-icon name="md-chatbubbleoutline" style="font-size: 13px" />
                       </span>
 
                       <span class="chat-sidebar__session-text">
@@ -578,36 +414,8 @@
       >
         {{ dashboardView === "widgets" ? "Каталог виджетов" : "Новый дашборд" }}
         <span class="chat-sidebar__footer-icon" aria-hidden="true">
-          <svg
-            v-if="dashboardView === 'widgets'"
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.9"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M4 19V5" />
-            <path d="M4 19h16" />
-            <path d="M8 15V9" />
-            <path d="M12 15V7" />
-            <path d="M16 15v-4" />
-          </svg>
-          <svg
-            v-else
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <v-icon v-if="dashboardView === 'widgets'" name="md-barchart" style="font-size: 14px" />
+          <v-icon v-else name="md-add" style="font-size: 14px" />
         </span>
         <span class="chat-sidebar__footer-label">
           {{
@@ -622,19 +430,7 @@
         title="Профиль"
         aria-label="Профиль"
       >
-        <svg
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
+        <v-icon name="md-person" style="font-size: 14px" />
         <span class="chat-sidebar__footer-label">Профиль</span>
         Профиль
       </button>
@@ -644,21 +440,7 @@
         title="Источники"
         aria-label="Источники"
       >
-        <svg
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1.82v.16a2 2 0 1 1-4 0v-.16A1.65 1.65 0 0 0 9 20a1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.82-.33h-.16a2 2 0 1 1 0-4h.16A1.65 1.65 0 0 0 4 9a1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6c.3 0 .59-.12.8-.33a1.65 1.65 0 0 0 .2-1.27v-.16a2 2 0 1 1 4 0v.16c-.03.45.06.9.26 1.3.2.39.53.71.92.9.4.2.85.3 1.3.26h.16a2 2 0 1 1 0 4h-.16a1.65 1.65 0 0 0-1.3.26c-.39.2-.72.52-.92.9-.2.4-.29.84-.26 1.3z"
-          />
-        </svg>
+        <v-icon name="md-settings" style="font-size: 14px" />
         Настройки
       </button>
     </footer>
@@ -679,7 +461,7 @@ type TreeDatabase = ApiDatabaseDescriptor & { sessions: ApiChatSessionRead[] };
 type DashboardItem = ApiDashboardRead | ApiWidgetRead;
 
 const SIDEBAR_COLLAPSED_LS_KEY = "app-chat-sidebar-collapsed";
-const SIDEBAR_WIDTH_EXPANDED = "300px";
+const SIDEBAR_WIDTH_EXPANDED = "180px";
 const SIDEBAR_WIDTH_COLLAPSED = "56px";
 
 const props = defineProps<{
@@ -1244,22 +1026,8 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__panel {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(138, 180, 248, 0.08),
-      transparent 28%
-    ),
-    linear-gradient(180deg, rgba(26, 29, 36, 0.96), rgba(18, 20, 27, 0.98));
-  padding: 12px;
-  box-shadow: var(--shadow-soft);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-  height: 100%;
 }
 
 .chat-sidebar__section-head {
