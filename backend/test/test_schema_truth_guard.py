@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from sqlglot import expressions as exp
+from sqlglot import parse_one
+
 from app.schemas.semantic_contract import SemanticContract, SchemaFact
+from app.agents.validation import SQLValidationAgent
 from app.services.schema_truth_guard import SchemaTruthGuard
 
 
@@ -31,3 +35,14 @@ def test_guard_ignores_non_missing_clarification() -> None:
         question="Как считать выручку: по сумме amount или по количеству платежей?",
         contract=contract,
     ) is False
+
+
+def test_validation_agent_rewrites_division_without_nullif() -> None:
+    agent = SQLValidationAgent()
+    validation = agent.run("SELECT revenue / total_orders AS ratio FROM orders", "postgresql")
+
+    assert validation.valid is True
+    assert "NULLIF" in validation.sql
+    parsed = parse_one(validation.sql, read="postgres")
+    div = next(parsed.find_all(exp.Div))
+    assert isinstance(div.args.get("expression"), exp.Nullif)

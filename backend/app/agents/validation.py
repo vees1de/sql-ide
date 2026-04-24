@@ -68,6 +68,7 @@ class SQLValidationAgent:
                 errors,
             )
 
+        self._rewrite_divisions_without_nullif(parsed, warnings)
         parsed = self._apply_row_limit(parsed, warnings, trace)
         final_sql = self.format_sql(parsed.sql(pretty=True, dialect=self._read_dialect(dialect)), dialect)
 
@@ -363,6 +364,20 @@ class SQLValidationAgent:
         if score >= 2:
             return "medium", reasons[:4]
         return "low", reasons[:4]
+
+    def _rewrite_divisions_without_nullif(self, parsed: exp.Expression, warnings: list[str]) -> None:
+        rewrites = 0
+        for division in parsed.find_all(exp.Div):
+            denominator = division.args.get("expression")
+            if denominator is None or isinstance(denominator, exp.Nullif):
+                continue
+            guarded = exp.Nullif(this=denominator.copy() if hasattr(denominator, "copy") else denominator, expression=exp.Literal.number(0))
+            division.set("expression", guarded)
+            rewrites += 1
+        if rewrites:
+            warnings.append(
+                f"Division without NULLIF was rewritten automatically in {rewrites} expression(s)."
+            )
 
     def _alias_map(self, parsed: exp.Expression) -> dict[str, str]:
         alias_map: dict[str, str] = {}

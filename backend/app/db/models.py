@@ -547,6 +547,7 @@ class QueryExecutionModel(Base):
     execution_time_ms = Column(Integer, nullable=False, default=0)
     dataset_id = Column(String(32), nullable=True, unique=True, index=True)
     chart_recommendation_json = Column(JSON, nullable=True)
+    analysis_message = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 

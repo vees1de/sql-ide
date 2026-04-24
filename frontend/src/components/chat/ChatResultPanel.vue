@@ -109,6 +109,10 @@
       {{ execution.error_message }}
     </div>
 
+    <div v-else-if="execution?.analysis_message" class="chat-result-panel__analysis">
+      {{ execution.analysis_message }}
+    </div>
+
     <template v-else-if="execution">
       <ChatResultTable
         v-if="view === 'table'"

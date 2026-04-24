@@ -343,6 +343,7 @@ class QueryExecutionRead(BaseModel):
     execution_time_ms: int = 0
     dataset: ExecutionDatasetRead | None = None
     chart_recommendation: ChartRecommendation | None = None
+    analysis_message: str | None = None
     error_message: str | None = None
     created_at: datetime
 

@@ -322,6 +322,7 @@ export interface ApiChatExecutionRead {
   execution_time_ms: number;
   dataset?: ApiChatExecutionDataset | null;
   chart_recommendation: ApiChatExecutionRecommendation | null;
+  analysis_message: string | null;
   error_message: string | null;
   created_at: string;
 }

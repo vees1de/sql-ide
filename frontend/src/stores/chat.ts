@@ -535,7 +535,13 @@ export const useChatStore = defineStore('chat', () => {
       const response = await chatApi.executeSql(currentSession.value.id, { sql });
       syncSession(response.session);
       setSessionResult(response.execution);
-      setStatus(response.execution.error_message ? 'Выполнение завершилось с ошибкой' : 'Запрос выполнен');
+      setStatus(
+        response.execution.error_message
+          ? 'Выполнение завершилось с ошибкой'
+          : response.execution.row_count === 0
+            ? 'Запрос выполнен, но данных нет'
+            : 'Запрос выполнен'
+      );
       return response;
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Не удалось выполнить SQL.');
@@ -558,7 +564,13 @@ export const useChatStore = defineStore('chat', () => {
       const response = await chatApi.runPreparedSql(currentSession.value.id, preparedSql.value ? { sql: preparedSql.value } : undefined);
       syncSession(response.session);
       setSessionResult(response.execution);
-      setStatus(response.execution.error_message ? 'Выполнение завершилось с ошибкой' : 'Запрос выполнен');
+      setStatus(
+        response.execution.error_message
+          ? 'Выполнение завершилось с ошибкой'
+          : response.execution.row_count === 0
+            ? 'Запрос выполнен, но данных нет'
+            : 'Запрос выполнен'
+      );
       return response;
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Не удалось выполнить подготовленный SQL.');

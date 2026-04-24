@@ -94,21 +94,14 @@ class ChatExecutionService:
                 rows_preview, truncated = self._serialize_preview(rows_full)
                 row_count = int(len(dataframe.index))
 
+                empty_result_analysis = None
                 if row_count == 0:
-                    repaired_sql = self._attempt_repair(
-                        repair_context,
-                        schema=schema,
-                        failed_sql=validation.sql,
-                        failure_reason="SQL executed successfully but returned 0 rows.",
-                        attempt_index=repair_attempt,
-                        row_count=row_count,
-                        execution_columns=[str(column.get("name")) for column in columns],
-                        execution_rows=rows_preview,
+                    empty_result_analysis = self._build_empty_result_analysis(
+                        prompt=str(repair_context.get("prompt") or ""),
+                        sql=validation.sql,
+                        columns=[str(column.get("name")) for column in columns],
+                        model=repair_context.get("llm_model"),
                     )
-                    if repaired_sql is not None:
-                        attempted_sql = repaired_sql
-                        repair_attempt += 1
-                        continue
 
                 execution_result = self._build_execution_result(validation.sql, rows_preview, columns, row_count, execution_time_ms)
                 decision = self.chart_service.decide(None, execution_result)
@@ -162,6 +155,7 @@ class ChatExecutionService:
                     row_count=row_count,
                     execution_time_ms=execution_time_ms,
                     chart_recommendation_json=chart_recommendation.model_dump(mode="json"),
+                    analysis_message=getattr(empty_result_analysis, "message", None),
                     error_message=None,
                 )
                 session.last_executed_sql = validation.sql
@@ -209,6 +203,7 @@ class ChatExecutionService:
                     row_count=0,
                     execution_time_ms=execution_time_ms,
                     chart_recommendation_json=None,
+                    analysis_message=None,
                     error_message=str(exc),
                 )
                 session.last_executed_sql = validation.sql
@@ -300,12 +295,13 @@ class ChatExecutionService:
         model_alias = normalize_llm_model_alias(assistant_payload.get("llm_model_alias")) if assistant_payload.get("llm_model_alias") else None
         query_mode = str(assistant_payload.get("query_mode") or "fast")
         previous_intent = self._load_previous_intent(session.last_intent_json)
+        analytical_context = self._build_analytical_context(previous_intent)
         toolbox = None
         if query_mode == "thinking":
             toolbox = self.schema_recon_service.build_toolbox(db, session.database_connection_id)
         return {
             "prompt": self._latest_user_prompt(session.messages),
-            "history_text": self._build_history_text(session.messages),
+            "history_text": self._build_history_text(session.messages, analytical_context),
             "previous_intent": previous_intent,
             "llm_model": resolve_llm_model_from_alias(model_alias) if model_alias else settings.llm_model,
             "query_mode": query_mode,
@@ -355,6 +351,34 @@ class ChatExecutionService:
             return None
         return repaired_sql
 
+    def _build_empty_result_analysis(
+        self,
+        *,
+        prompt: str,
+        sql: str,
+        columns: list[str],
+        model: str | None,
+    ) -> Any | None:
+        analysis = self.llm_service.summarize_empty_result(
+            prompt=prompt,
+            sql=sql,
+            columns=columns,
+            model=model,
+        )
+        if analysis is not None:
+            return analysis
+
+        return type(
+            "EmptyResultAnalysis",
+            (),
+            {
+                "message": (
+                    "Запрос выполнен успешно, но по этим условиям нет данных. "
+                    "Проверьте фильтр по дате, enum-значения и JOIN-путь."
+                )
+            },
+        )()
+
     def _latest_assistant_payload(self, messages: list[ChatMessageModel]) -> dict[str, Any]:
         for message in reversed(messages):
             if message.role != "assistant":
@@ -370,13 +394,34 @@ class ChatExecutionService:
                 return str(message.text).strip()
         return ""
 
-    def _build_history_text(self, messages: list[ChatMessageModel]) -> str:
+    def _build_history_text(self, messages: list[ChatMessageModel], analytical_context: str | None = None) -> str:
         recent_messages = messages[-6:]
         lines: list[str] = []
+        if analytical_context:
+            lines.append(f"[context] {analytical_context}")
         for message in recent_messages:
             role = "user" if message.role == "user" else "assistant"
             lines.append(f"[{role}] {str(message.text or '').strip()}")
         return "\n".join(lines)
+
+    def _build_analytical_context(self, intent: IntentPayload | None) -> str | None:
+        if intent is None:
+            return None
+        parts: list[str] = []
+        if intent.metric:
+            parts.append(f"metric={intent.metric}")
+        if intent.dimensions:
+            parts.append(f"dimensions={', '.join(intent.dimensions)}")
+        if intent.date_range is not None:
+            start = intent.date_range.start.isoformat() if intent.date_range.start else "?"
+            end = intent.date_range.end.isoformat() if intent.date_range.end else "?"
+            parts.append(f"date_range={start}..{end}")
+        if intent.filters:
+            filter_parts = [f"{item.field}{item.operator}{item.value}" for item in intent.filters]
+            parts.append(f"filters={'; '.join(filter_parts)}")
+        if intent.comparison:
+            parts.append(f"comparison={intent.comparison}")
+        return "; ".join(parts) or None
 
     def _load_previous_intent(self, payload: Any | None) -> IntentPayload | None:
         if not isinstance(payload, dict):

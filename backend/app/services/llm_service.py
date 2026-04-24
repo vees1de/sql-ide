@@ -93,6 +93,11 @@ class LLMSqlRepairPayload(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class LLMEmptyResultAnalysisPayload(BaseModel):
+    message: str
+    suggestions: list[str] = Field(default_factory=list)
+
+
 class LLMChartSuggestionPayload(BaseModel):
     chart_type: str | None = None
     variant: str | None = None
@@ -520,6 +525,60 @@ class LLMService:
             return LLMSqlRepairPayload.model_validate(payload)
         except Exception as exc:  # noqa: BLE001
             logger.warning("LLM SQL repair failed: %s", exc)
+            return None
+
+    def summarize_empty_result(
+        self,
+        *,
+        prompt: str,
+        sql: str,
+        columns: list[str] | None = None,
+        model: str | None = None,
+    ) -> LLMEmptyResultAnalysisPayload | None:
+        target_model = model or settings.llm_model
+        if not self._configured_for_model(target_model):
+            return None
+
+        system_prompt = (
+            "You explain why a SQL query returned zero rows. "
+            "Return exactly one JSON object and no markdown. "
+            "Do not rewrite SQL. Do not broaden filters. "
+            "Write a concise user-facing message in the same language as the prompt. "
+            "If helpful, add 1-3 concrete suggestions that help the user debug the filters, "
+            "time range, join path, or enum values.\n"
+            "{"
+            '"message":"string",'
+            '"suggestions":["string"]'
+            "}"
+        )
+        user_prompt = json.dumps(
+            {
+                "user_prompt": prompt,
+                "sql": sql,
+                "columns": columns or [],
+                "row_count": 0,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        try:
+            content = self._chat_json(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=320,
+                temperature=0.1,
+                model=target_model,
+            )
+            payload = json.loads(self._extract_json_object(content))
+            result = LLMEmptyResultAnalysisPayload.model_validate(payload)
+            if not result.message.strip():
+                return None
+            return result
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("LLM empty-result analysis failed: %s", exc)
             return None
 
     def summarize_result(

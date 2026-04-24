@@ -305,6 +305,7 @@ class QueryRunRead(BaseModel):
     execution_time_ms: int
     row_count: int
     status: str
+    analysis_message: str | None = None
     error_message: str | None = None
     created_at: datetime
 

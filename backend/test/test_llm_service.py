@@ -36,3 +36,13 @@ def test_llm_sql_explanation_falls_back_to_structural_blocks(monkeypatch) -> Non
     assert explanation.blocks
     assert explanation.blocks[0].line_start == 1
     assert explanation.blocks[-1].line_end == 3
+
+
+def test_llm_empty_result_analysis_falls_back_when_llm_unavailable(monkeypatch) -> None:
+    service = LLMService()
+    monkeypatch.setattr(service, "_configured_for_model", lambda _model: False)
+
+    assert service.summarize_empty_result(
+        prompt="Покажи заказы за вчера",
+        sql="SELECT * FROM orders WHERE order_date = '2026-04-23'",
+    ) is None

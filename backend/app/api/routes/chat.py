@@ -93,6 +93,7 @@ def _execution_to_read(execution: QueryExecutionModel) -> QueryExecutionRead:
             "last_refresh_at": dataset.last_refresh_at,
         },
         "chart_recommendation": execution.chart_recommendation_json,
+        "analysis_message": getattr(execution, "analysis_message", None),
         "error_message": execution.error_message,
         "created_at": execution.created_at,
     }
