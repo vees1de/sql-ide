@@ -7,6 +7,7 @@
       <div class="chat-sidebar__top-bar">
         <RouterLink to="/chat" class="chat-sidebar__brand" title="BimsDash">
           <img src="../../assets/logo.svg" />
+          <img v-if="!isCollapsed" src="../../assets/BimsDash.svg" />
         </RouterLink>
 
         <button
@@ -104,58 +105,66 @@
         v-if="!isCollapsed"
         class="chat-sidebar__section chat-sidebar__section--tree"
       >
-        <div class="chat-sidebar__panel">
-          <div class="chat-sidebar__section-head">
-            <div>
-              <p class="chat-sidebar__eyebrow">Навигатор</p>
-              <h2 class="chat-sidebar__title">
-                {{ sectionTitle }}
-              </h2>
+        <div
+          class="chat-sidebar__panel"
+          :class="{
+            'chat-sidebar__panel--sources': isDatabaseMode,
+            'chat-sidebar__panel--dashboards': isDashboardsMode,
+          }"
+        >
+          <template v-if="isDatabaseMode">
+            <div class="chat-sidebar__search-wrap">
+              <input
+                v-model="query"
+                class="chat-sidebar__search"
+                type="search"
+                placeholder="Поиск баз"
+              />
             </div>
+          </template>
 
-            <button
-              class="chat-sidebar__new"
-              type="button"
-              :disabled="isDatabaseMode ? false : !activeDbId"
-              @click="
-                isDatabaseMode
-                  ? $emit('add-database')
-                  : $emit('create-session', activeDbId)
-              "
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="14"
-                height="14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+          <template v-else-if="isDashboardsMode">
+            <div class="chat-sidebar__search-wrap">
+              <input
+                v-model="query"
+                class="chat-sidebar__search"
+                type="search"
+                placeholder="Поиск дашбордов и виджетов"
+              />
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="chat-sidebar__section-head">
+              <div>
+                <p class="chat-sidebar__eyebrow">Навигатор</p>
+                <h2 class="chat-sidebar__title">
+                  {{ sectionTitle }}
+                </h2>
+              </div>
+
+              <button
+                class="chat-sidebar__new"
+                type="button"
+                :disabled="!activeDbId"
+                @click="$emit('create-session', activeDbId)"
               >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              {{ isDatabaseMode ? "Добавить БД" : "Новый чат" }}
-            </button>
-          </div>
-
-          <div
-            v-if="isDatabaseMode || isDashboardsMode"
-            class="chat-sidebar__search-wrap"
-          >
-            <input
-              v-model="query"
-              class="chat-sidebar__search"
-              type="search"
-              :placeholder="
-                isDatabaseMode
-                  ? 'Поиск баз'
-                  : isDashboardsMode
-                    ? 'Поиск дашбордов и виджетов'
-                    : 'Поиск чатов'
-              "
-            />
-          </div>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Новый чат
+              </button>
+            </div>
+          </template>
 
           <div v-if="showLoadingState" class="chat-sidebar__state">
             {{
@@ -168,14 +177,10 @@
           </div>
 
           <div
-            v-else-if="isDashboardsMode && !dashboardItems.length"
+            v-else-if="isDashboardsMode && !dashboards.length"
             class="chat-sidebar__state"
           >
-            {{
-              dashboardView === "widgets"
-                ? "Виджетов пока нет"
-                : "Дашбордов пока нет"
-            }}
+            Дашбордов пока нет
           </div>
 
           <div
@@ -193,7 +198,7 @@
           </div>
 
           <div
-            v-else-if="isDashboardsMode && !filteredDashboardItems.length"
+            v-else-if="isDashboardsMode && !dashboardTree.length"
             class="chat-sidebar__state"
           >
             Ничего не найдено
@@ -202,108 +207,170 @@
           <div v-else class="chat-sidebar__tree">
             <template v-if="isDashboardsMode">
               <div
-                class="chat-sidebar__section-head chat-sidebar__section-head--stacked"
+                v-for="item in dashboardTree"
+                :key="item.dashboard.id"
+                class="chat-sidebar__dashboard-group"
               >
-                <div>
-                  <p class="chat-sidebar__eyebrow">Навигатор</p>
-                  <h2 class="chat-sidebar__title">
-                    {{ dashboardView === "widgets" ? "Виджеты" : "Дашборды" }}
-                  </h2>
+                <div class="chat-sidebar__dashboard-head">
+                  <RouterLink
+                    :to="`/dashboards/${item.dashboard.id}`"
+                    class="chat-sidebar__db-row chat-sidebar__dashboard-link"
+                    :class="{
+                      'chat-sidebar__db-row--active': isDashboardRouteActive(
+                        item.dashboard.id,
+                      ),
+                    }"
+                  >
+                    <span class="chat-sidebar__db-icon" aria-hidden="true">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="15"
+                        height="15"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <rect x="4" y="4" width="7" height="7" rx="1.5" />
+                        <rect x="13" y="4" width="7" height="7" rx="1.5" />
+                        <rect x="4" y="13" width="7" height="7" rx="1.5" />
+                        <rect x="13" y="13" width="7" height="7" rx="1.5" />
+                      </svg>
+                    </span>
+
+                    <span class="chat-sidebar__db-text">
+                      <span class="chat-sidebar__db-name">{{
+                        dashboardTitle(item.dashboard)
+                      }}</span>
+                      <span class="chat-sidebar__db-sub">{{
+                        dashboardSubtitle(item.dashboard)
+                      }}</span>
+                    </span>
+
+                    <span class="chat-sidebar__db-meta">
+                      <span
+                        v-if="isDashboardPublic(item.dashboard)"
+                        class="chat-sidebar__db-pill chat-sidebar__db-pill--accent"
+                      >
+                        Публичный
+                      </span>
+                      <span
+                        v-if="isDashboardHidden(item.dashboard)"
+                        class="chat-sidebar__db-pill"
+                      >
+                        Скрытый
+                      </span>
+                      <span
+                        v-if="dashboardWidgetCountLabel(item.dashboard.id)"
+                        class="chat-sidebar__db-time"
+                      >
+                        {{ dashboardWidgetCountLabel(item.dashboard.id) }}
+                      </span>
+                    </span>
+                  </RouterLink>
+
+                  <button
+                    class="chat-sidebar__dashboard-toggle"
+                    :class="{
+                      'chat-sidebar__dashboard-toggle--open':
+                        isDashboardExpanded(item.dashboard.id),
+                    }"
+                    type="button"
+                    :aria-expanded="isDashboardExpanded(item.dashboard.id)"
+                    :aria-label="
+                      isDashboardExpanded(item.dashboard.id)
+                        ? 'Свернуть виджеты'
+                        : 'Показать виджеты'
+                    "
+                    @click="toggleDashboardExpand(item.dashboard.id)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="9 6 15 12 9 18" />
+                    </svg>
+                  </button>
                 </div>
-                <button
-                  class="chat-sidebar__new"
-                  type="button"
-                  @click="toggleDashboardView()"
+
+                <div
+                  v-if="isDashboardExpanded(item.dashboard.id)"
+                  class="chat-sidebar__dashboard-body"
                 >
-                  {{
-                    dashboardView === "widgets"
-                      ? "Показать дашборды"
-                      : "Показать виджеты"
-                  }}
-                </button>
+                  <div
+                    v-if="isDashboardWidgetsLoading(item.dashboard.id)"
+                    class="chat-sidebar__dashboard-state"
+                  >
+                    Загружаю виджеты…
+                  </div>
+                  <div
+                    v-else-if="dashboardWidgetsErrorMessage(item.dashboard.id)"
+                    class="chat-sidebar__dashboard-state"
+                  >
+                    {{ dashboardWidgetsErrorMessage(item.dashboard.id) }}
+                  </div>
+                  <div
+                    v-else-if="!item.widgets.length"
+                    class="chat-sidebar__dashboard-state"
+                  >
+                    Виджетов пока нет
+                  </div>
+                  <div v-else class="chat-sidebar__dashboard-widgets">
+                    <RouterLink
+                      v-for="widget in item.widgets"
+                      :key="widget.id"
+                      :to="`/widget/${widget.widget.id}`"
+                      class="chat-sidebar__db-row chat-sidebar__db-row--widget"
+                      :class="{
+                        'chat-sidebar__db-row--active': isWidgetRouteActive(
+                          widget.widget.id,
+                        ),
+                      }"
+                    >
+                      <span class="chat-sidebar__db-icon" aria-hidden="true">
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="15"
+                          height="15"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M4 19V5" />
+                          <path d="M4 19h16" />
+                          <path d="M8 15V9" />
+                          <path d="M12 15V7" />
+                          <path d="M16 15v-4" />
+                        </svg>
+                      </span>
+
+                      <span class="chat-sidebar__db-text">
+                        <span class="chat-sidebar__db-name">{{
+                          dashboardWidgetTitle(widget)
+                        }}</span>
+                        <span class="chat-sidebar__db-sub">{{
+                          dashboardWidgetSubtitle(widget)
+                        }}</span>
+                      </span>
+
+                      <span class="chat-sidebar__db-meta">
+                        <span class="chat-sidebar__db-pill">
+                          {{ widgetVisualizationLabel(widget.widget) }}
+                        </span>
+                      </span>
+                    </RouterLink>
+                  </div>
+                </div>
               </div>
-
-              <RouterLink
-                v-for="item in filteredDashboardItems"
-                :key="item.id"
-                :to="
-                  dashboardView === 'widgets'
-                    ? `/widget/${item.id}`
-                    : `/dashboards/${item.id}`
-                "
-                class="chat-sidebar__db-row"
-                :class="{
-                  'chat-sidebar__db-row--active': isDashboardItemActive(
-                    item.id,
-                  ),
-                }"
-              >
-                <span class="chat-sidebar__db-icon" aria-hidden="true">
-                  <svg
-                    v-if="dashboardView === 'widgets'"
-                    viewBox="0 0 24 24"
-                    width="15"
-                    height="15"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M4 19V5" />
-                    <path d="M4 19h16" />
-                    <path d="M8 15V9" />
-                    <path d="M12 15V7" />
-                    <path d="M16 15v-4" />
-                  </svg>
-                  <svg
-                    v-else
-                    viewBox="0 0 24 24"
-                    width="15"
-                    height="15"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <rect x="4" y="4" width="7" height="7" rx="1.5" />
-                    <rect x="13" y="4" width="7" height="7" rx="1.5" />
-                    <rect x="4" y="13" width="7" height="7" rx="1.5" />
-                    <rect x="13" y="13" width="7" height="7" rx="1.5" />
-                  </svg>
-                </span>
-
-                <span class="chat-sidebar__db-text">
-                  <span class="chat-sidebar__db-name">{{
-                    itemTitle(item)
-                  }}</span>
-                  <span class="chat-sidebar__db-sub">{{
-                    itemSubtitle(item)
-                  }}</span>
-                </span>
-
-                <span class="chat-sidebar__db-meta">
-                  <span
-                    v-if="isDashboardItemPublic(item)"
-                    class="chat-sidebar__db-pill chat-sidebar__db-pill--accent"
-                  >
-                    Публичный
-                  </span>
-                  <span
-                    v-if="isDashboardItemHidden(item)"
-                    class="chat-sidebar__db-pill"
-                  >
-                    Скрытый
-                  </span>
-                  <span
-                    v-else-if="isWidgetItem(item)"
-                    class="chat-sidebar__db-pill"
-                  >
-                    {{ widgetVisualizationLabel(item) }}
-                  </span>
-                </span>
-              </RouterLink>
             </template>
 
             <template v-else-if="isDatabaseMode">
@@ -564,6 +631,27 @@
               </div>
             </template>
           </div>
+
+          <button
+            v-if="isDatabaseMode"
+            class="chat-sidebar__new chat-sidebar__new--sources"
+            type="button"
+            @click="$emit('add-database')"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Добавить базу данных
+          </button>
         </div>
       </section>
     </Transition>
@@ -642,29 +730,6 @@
         <span class="chat-sidebar__footer-label">Профиль</span>
         Профиль
       </button>
-      <button
-        class="chat-sidebar__footer-btn"
-        type="button"
-        title="Источники"
-        aria-label="Источники"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1.82v.16a2 2 0 1 1-4 0v-.16A1.65 1.65 0 0 0 9 20a1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.82-.33h-.16a2 2 0 1 1 0-4h.16A1.65 1.65 0 0 0 4 9a1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6c.3 0 .59-.12.8-.33a1.65 1.65 0 0 0 .2-1.27v-.16a2 2 0 1 1 4 0v.16c-.03.45.06.9.26 1.3.2.39.53.71.92.9.4.2.85.3 1.3.26h.16a2 2 0 1 1 0 4h-.16a1.65 1.65 0 0 0-1.3.26c-.39.2-.72.52-.92.9-.2.4-.29.84-.26 1.3z"
-          />
-        </svg>
-        Настройки
-      </button>
     </footer>
   </aside>
 </template>
@@ -672,15 +737,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import { api } from "@/api/client";
 import type {
   ApiChatSessionRead,
   ApiDashboardRead,
+  ApiDashboardWidgetDetail,
   ApiDatabaseDescriptor,
   ApiWidgetRead,
 } from "@/api/types";
 
 type TreeDatabase = ApiDatabaseDescriptor & { sessions: ApiChatSessionRead[] };
-type DashboardItem = ApiDashboardRead | ApiWidgetRead;
+type DashboardTreeItem = {
+  dashboard: ApiDashboardRead;
+  widgets: ApiDashboardWidgetDetail[];
+};
 
 const SIDEBAR_COLLAPSED_LS_KEY = "app-chat-sidebar-collapsed";
 const SIDEBAR_WIDTH_EXPANDED = "300px";
@@ -713,6 +783,12 @@ const emit = defineEmits<{
 const route = useRoute();
 const query = ref("");
 const openIds = ref<Set<string>>(new Set());
+const expandedDashboardIds = ref<Set<string>>(new Set());
+const dashboardWidgetsById = ref<Record<string, ApiDashboardWidgetDetail[]>>(
+  {},
+);
+const dashboardWidgetsLoading = ref<Record<string, boolean>>({});
+const dashboardWidgetsError = ref<Record<string, string>>({});
 const isCollapsed = ref(
   typeof window !== "undefined"
     ? window.localStorage.getItem(SIDEBAR_COLLAPSED_LS_KEY) === "true"
@@ -800,11 +876,7 @@ const treeDatabases = computed<TreeDatabase[]>(() => {
   return items;
 });
 
-const dashboardItems = computed(() =>
-  dashboardView.value === "widgets"
-    ? (props.widgets ?? [])
-    : (props.dashboards ?? []),
-);
+const dashboards = computed(() => props.dashboards ?? []);
 
 const hasSessionsForActiveDatabase = computed(() => {
   if (!props.activeDbId) {
@@ -822,7 +894,7 @@ const showLoadingState = computed(() => {
   }
 
   if (isDashboardsMode.value) {
-    return dashboardItems.value.length === 0;
+    return dashboards.value.length === 0;
   }
 
   if (isDatabaseMode.value) {
@@ -832,27 +904,26 @@ const showLoadingState = computed(() => {
   return props.databases.length === 0 || !hasSessionsForActiveDatabase.value;
 });
 
-const filteredDashboardItems = computed(() => {
+const dashboardTree = computed<DashboardTreeItem[]>(() => {
   const q = normalizedQuery.value;
-  if (!q) {
-    return dashboardItems.value;
-  }
-  return dashboardItems.value.filter((item) => {
-    if ("visualization_type" in item) {
-      return [
-        item.title,
-        item.description ?? "",
-        item.visualization_type,
-        item.refresh_policy,
-      ].some((value) => String(value).toLowerCase().includes(q));
-    }
-    return [
-      item.title,
-      item.description ?? "",
-      item.slug ?? "",
-      item.layout_type,
-    ].some((value) => String(value).toLowerCase().includes(q));
-  });
+  return dashboards.value
+    .map((dashboard) => {
+      const widgets = dashboardWidgetsById.value[dashboard.id] ?? [];
+      const matchedWidgets = q
+        ? widgets.filter((item) => matchesDashboardWidgetQuery(item, q))
+        : widgets;
+      const matchesDashboard = !q || matchesDashboardQuery(dashboard, q);
+
+      if (!matchesDashboard && !matchedWidgets.length) {
+        return null;
+      }
+
+      return {
+        dashboard,
+        widgets: matchesDashboard ? widgets : matchedWidgets,
+      };
+    })
+    .filter((item): item is DashboardTreeItem => Boolean(item));
 });
 
 watch(
@@ -895,12 +966,74 @@ watch(
       return;
     }
 
+    if (isDashboardsMode.value) {
+      void ensureAllDashboardWidgetsLoaded().then(() => {
+        expandedDashboardIds.value = new Set(
+          dashboards.value.map((item) => item.id),
+        );
+      });
+      return;
+    }
+
     const next = new Set(openIds.value);
     for (const database of treeDatabases.value) {
       next.add(database.id);
     }
     openIds.value = next;
   },
+);
+
+watch(
+  dashboards,
+  (items) => {
+    const ids = new Set(items.map((item) => item.id));
+    expandedDashboardIds.value = new Set(
+      [...expandedDashboardIds.value].filter((id) => ids.has(id)),
+    );
+    dashboardWidgetsById.value = Object.fromEntries(
+      Object.entries(dashboardWidgetsById.value).filter(([id]) => ids.has(id)),
+    );
+    dashboardWidgetsLoading.value = Object.fromEntries(
+      Object.entries(dashboardWidgetsLoading.value).filter(([id]) =>
+        ids.has(id),
+      ),
+    );
+    dashboardWidgetsError.value = Object.fromEntries(
+      Object.entries(dashboardWidgetsError.value).filter(([id]) => ids.has(id)),
+    );
+  },
+  { immediate: true },
+);
+
+watch(
+  () => route.path,
+  (path) => {
+    if (!isDashboardsMode.value) {
+      return;
+    }
+
+    if (path.startsWith("/dashboards/")) {
+      const dashboardId = String(route.params.id ?? "");
+      if (!dashboardId || dashboardId === "new") {
+        return;
+      }
+      expandedDashboardIds.value = new Set([
+        ...expandedDashboardIds.value,
+        dashboardId,
+      ]);
+      void ensureDashboardWidgetsLoaded(dashboardId);
+      return;
+    }
+
+    if (path.startsWith("/widget/")) {
+      const widgetId = String(route.params.id ?? "");
+      if (!widgetId) {
+        return;
+      }
+      void expandDashboardForWidget(widgetId);
+    }
+  },
+  { immediate: true },
 );
 
 function isRouteActive(key: "chat" | "dashboards" | "data") {
@@ -960,54 +1093,160 @@ function selectSession(sessionId: string) {
   emit("select-session", sessionId);
 }
 
-function toggleDashboardView() {
-  emit(
-    "update:dashboardView",
-    dashboardView.value === "dashboards" ? "widgets" : "dashboards",
-  );
+function isDashboardExpanded(id: string) {
+  return expandedDashboardIds.value.has(id);
 }
 
-function isDashboardItemActive(id: string) {
-  if (!isDashboardsMode.value) {
-    return false;
+function toggleDashboardExpand(id: string) {
+  const next = new Set(expandedDashboardIds.value);
+  if (next.has(id)) {
+    next.delete(id);
+  } else {
+    next.add(id);
+    void ensureDashboardWidgetsLoaded(id);
   }
-  if (dashboardView.value === "widgets") {
-    return route.path === `/widget/${id}`;
-  }
-  return route.path === "/dashboards" || route.path === `/dashboards/${id}`;
+  expandedDashboardIds.value = next;
 }
 
-function isWidgetItem(item: DashboardItem): item is ApiWidgetRead {
-  return "visualization_type" in item;
+function isDashboardRouteActive(id: string) {
+  return route.path === `/dashboards/${id}`;
 }
 
-function isDashboardItem(item: DashboardItem): item is ApiDashboardRead {
-  return "layout_type" in item;
+function isWidgetRouteActive(id: string) {
+  return route.path === `/widget/${id}`;
 }
 
-function isDashboardItemPublic(item: DashboardItem) {
-  return isDashboardItem(item) && item.is_public;
+function isDashboardPublic(item: ApiDashboardRead) {
+  return item.is_public;
 }
 
-function isDashboardItemHidden(item: DashboardItem) {
-  return isDashboardItem(item) && item.is_hidden;
+function isDashboardHidden(item: ApiDashboardRead) {
+  return item.is_hidden;
 }
 
-function widgetVisualizationLabel(item: DashboardItem) {
-  return isWidgetItem(item)
-    ? translateVisualizationType(item.visualization_type)
-    : "";
-}
-
-function itemTitle(item: DashboardItem) {
+function dashboardTitle(item: ApiDashboardRead) {
   return item.title;
 }
 
-function itemSubtitle(item: DashboardItem) {
-  if (isWidgetItem(item)) {
-    return `${translateVisualizationType(item.visualization_type)} · ${translateRefreshPolicy(item.refresh_policy)}`;
-  }
+function dashboardSubtitle(item: ApiDashboardRead) {
   return item.description || "Без описания";
+}
+
+function dashboardWidgetTitle(item: ApiDashboardWidgetDetail) {
+  return item.title_override || item.widget.title;
+}
+
+function dashboardWidgetSubtitle(item: ApiDashboardWidgetDetail) {
+  return `${translateVisualizationType(item.widget.visualization_type)} · ${translateRefreshPolicy(item.widget.refresh_policy)}`;
+}
+
+function widgetVisualizationLabel(item: ApiWidgetRead) {
+  return translateVisualizationType(item.visualization_type);
+}
+
+function dashboardWidgetCountLabel(dashboardId: string) {
+  const count = dashboardWidgetsById.value[dashboardId]?.length;
+  if (count == null) {
+    return "";
+  }
+  if (count % 10 === 1 && count % 100 !== 11) {
+    return `${count} виджет`;
+  }
+  if (
+    count % 10 >= 2 &&
+    count % 10 <= 4 &&
+    (count % 100 < 12 || count % 100 > 14)
+  ) {
+    return `${count} виджета`;
+  }
+  return `${count} виджетов`;
+}
+
+function isDashboardWidgetsLoading(id: string) {
+  return Boolean(dashboardWidgetsLoading.value[id]);
+}
+
+function dashboardWidgetsErrorMessage(id: string) {
+  return dashboardWidgetsError.value[id] ?? "";
+}
+
+function matchesDashboardQuery(item: ApiDashboardRead, q: string) {
+  return [
+    item.title,
+    item.description ?? "",
+    item.slug ?? "",
+    item.layout_type,
+  ].some((value) => String(value).toLowerCase().includes(q));
+}
+
+function matchesDashboardWidgetQuery(
+  item: ApiDashboardWidgetDetail,
+  q: string,
+) {
+  return [
+    item.title_override ?? "",
+    item.widget.title,
+    item.widget.description ?? "",
+    item.widget.visualization_type,
+    item.widget.refresh_policy,
+  ].some((value) => String(value).toLowerCase().includes(q));
+}
+
+async function ensureDashboardWidgetsLoaded(id: string) {
+  if (dashboardWidgetsById.value[id] || dashboardWidgetsLoading.value[id]) {
+    return;
+  }
+
+  dashboardWidgetsLoading.value = {
+    ...dashboardWidgetsLoading.value,
+    [id]: true,
+  };
+  dashboardWidgetsError.value = {
+    ...dashboardWidgetsError.value,
+    [id]: "",
+  };
+
+  try {
+    const detail = await api.getDashboard(id);
+    dashboardWidgetsById.value = {
+      ...dashboardWidgetsById.value,
+      [id]: detail.widgets,
+    };
+  } catch (error) {
+    dashboardWidgetsError.value = {
+      ...dashboardWidgetsError.value,
+      [id]:
+        error instanceof Error
+          ? error.message
+          : "Не удалось загрузить виджеты.",
+    };
+  } finally {
+    dashboardWidgetsLoading.value = {
+      ...dashboardWidgetsLoading.value,
+      [id]: false,
+    };
+  }
+}
+
+async function ensureAllDashboardWidgetsLoaded() {
+  await Promise.all(
+    dashboards.value.map((item) => ensureDashboardWidgetsLoaded(item.id)),
+  );
+}
+
+async function expandDashboardForWidget(widgetId: string) {
+  await ensureAllDashboardWidgetsLoaded();
+  for (const [dashboardId, widgets] of Object.entries(
+    dashboardWidgetsById.value,
+  )) {
+    if (widgets.some((item) => item.widget.id === widgetId)) {
+      expandedDashboardIds.value = new Set([
+        ...expandedDashboardIds.value,
+        dashboardId,
+      ]);
+      return;
+    }
+  }
 }
 
 function translateVisualizationType(value: string) {
@@ -1120,7 +1359,7 @@ function formatTime(value: string) {
 .chat-sidebar__top {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
   flex: 0 0 auto;
 }
 
@@ -1222,6 +1461,11 @@ function formatTime(value: string) {
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
 }
 
 .chat-sidebar__nav-label {
@@ -1257,6 +1501,16 @@ function formatTime(value: string) {
   gap: 10px;
   min-height: 0;
   height: 100%;
+}
+
+.chat-sidebar__panel--sources,
+.chat-sidebar__panel--dashboards {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  gap: 12px;
 }
 
 .chat-sidebar__section-head {
@@ -1311,6 +1565,12 @@ function formatTime(value: string) {
   cursor: not-allowed;
 }
 
+.chat-sidebar__new--sources {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .chat-sidebar__search-wrap {
   flex: 0 0 auto;
 }
@@ -1340,6 +1600,73 @@ function formatTime(value: string) {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
+}
+
+.chat-sidebar__dashboard-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-sidebar__dashboard-head {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.chat-sidebar__dashboard-link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-sidebar__dashboard-toggle {
+  width: 34px;
+  flex: 0 0 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.chat-sidebar__dashboard-toggle:hover {
+  color: var(--ink-strong);
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chat-sidebar__dashboard-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.chat-sidebar__dashboard-toggle--open svg {
+  transform: rotate(90deg);
+}
+
+.chat-sidebar__dashboard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+.chat-sidebar__dashboard-widgets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-sidebar__dashboard-state {
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 .chat-sidebar__db-row {
@@ -1376,6 +1703,15 @@ function formatTime(value: string) {
 .chat-sidebar__db-row:focus-visible {
   outline: 2px solid rgba(112, 59, 247, 0.55);
   outline-offset: 2px;
+}
+
+.chat-sidebar__db-row--widget {
+  margin-left: 4px;
+  padding: 0.62rem 0.7rem;
+}
+
+.chat-sidebar__db-row--widget .chat-sidebar__db-icon {
+  color: var(--muted-2);
 }
 
 .chat-sidebar__db-icon {
@@ -1747,7 +2083,7 @@ function formatTime(value: string) {
 
 .chat-sidebar--collapsed .chat-sidebar__top-bar {
   width: 100%;
-  gap: 6px;
+  gap: 16px;
 }
 
 .chat-sidebar--collapsed .chat-sidebar__brand {
@@ -1760,6 +2096,10 @@ function formatTime(value: string) {
   width: 36px;
   height: 36px;
   border-radius: 12px;
+}
+
+.chat-sidebar--collapsed {
+  justify-content: space-between;
 }
 
 .chat-sidebar--collapsed .chat-sidebar__brand-text,
