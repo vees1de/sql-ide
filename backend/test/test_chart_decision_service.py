@@ -162,6 +162,35 @@ def test_ranking_prefers_horizontal_sorted_bar() -> None:
     assert decision.encoding.sort == "value_desc"
 
 
+def test_x_field_resolution_excludes_series_role_without_explicit_x() -> None:
+    service = ChartDecisionService()
+    execution = _execution(
+        ["segment", "city", "orders"],
+        [
+            {"segment": "Business", "city": "Paris", "orders": 120},
+            {"segment": "Business", "city": "Berlin", "orders": 95},
+            {"segment": "Consumer", "city": "Paris", "orders": 150},
+        ],
+    )
+    semantics = QuerySemantics(
+        intent="comparison",
+        analysis_mode="compare",
+        comparison_goal="absolute",
+        metric=SemanticMetricPayload(name="orders", aggregation="sum"),
+        data_roles=SemanticDataRolesPayload(
+            y="orders",
+            series_key="city",
+            value="orders",
+        ),
+        flags=SemanticFlagsPayload(is_comparison=True),
+    )
+
+    decision = service.decide(semantics, execution)
+
+    assert decision.encoding.x_field == "segment"
+    assert decision.encoding.series_field == "city"
+
+
 def test_pie_hint_falls_back_when_category_count_is_too_high() -> None:
     service = ChartDecisionService()
     rows = [{"segment": f"Segment {idx}", "share_value": idx + 1} for idx in range(7)]

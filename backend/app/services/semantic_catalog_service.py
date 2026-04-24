@@ -776,12 +776,13 @@ class SemanticCatalogService:
                     ),
                 )
             for term in table.important_metrics:
+                metric_name, expression = self._split_metric_definition(str(term))
                 add(
-                    term,
+                    metric_name,
                     SemanticTermCandidate(
-                        term=str(term),
+                        term=metric_name,
                         kind="metric",
-                        match=table.table_name,
+                        match=expression or table.table_name,
                         source="semantic_catalog",
                         confidence=0.88,
                         note=table.business_description or None,

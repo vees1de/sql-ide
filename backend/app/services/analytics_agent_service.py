@@ -182,13 +182,14 @@ class AnalyticsAgentService:
             intent = apply_answers(intent, answers)
 
         template_schema = schema if self._is_drivee_train_schema(schema) else fallback_schema
-        drivee_template_candidate = self._is_drivee_template_candidate(intent.raw_prompt, template_schema)
+        template_prompt = self._template_prompt(intent, previous_intent)
+        drivee_template_candidate = self._is_drivee_template_candidate(template_prompt, template_schema)
         if drivee_template_candidate and intent.date_range is None:
             intent.clarification_question = None
             intent.ambiguities = [item for item in intent.ambiguities if item.lower() != "metric"]
 
         if drivee_template_candidate:
-            template_sql = self._build_drivee_template_sql(intent, template_schema, dialect)
+            template_sql = self._build_drivee_template_sql(intent, template_schema, dialect, prompt_override=template_prompt)
             if template_sql is not None:
                 template_semantic = self._build_drivee_template_semantic(intent, dialect)
                 validation = self.validation_agent.run(
@@ -674,6 +675,7 @@ class AnalyticsAgentService:
         intent: IntentPayload,
         schema: SchemaMetadataResponse,
         dialect: str,
+        prompt_override: str | None = None,
     ) -> str | None:
         if dialect != "postgresql":
             return None
@@ -682,9 +684,25 @@ class AnalyticsAgentService:
         if not self._is_drivee_train_schema(schema):
             return None
 
-        prompt = intent.raw_prompt.lower()
+        prompt = (prompt_override or intent.raw_prompt).lower()
         date_filter = self._date_filter_sql(intent.date_range, column="order_timestamp")
         where_prefix = f"WHERE {date_filter}" if date_filter else ""
+
+        if (
+            ("заверш" in prompt or "completed" in prompt or "done" in prompt)
+            and ("поезд" in prompt or "ride" in prompt or "order" in prompt or "заказ" in prompt)
+            and ("колич" in prompt or "сколько" in prompt or "count" in prompt)
+            and not any(marker in prompt for marker in ("конверс", "доля", "rate", "по час", "по дня", "по город", "сравни"))
+        ):
+            count_expression = "COUNT(DISTINCT order_id)" if ("уник" in prompt or "distinct" in prompt) else "COUNT(*)"
+            alias = "total_completed_trips" if ("поезд" in prompt or "ride" in prompt) else "completed_order_count"
+            return f"""
+SELECT
+    {count_expression} AS {alias}
+FROM train
+{where_prefix}
+  AND status_order = 'done';
+""".strip()
 
         if "от создания до завершения" in prompt or ("каждый этап" in prompt and "теряем" in prompt):
             return f"""
@@ -1108,8 +1126,19 @@ ORDER BY completion_rate DESC, conversion_rate DESC, avg_minutes_to_accept ASC, 
                 "слишком долго",
                 "не завершились",
                 "сравни города",
+                "заверш",
+                "completed",
             )
         )
+
+    def _template_prompt(self, intent: IntentPayload, previous_intent: IntentPayload | None) -> str:
+        if intent.follow_up and previous_intent is not None:
+            return " ".join(
+                part.strip()
+                for part in (previous_intent.raw_prompt, intent.raw_prompt)
+                if part and part.strip()
+            )
+        return intent.raw_prompt
 
     def _is_drivee_train_schema(self, schema: SchemaMetadataResponse) -> bool:
         table = next((item for item in schema.tables if item.name == "train"), None)

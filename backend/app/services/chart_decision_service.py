@@ -750,7 +750,7 @@ class ChartDecisionService:
             excluded.add(roles.series_key)
         if roles and roles.facet_key:
             excluded.add(roles.facet_key)
-        candidates = shape.x_candidates(excluded=excluded)
+        candidates = shape.x_candidates(exclude=excluded)
         if candidates:
             return candidates[0].name
         if shape.columns:

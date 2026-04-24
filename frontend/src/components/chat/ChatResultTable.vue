@@ -60,22 +60,26 @@ function formatValue(value: unknown) {
   min-width: 0;
   height: 100%;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .chat-result-table__wrap {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  width: 100%;
   max-width: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--canvas);
 }
 
 table {
-  width: max-content;
   min-width: 100%;
+  width: max-content;
   border-collapse: collapse;
   font-family: var(--font-mono);
 }
@@ -83,6 +87,7 @@ table {
 th,
 td {
   white-space: nowrap;
+  min-width: 140px;
 }
 
 th,
@@ -125,4 +130,3 @@ tr:hover td {
   font-size: 0.78rem;
 }
 </style>
-

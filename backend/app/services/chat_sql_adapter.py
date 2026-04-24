@@ -433,7 +433,9 @@ class ChatSqlAdapter:
         llm_model: str,
         llm_model_alias: str,
     ) -> AdapterResult | None:
-        intent = plan.intent
+        intent = self._normalize_llm_intent_with_context(user_text, plan.intent, previous_intent)
+        if self._llm_plan_conflicts_with_context(user_text, plan.intent, intent, previous_intent, plan.sql):
+            return None
         mode_warnings: list[str] = []
         requires_time_range = self.analytics_agent.intent_agent.requires_explicit_time_range(
             user_text,
@@ -730,6 +732,76 @@ class ChatSqlAdapter:
             allowed_tables=allowed_tables,
             schema=schema,
             semantic_catalog=semantic_catalog,
+        )
+
+    def _normalize_llm_intent_with_context(
+        self,
+        user_text: str,
+        llm_intent: IntentPayload,
+        previous_intent: IntentPayload | None,
+    ) -> IntentPayload:
+        if previous_intent is None:
+            return llm_intent
+        rule_intent = self.analytics_agent.intent_agent.run(user_text, previous_intent=previous_intent)
+        if not rule_intent.follow_up:
+            return llm_intent
+        merged = llm_intent.model_copy(deep=True)
+        merged.follow_up = True
+        merged.metric = rule_intent.metric or merged.metric
+        merged.dimensions = rule_intent.dimensions or merged.dimensions
+        merged.filters = rule_intent.filters or merged.filters
+        merged.comparison = rule_intent.comparison or merged.comparison
+        merged.date_range = rule_intent.date_range or merged.date_range
+        merged.visualization_preference = rule_intent.visualization_preference or merged.visualization_preference
+        merged.confidence = max(float(merged.confidence or 0.0), float(rule_intent.confidence or 0.0))
+        return merged
+
+    def _llm_plan_conflicts_with_context(
+        self,
+        user_text: str,
+        original_intent: IntentPayload,
+        normalized_intent: IntentPayload,
+        previous_intent: IntentPayload | None,
+        sql: str | None,
+    ) -> bool:
+        if previous_intent is None:
+            return self._completed_train_sql_uses_timestamp_instead_of_status(normalized_intent, sql)
+        if not normalized_intent.follow_up:
+            return self._completed_train_sql_uses_timestamp_instead_of_status(normalized_intent, sql)
+
+        prompt_is_short_followup = len(user_text.strip().split()) <= 5
+        metric_changed = bool(
+            prompt_is_short_followup
+            and previous_intent.metric
+            and original_intent.metric
+            and original_intent.metric != previous_intent.metric
+        )
+        inherited_filters = {
+            (item.field, str(item.operator or "=").upper(), str(item.value))
+            for item in previous_intent.filters
+        }
+        original_filters = {
+            (item.field, str(item.operator or "=").upper(), str(item.value))
+            for item in original_intent.filters
+        }
+        lost_inherited_filter = bool(prompt_is_short_followup and inherited_filters and not inherited_filters.issubset(original_filters))
+        return metric_changed or lost_inherited_filter or self._completed_train_sql_uses_timestamp_instead_of_status(normalized_intent, sql)
+
+    def _completed_train_sql_uses_timestamp_instead_of_status(self, intent: IntentPayload, sql: str | None) -> bool:
+        if not sql:
+            return False
+        prompt = f"{intent.raw_prompt} {intent.metric or ''}".lower()
+        if "заверш" not in prompt and "completed" not in prompt and "done" not in prompt:
+            return False
+        lowered_sql = sql.lower()
+        uses_driverdone_presence = re.search(
+            r"\bdriverdone_timestamp\s+is\s+not\s+null\b|\bnot\s+driverdone_timestamp\s+is\s+null\b",
+            lowered_sql,
+        )
+        return (
+            re.search(r"\bfrom\s+train\b", lowered_sql) is not None
+            and uses_driverdone_presence is not None
+            and "status_order" not in lowered_sql
         )
 
     def _build_llm_clarification_result(
