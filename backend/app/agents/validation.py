@@ -22,6 +22,7 @@ class SQLValidationAgent:
     ) -> ValidationPayload:
         errors: list[str] = []
         warnings: list[str] = []
+        trace: list[str] = []
         confidence_reasons: list[str] = []
 
         try:
@@ -67,7 +68,7 @@ class SQLValidationAgent:
                 errors,
             )
 
-        parsed = self._apply_row_limit(parsed, warnings)
+        parsed = self._apply_row_limit(parsed, warnings, trace)
         final_sql = self.format_sql(parsed.sql(pretty=True, dialect=self._read_dialect(dialect)), dialect)
 
         return ValidationPayload(
@@ -75,6 +76,7 @@ class SQLValidationAgent:
             sql=final_sql,
             tables=tables,
             warnings=warnings,
+            trace=trace,
             errors=errors,
             semantic_confidence_level=confidence_level,
             semantic_confidence_reasons=confidence_reasons,
@@ -502,11 +504,16 @@ class SQLValidationAgent:
         except Exception:  # noqa: BLE001
             return cleaned_sql
 
-    def _apply_row_limit(self, parsed: exp.Expression, warnings: list[str]) -> exp.Expression:
+    def _apply_row_limit(
+        self,
+        parsed: exp.Expression,
+        warnings: list[str],
+        trace: list[str],
+    ) -> exp.Expression:
         limit_clause = parsed.args.get("limit")
         if limit_clause is None:
             parsed.set("limit", exp.Limit(expression=exp.Literal.number(settings.default_row_limit)))
-            warnings.append(f"LIMIT {settings.default_row_limit} was added automatically.")
+            trace.append(f"LIMIT {settings.default_row_limit} was added automatically.")
             return parsed
 
         limit_value = self._extract_limit_value(limit_clause)
