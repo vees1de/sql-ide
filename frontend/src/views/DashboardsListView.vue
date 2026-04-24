@@ -289,7 +289,7 @@ function translateVisualizationType(value: string) {
 
 .dashboards-list-view__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
@@ -372,38 +372,14 @@ function translateVisualizationType(value: string) {
 
 .dashboards-list-view__card {
   position: relative;
-  overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--accent) 8%, transparent),
-      transparent 88px
-    ),
-    var(--surface);
   padding: 16px;
   text-decoration: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition:
-    border-color 0.18s ease,
-    background 0.18s ease,
-    transform 0.18s ease;
-
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--accent) 58%, transparent),
-      transparent 72%
-    );
-    pointer-events: none;
-  }
+  background-color: var(--bg);
 
   &:hover {
     border-color: color-mix(in srgb, var(--accent) 24%, var(--line-strong));
