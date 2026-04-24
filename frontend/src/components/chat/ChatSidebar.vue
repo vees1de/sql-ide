@@ -42,7 +42,11 @@
           :title="item.label"
           :aria-label="item.label"
         >
-          <span class="chat-sidebar__nav-icon" aria-hidden="true">
+          <span
+            class="chat-sidebar__nav-icon"
+            aria-hidden="true"
+            v-show="isCollapsed"
+          >
             <svg
               v-if="item.key === 'chat'"
               viewBox="0 0 24 24"
@@ -1188,20 +1192,16 @@ function formatTime(value: string) {
 
 .chat-sidebar__nav {
   display: grid;
-  gap: 8px;
+  gap: 16px;
 }
 
 .chat-sidebar__nav-link {
-  min-height: 40px;
   color: var(--muted);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  padding: 6px 12px;
   font-size: 1rem;
   line-height: 1.1;
   transition:
@@ -1212,13 +1212,10 @@ function formatTime(value: string) {
 
 .chat-sidebar__nav-link:hover:not(.chat-sidebar__nav-link--active) {
   color: var(--ink-strong);
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .chat-sidebar__nav-link--active {
-  color: var(--ink-strong);
-  border-color: rgba(112, 59, 247, 0.24);
-  background: rgba(112, 59, 247, 0.1);
+  color: var(--ink);
 }
 
 .chat-sidebar__nav-icon {
