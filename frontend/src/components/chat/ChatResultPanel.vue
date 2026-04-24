@@ -64,7 +64,7 @@
           type="button"
           @click="showSaveModal = true"
         >
-          Сохранить отчёт
+          Сохранить график
         </button>
       </div>
     </div>

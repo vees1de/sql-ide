@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.db.models import WidgetModel, WidgetRunModel
+from app.db.models import DatasetModel, WidgetModel, WidgetRunModel
 from app.schemas.widgets import WidgetCreate, WidgetDetail, WidgetRead, WidgetRunRead, WidgetUpdate
 
 router = APIRouter()
@@ -54,14 +54,26 @@ def list_widgets(db: Session = Depends(get_db)) -> list[WidgetRead]:
 
 @router.post("/widgets", response_model=WidgetDetail, status_code=201)
 def create_widget(payload: WidgetCreate, db: Session = Depends(get_db)) -> WidgetDetail:
+    dataset = None
+    if payload.dataset_id is not None:
+        dataset = (
+            db.query(DatasetModel)
+            .filter(DatasetModel.id == payload.dataset_id)
+            .first()
+        )
+        if dataset is None:
+            raise HTTPException(status_code=404, detail="Dataset not found.")
+
     widget = WidgetModel(
         title=payload.title,
         description=payload.description,
         source_type=payload.source_type,
         source_query_run_id=payload.source_query_run_id,
-        sql_text=payload.sql_text,
+        dataset_id=payload.dataset_id,
+        sql_text=payload.sql_text or (dataset.sql if dataset is not None else ""),
         visualization_type=payload.visualization_type,
         visualization_config=payload.visualization_config,
+        chart_spec_json=payload.chart_spec_json,
         refresh_policy=payload.refresh_policy,
         is_public=payload.is_public,
         database_connection_id=payload.database_connection_id,
@@ -87,10 +99,19 @@ def update_widget(widget_id: str, payload: WidgetUpdate, db: Session = Depends(g
         widget.description = payload.description
     if payload.sql_text is not None:
         widget.sql_text = payload.sql_text
+    if payload.dataset_id is not None:
+        dataset = db.query(DatasetModel).filter(DatasetModel.id == payload.dataset_id).first()
+        if dataset is None:
+            raise HTTPException(status_code=404, detail="Dataset not found.")
+        widget.dataset_id = payload.dataset_id
+        if not (payload.sql_text or "").strip():
+            widget.sql_text = dataset.sql
     if payload.visualization_type is not None:
         widget.visualization_type = payload.visualization_type
     if payload.visualization_config is not None:
         widget.visualization_config = payload.visualization_config
+    if payload.chart_spec_json is not None:
+        widget.chart_spec_json = payload.chart_spec_json
     if payload.refresh_policy is not None:
         widget.refresh_policy = payload.refresh_policy
     if payload.is_public is not None:

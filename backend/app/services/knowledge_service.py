@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.db.models import (
     DatabaseConnectionModel,
     DatabaseKnowledgeColumnModel,
+    DatabaseKnowledgeMetadataModel,
     DatabaseKnowledgeRelationshipModel,
     DatabaseKnowledgeScanRunModel,
     DatabaseKnowledgeTableModel,
@@ -29,6 +30,7 @@ from app.schemas.knowledge import (
     KnowledgeTableRead,
     KnowledgeTableUpdate,
 )
+from app.schemas.dictionary import DictionaryEntryRead
 from app.services.database_connection_utils import DatabaseConnectionPayload, create_connection_engine
 from app.services.dictionary_service import DictionaryService
 
@@ -69,6 +71,12 @@ class KnowledgeService:
         sync_dictionary: bool = True,
     ) -> DatabaseKnowledgeScanRunModel:
         target = self._resolve_target(db, database_id)
+        self._ensure_database_metadata_record(
+            db,
+            database_id=target.database_id,
+            database_label=target.database_label,
+            dialect=target.dialect,
+        )
         scan = DatabaseKnowledgeScanRunModel(
             database_id=target.database_id,
             database_label=target.database_label,
@@ -205,6 +213,7 @@ class KnowledgeService:
                 dictionary_imported = self.dictionary_service.import_schema_tables(
                     db,
                     dictionary_payload,
+                    database_id=target.database_id,
                     database_label=target.database_label,
                 )
             summary["dictionary_entries_imported"] = dictionary_imported
@@ -237,6 +246,9 @@ class KnowledgeService:
         )
 
     def delete_database_metadata(self, db: Session, database_id: str) -> None:
+        db.query(DatabaseKnowledgeMetadataModel).filter(
+            DatabaseKnowledgeMetadataModel.database_id == database_id
+        ).delete(synchronize_session=False)
         db.query(DatabaseKnowledgeRelationshipModel).filter(
             DatabaseKnowledgeRelationshipModel.database_id == database_id
         ).delete(synchronize_session=False)
@@ -260,12 +272,14 @@ class KnowledgeService:
     def get_summary(self, db: Session, database_id: str) -> KnowledgeSummaryResponse:
         target = self._resolve_target(db, database_id)
         try:
+            metadata = self.get_database_metadata(db, database_id)
             latest_scan = (
                 db.query(DatabaseKnowledgeScanRunModel)
                 .filter(DatabaseKnowledgeScanRunModel.database_id == database_id)
                 .order_by(DatabaseKnowledgeScanRunModel.started_at.desc())
                 .first()
             )
+            scan_runs = self.list_scan_runs(db, database_id)
             tables = (
                 db.query(DatabaseKnowledgeTableModel)
                 .filter(
@@ -298,10 +312,16 @@ class KnowledgeService:
                 database_label=target.database_label,
                 dialect=target.dialect,
                 status=status,
+                database_description=metadata.description_manual if metadata is not None else None,
                 active_table_count=len(tables),
                 active_column_count=active_column_count,
                 active_relationship_count=active_relationship_count,
                 last_scan=KnowledgeScanRunRead.model_validate(latest_scan) if latest_scan else None,
+                scan_runs=[KnowledgeScanRunRead.model_validate(scan_run) for scan_run in scan_runs[:20]],
+                dictionary_entries=[
+                    DictionaryEntryRead.model_validate(entry)
+                    for entry in self.dictionary_service.list_entries(db, database_id=database_id)
+                ],
                 tables=[
                     KnowledgeTableRead(
                         id=table.id,
@@ -319,6 +339,14 @@ class KnowledgeService:
                         business_meaning_manual=table.business_meaning_manual,
                         domain_auto=table.domain_auto,
                         domain_manual=table.domain_manual,
+                        semantic_label_manual=table.semantic_label_manual,
+                        semantic_table_role_manual=table.semantic_table_role_manual,
+                        semantic_grain_manual=table.semantic_grain_manual,
+                        semantic_main_date_column_manual=table.semantic_main_date_column_manual,
+                        semantic_main_entity_manual=table.semantic_main_entity_manual,
+                        semantic_synonyms=list(table.semantic_synonyms or []),
+                        semantic_important_metrics=list(table.semantic_important_metrics or []),
+                        semantic_important_dimensions=list(table.semantic_important_dimensions or []),
                         tags=list(table.tags or []),
                         sensitivity=table.sensitivity,
                         usage_score=table.usage_score,
@@ -429,6 +457,22 @@ class KnowledgeService:
             table.business_meaning_manual = payload.business_meaning_manual
         if payload.domain_manual is not None:
             table.domain_manual = payload.domain_manual
+        if payload.semantic_label_manual is not None:
+            table.semantic_label_manual = payload.semantic_label_manual
+        if payload.semantic_table_role_manual is not None:
+            table.semantic_table_role_manual = payload.semantic_table_role_manual
+        if payload.semantic_grain_manual is not None:
+            table.semantic_grain_manual = payload.semantic_grain_manual
+        if payload.semantic_main_date_column_manual is not None:
+            table.semantic_main_date_column_manual = payload.semantic_main_date_column_manual
+        if payload.semantic_main_entity_manual is not None:
+            table.semantic_main_entity_manual = payload.semantic_main_entity_manual
+        if payload.semantic_synonyms is not None:
+            table.semantic_synonyms = payload.semantic_synonyms
+        if payload.semantic_important_metrics is not None:
+            table.semantic_important_metrics = payload.semantic_important_metrics
+        if payload.semantic_important_dimensions is not None:
+            table.semantic_important_dimensions = payload.semantic_important_dimensions
         if payload.tags is not None:
             table.tags = payload.tags
         if payload.sensitivity is not None:
@@ -561,6 +605,14 @@ class KnowledgeService:
             business_meaning_manual=table.business_meaning_manual,
             domain_auto=table.domain_auto,
             domain_manual=table.domain_manual,
+            semantic_label_manual=table.semantic_label_manual,
+            semantic_table_role_manual=table.semantic_table_role_manual,
+            semantic_grain_manual=table.semantic_grain_manual,
+            semantic_main_date_column_manual=table.semantic_main_date_column_manual,
+            semantic_main_entity_manual=table.semantic_main_entity_manual,
+            semantic_synonyms=list(table.semantic_synonyms or []),
+            semantic_important_metrics=list(table.semantic_important_metrics or []),
+            semantic_important_dimensions=list(table.semantic_important_dimensions or []),
             tags=list(table.tags or []),
             sensitivity=table.sensitivity,
             usage_score=table.usage_score,
@@ -598,6 +650,62 @@ class KnowledgeService:
                 for relationship in relationships
             ],
         )
+
+    def get_database_metadata(
+        self,
+        db: Session,
+        database_id: str,
+    ) -> DatabaseKnowledgeMetadataModel | None:
+        return (
+            db.query(DatabaseKnowledgeMetadataModel)
+            .filter(DatabaseKnowledgeMetadataModel.database_id == database_id)
+            .first()
+        )
+
+    def set_database_description(
+        self,
+        db: Session,
+        database_id: str,
+        description: str | None,
+    ) -> DatabaseKnowledgeMetadataModel:
+        target = self._resolve_target(db, database_id)
+        try:
+            metadata = self._ensure_database_metadata_record(
+                db,
+                database_id=target.database_id,
+                database_label=target.database_label,
+                dialect=target.dialect,
+            )
+            metadata.description_manual = description.strip() if description and description.strip() else None
+            db.commit()
+            db.refresh(metadata)
+            return metadata
+        finally:
+            if target.dispose_on_close:
+                target.engine.dispose()
+
+    def _ensure_database_metadata_record(
+        self,
+        db: Session,
+        *,
+        database_id: str,
+        database_label: str,
+        dialect: str,
+    ) -> DatabaseKnowledgeMetadataModel:
+        metadata = self.get_database_metadata(db, database_id)
+        if metadata is None:
+            metadata = DatabaseKnowledgeMetadataModel(
+                database_id=database_id,
+                database_label=database_label,
+                dialect=dialect,
+            )
+            db.add(metadata)
+            db.flush()
+            return metadata
+        metadata.database_label = database_label
+        metadata.dialect = dialect
+        db.flush()
+        return metadata
 
     def _persist_snapshot(
         self,

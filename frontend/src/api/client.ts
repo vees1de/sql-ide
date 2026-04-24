@@ -193,6 +193,7 @@ export const api = {
     });
   },
   importDictionaryFromSchema(payload: {
+    database_id?: string;
     database_label: string;
     tables: Array<{ name: string; columns: Array<{ name: string; type: string }> }>;
     max_entries?: number;
@@ -260,6 +261,14 @@ export const api = {
       description_manual?: string | null;
       business_meaning_manual?: string | null;
       domain_manual?: string | null;
+      semantic_label_manual?: string | null;
+      semantic_table_role_manual?: string | null;
+      semantic_grain_manual?: string | null;
+      semantic_main_date_column_manual?: string | null;
+      semantic_main_entity_manual?: string | null;
+      semantic_synonyms?: string[] | null;
+      semantic_important_metrics?: string[] | null;
+      semantic_important_dimensions?: string[] | null;
       tags?: string[] | null;
       sensitivity?: string | null;
     }

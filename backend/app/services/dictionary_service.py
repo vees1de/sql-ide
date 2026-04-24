@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import re
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.db.models import SemanticDictionaryModel
+from app.core.config import settings
+from app.db.models import DatabaseConnectionModel, SemanticDictionaryModel
 from app.schemas.dictionary import DictionaryEntryCreate, DictionaryEntryUpdate
 
 
@@ -12,7 +14,11 @@ class DictionaryService:
     def list_entries(self, db: Session, database_id: str | None = None) -> list[SemanticDictionaryModel]:
         q = db.query(SemanticDictionaryModel)
         if database_id:
-            q = q.filter(SemanticDictionaryModel.source_database == database_id)
+            aliases = self._database_aliases(db, database_id)
+            filters = [SemanticDictionaryModel.database_id == database_id]
+            if aliases:
+                filters.append(SemanticDictionaryModel.source_database.in_(sorted(aliases)))
+            q = q.filter(or_(*filters))
         return q.order_by(SemanticDictionaryModel.term.asc()).all()
 
     def create_entry(self, db: Session, payload: DictionaryEntryCreate) -> SemanticDictionaryModel:
@@ -24,6 +30,7 @@ class DictionaryService:
             object_type=payload.object_type,
             table_name=payload.table_name,
             column_name=payload.column_name,
+            database_id=payload.database_id,
             source_database=payload.source_database,
         )
         db.add(entry)
@@ -54,6 +61,8 @@ class DictionaryService:
             entry.table_name = payload.table_name
         if payload.column_name is not None:
             entry.column_name = payload.column_name
+        if payload.database_id is not None:
+            entry.database_id = payload.database_id
         if payload.source_database is not None:
             entry.source_database = payload.source_database
         db.commit()
@@ -73,6 +82,7 @@ class DictionaryService:
         db: Session,
         tables: list[dict[str, object]],
         *,
+        database_id: str | None,
         database_label: str,
         max_entries: int = 2000,
     ) -> int:
@@ -94,6 +104,7 @@ class DictionaryService:
                 description=f"Таблица «{name}» (импорт из подключения «{database_label}»).",
                 object_type="table",
                 table_name=name,
+                database_id=database_id,
                 source_database=database_label,
             )
             if self._try_add_entry(db, payload):
@@ -119,6 +130,7 @@ class DictionaryService:
                     object_type="column",
                     table_name=name,
                     column_name=col_name,
+                    database_id=database_id,
                     source_database=database_label,
                 )
                 if self._try_add_entry(db, col_payload):
@@ -140,6 +152,7 @@ class DictionaryService:
                 object_type=payload.object_type,
                 table_name=payload.table_name,
                 column_name=payload.column_name,
+                database_id=payload.database_id,
                 source_database=payload.source_database,
             )
         )
@@ -158,3 +171,17 @@ class DictionaryService:
             if words:
                 variants.add(" ".join(words))
         return {item for item in variants if item}
+
+    def _database_aliases(self, db: Session, database_id: str) -> set[str]:
+        aliases = {database_id}
+        if database_id == settings.analytics_database_id:
+            aliases.add(settings.analytics_database_name)
+            return aliases
+        connection = (
+            db.query(DatabaseConnectionModel)
+            .filter(DatabaseConnectionModel.id == database_id)
+            .first()
+        )
+        if connection is not None and connection.name:
+            aliases.add(connection.name)
+        return aliases

@@ -3,7 +3,7 @@
     <div class="modal-backdrop" @click.self="$emit('close')">
       <div class="modal">
         <div class="modal__header">
-          <span class="modal__title">Сохранить отчёт</span>
+          <span class="modal__title">Сохранить график</span>
           <button class="modal__close" type="button" @click="$emit('close')">✕</button>
         </div>
 
@@ -30,19 +30,13 @@
           </div>
 
           <div class="form-field">
-            <label class="form-field__label">Тип визуализации</label>
-            <div class="viz-picker">
-              <button
-                v-for="option in vizOptions"
-                :key="option.value"
-                type="button"
-                class="viz-picker__btn"
-                :class="{ 'viz-picker__btn--active': vizType === option.value }"
-                @click="vizType = option.value"
-              >
-                {{ option.label }}
-              </button>
-            </div>
+            <label class="form-field__label">Dataset</label>
+            <input
+              class="form-field__input"
+              type="text"
+              :value="props.execution.dataset?.dataset_id ?? 'создастся после execute'"
+              disabled
+            />
           </div>
         </div>
 
@@ -88,47 +82,26 @@ const router = useRouter();
 
 const title = ref('');
 const description = ref('');
-const vizType = ref<ApiVisualizationType>(
-  props.chartSpec?.chart_type === 'metric_card'
-    ? 'metric'
-    : props.chartSpec?.chart_type === 'table'
-      ? 'table'
-      : (props.chartSpec?.chart_type as ApiVisualizationType) ??
-        (props.execution.chart_recommendation?.recommended_view === 'chart'
-          ? (props.execution.chart_recommendation?.chart_type as ApiVisualizationType) ?? 'bar'
-          : 'table')
-);
 const resolvedChartSpec = props.chartSpec ?? props.execution.chart_recommendation?.chart_spec ?? null;
-const rec = props.execution.chart_recommendation;
-const fallbackVizConfig = rec
-  ? { x: rec.x, y: rec.y, series: rec.series, chart_type: rec.chart_type }
-  : null;
 const saving = ref(false);
 const errorMsg = ref<string | null>(null);
-
-const vizOptions: { value: ApiVisualizationType; label: string }[] = [
-  { value: 'table', label: 'Таблица' },
-  { value: 'bar', label: 'Столбчатая' },
-  { value: 'line', label: 'Линейная' },
-  { value: 'area', label: 'Областная' },
-  { value: 'pie', label: 'Круговая' },
-  { value: 'metric', label: 'Метрика' },
-];
 
 async function submit() {
   if (!title.value.trim()) return;
   saving.value = true;
   errorMsg.value = null;
   try {
-    const vizConfig = buildVisualizationConfigFromSpec(resolvedChartSpec) ?? fallbackVizConfig ?? null;
+    const vizConfig = buildVisualizationConfigFromSpec(resolvedChartSpec) ?? null;
 
     const widget = await widgetsStore.createWidget({
       title: title.value.trim(),
       description: description.value.trim() || null,
       source_type: 'text_to_sql',
+      dataset_id: props.execution.dataset?.dataset_id ?? null,
       sql_text: props.sqlText,
-      visualization_type: vizType.value,
+      visualization_type: normalizeVisualizationType(resolvedChartSpec?.chart_type),
       visualization_config: vizConfig ?? undefined,
+      chart_spec_json: resolvedChartSpec ?? undefined,
       database_connection_id: props.databaseConnectionId ?? null,
     });
     await router.push(`/widget/${widget.id}`);
@@ -138,6 +111,13 @@ async function submit() {
   } finally {
     saving.value = false;
   }
+}
+
+function normalizeVisualizationType(value: ApiChatChartSpec['chart_type'] | undefined): ApiVisualizationType {
+  if (value === 'metric_card') return 'metric';
+  if (value === 'table') return 'table';
+  if (value === 'line' || value === 'bar' || value === 'area' || value === 'pie') return value;
+  return 'table';
 }
 </script>
 

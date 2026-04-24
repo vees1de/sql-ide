@@ -138,6 +138,7 @@ class SemanticDictionaryModel(Base):
     object_type = Column(String(32), nullable=True)
     table_name = Column(String(255), nullable=True)
     column_name = Column(String(255), nullable=True)
+    database_id = Column(String(32), nullable=True, index=True)
     source_database = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
@@ -157,6 +158,17 @@ class DatabaseKnowledgeScanRunModel(Base):
     error_message = Column(Text, nullable=True)
     started_at = Column(DateTime, nullable=False, default=utcnow, index=True)
     finished_at = Column(DateTime, nullable=True, index=True)
+
+
+class DatabaseKnowledgeMetadataModel(Base):
+    __tablename__ = "database_knowledge_metadata"
+
+    database_id = Column(String(32), primary_key=True)
+    database_label = Column(String(255), nullable=False)
+    dialect = Column(String(64), nullable=False, default="postgresql")
+    description_manual = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=True)
 
 
 class DatabaseKnowledgeTableModel(Base):
@@ -180,6 +192,14 @@ class DatabaseKnowledgeTableModel(Base):
     business_meaning_manual = Column(Text, nullable=True)
     domain_auto = Column(String(255), nullable=True)
     domain_manual = Column(String(255), nullable=True)
+    semantic_label_manual = Column(String(255), nullable=True)
+    semantic_table_role_manual = Column(String(32), nullable=True)
+    semantic_grain_manual = Column(Text, nullable=True)
+    semantic_main_date_column_manual = Column(String(255), nullable=True)
+    semantic_main_entity_manual = Column(String(255), nullable=True)
+    semantic_synonyms = Column(JSON, nullable=False, default=list)
+    semantic_important_metrics = Column(JSON, nullable=False, default=list)
+    semantic_important_dimensions = Column(JSON, nullable=False, default=list)
     tags = Column(JSON, nullable=False, default=list)
     sensitivity = Column(String(64), nullable=True)
     usage_score = Column(Float, nullable=True)
@@ -525,11 +545,43 @@ class QueryExecutionModel(Base):
     rows_preview_truncated = Column(Boolean, nullable=False, default=False)
     row_count = Column(Integer, nullable=False, default=0)
     execution_time_ms = Column(Integer, nullable=False, default=0)
+    dataset_id = Column(String(32), nullable=True, unique=True, index=True)
     chart_recommendation_json = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     session = relationship("ChatSessionModel", back_populates="executions")
+    dataset = relationship(
+        "DatasetModel",
+        uselist=False,
+        primaryjoin="QueryExecutionModel.dataset_id==DatasetModel.id",
+        foreign_keys="QueryExecutionModel.dataset_id",
+    )
+
+
+class DatasetModel(Base):
+    __tablename__ = "datasets"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    name = Column(String(255), nullable=False)
+    database_connection_id = Column(String(32), ForeignKey("database_connections.id"), nullable=False, index=True)
+    source_type = Column(String(32), nullable=False, default="chat_execution")
+    source_query_execution_id = Column(String(32), ForeignKey("chat_query_executions.id"), nullable=False, unique=True, index=True)
+    sql = Column(Text, nullable=False)
+    columns_schema = Column(JSON, nullable=False, default=list)
+    preview_rows = Column(JSON, nullable=False, default=list)
+    row_count = Column(Integer, nullable=False, default=0)
+    created_by = Column(String(255), nullable=False, default="chat")
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+    refresh_policy = Column(String(32), nullable=False, default="manual")
+    last_refresh_at = Column(DateTime, nullable=True, index=True)
+
+    source_query_execution = relationship(
+        "QueryExecutionModel",
+        uselist=False,
+        foreign_keys="DatasetModel.source_query_execution_id",
+    )
+    widgets = relationship("WidgetModel", back_populates="dataset")
 
 
 # ---------------------------------------------------------------------------
@@ -544,9 +596,11 @@ class WidgetModel(Base):
     description = Column(Text, nullable=True)
     source_type = Column(String(32), nullable=False, default="sql")  # "sql" | "text_to_sql" | "text"
     source_query_run_id = Column(String(32), nullable=True)
+    dataset_id = Column(String(32), ForeignKey("datasets.id"), nullable=True, index=True)
     sql_text = Column(Text, nullable=False, default="")
     visualization_type = Column(String(32), nullable=False, default="table")  # table|line|bar|area|pie|metric|text
     visualization_config = Column(JSON, nullable=True)
+    chart_spec_json = Column(JSON, nullable=True)
     result_schema = Column(JSON, nullable=True)
     refresh_policy = Column(String(32), nullable=False, default="on_view")  # manual|on_view|scheduled
     is_public = Column(Boolean, nullable=False, default=False)
@@ -558,6 +612,7 @@ class WidgetModel(Base):
 
     dashboard_widgets = relationship("DashboardWidgetModel", back_populates="widget", cascade="all, delete-orphan")
     runs = relationship("WidgetRunModel", back_populates="widget", cascade="all, delete-orphan", order_by="WidgetRunModel.started_at")
+    dataset = relationship("DatasetModel", back_populates="widgets")
 
 
 class WidgetRunModel(Base):

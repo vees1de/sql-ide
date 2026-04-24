@@ -821,6 +821,7 @@ function buildDatabaseConnections(
     return {
       id: database.id,
       name: database.name,
+      description: database.description,
       engine: engineParts.join(' · ') || titleCase(database.dialect),
       mode: database.read_only ? 'read-only' : 'read-write',
       tables,

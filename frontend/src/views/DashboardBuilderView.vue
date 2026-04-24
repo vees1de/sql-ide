@@ -31,7 +31,7 @@
     <div class="builder-view__body">
       <aside class="builder-view__library">
         <div class="builder-view__library-header">
-          <span class="builder-view__section-title">Saved Reports</span>
+          <span class="builder-view__section-title">Saved Charts</span>
           <input
             v-model="search"
             class="builder-view__search"
@@ -55,7 +55,7 @@
           </div>
         </div>
         <div v-else-if="!filteredWidgets.length" class="builder-view__hint">
-          No widgets
+          No charts
         </div>
 
         <div v-else class="builder-view__widget-list">
@@ -85,10 +85,10 @@
         <div
           class="builder-view__section-title builder-view__section-title--pad"
         >
-          Preview ({{ selectedWidgets.length }} widgets)
+          Preview ({{ selectedWidgets.length }} charts)
         </div>
         <div v-if="!selectedWidgets.length" class="builder-view__grid-empty">
-          Choose widgets from the list on the left
+          Choose charts from the list on the left
         </div>
         <div v-else class="builder-view__grid">
           <div

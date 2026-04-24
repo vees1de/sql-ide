@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_alias
 from app.agents.validation import SQLValidationAgent
 from app.core.config import settings
-from app.db.models import ChatMessageModel, ChatSessionModel, DatabaseConnectionModel, QueryExecutionModel
+from app.db.models import ChatMessageModel, ChatSessionModel, DatabaseConnectionModel, DatasetModel, QueryExecutionModel
 from app.schemas.chat import ChartRecommendation
 from app.schemas.query import IntentPayload
 from app.services.ai_chart_suggestion_service import AIChartSuggestionService
@@ -168,6 +169,18 @@ class ChatExecutionService:
                     session.current_sql_draft = validation.sql
                     session.sql_draft_version = (session.sql_draft_version or 0) + 1
                 db.add(execution)
+                db.flush()
+                dataset = self._create_dataset(
+                    execution=execution,
+                    session=session,
+                    sql=validation.sql,
+                    columns=columns,
+                    preview_rows=rows_preview,
+                    row_count=row_count,
+                )
+                db.add(dataset)
+                db.flush()
+                execution.dataset_id = dataset.id
                 db.commit()
                 db.refresh(execution)
                 return execution
@@ -430,6 +443,35 @@ class ChatExecutionService:
         if len(preview) < len(rows_full):
             truncated = True
         return preview, truncated
+
+    def _create_dataset(
+        self,
+        *,
+        execution: QueryExecutionModel,
+        session: ChatSessionModel,
+        sql: str,
+        columns: list[dict[str, str]],
+        preview_rows: list[dict[str, Any]],
+        row_count: int,
+    ) -> DatasetModel:
+        title = (session.title or "").strip() or "Dataset"
+        if len(title) > 255:
+            title = title[:252] + "..."
+
+        return DatasetModel(
+            name=title,
+            database_connection_id=session.database_connection_id,
+            source_type="chat_execution",
+            source_query_execution_id=execution.id,
+            sql=sql,
+            columns_schema=columns,
+            preview_rows=preview_rows,
+            row_count=row_count,
+            created_by=f"chat_session:{session.id}",
+            created_at=datetime.utcnow(),
+            refresh_policy="manual",
+            last_refresh_at=datetime.utcnow(),
+        )
 
     def _build_execution_result(
         self,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -72,7 +72,11 @@ class WorkspaceService:
                 id=settings.analytics_database_id,
                 name=settings.analytics_database_name,
                 dialect=analytics_engine.dialect.name,
-                description="Built-in analytical database.",
+                description=self._database_description(
+                    db,
+                    settings.analytics_database_id,
+                    fallback="Built-in analytical database.",
+                ),
                 read_only=True,
                 is_builtin=True,
                 status="connected",
@@ -96,7 +100,11 @@ class WorkspaceService:
                     id=connection.id,
                     name=connection.name,
                     dialect=connection.dialect,
-                    description=connection.description or "",
+                    description=self._database_description(
+                        db,
+                        connection.id,
+                        fallback=connection.description or "",
+                    ),
                     read_only=(connection.read_only or "true").lower() == "true",
                     is_builtin=False,
                     host=connection.host,
@@ -241,10 +249,12 @@ class WorkspaceService:
             workspace.databases = [item for item in (workspace.databases or []) if item != database_id]
         self.knowledge_service.delete_database_metadata(db, database_id)
         self.semantic_catalog_service.delete_database_catalog(db, database_id)
-        if connection.name:
-            db.query(SemanticDictionaryModel).filter(
-                SemanticDictionaryModel.source_database == connection.name
-            ).delete(synchronize_session=False)
+        db.query(SemanticDictionaryModel).filter(
+            or_(
+                SemanticDictionaryModel.database_id == database_id,
+                SemanticDictionaryModel.source_database == connection.name,
+            )
+        ).delete(synchronize_session=False)
         db.delete(connection)
         db.commit()
         invalidate_engine_cache(database_id)
@@ -269,3 +279,9 @@ class WorkspaceService:
         if latest is None or latest.finished_at is None:
             return None
         return latest.finished_at.isoformat()
+
+    def _database_description(self, db: Session, database_id: str, *, fallback: str) -> str:
+        metadata = self.knowledge_service.get_database_metadata(db, database_id)
+        if metadata is not None and (metadata.description_manual or "").strip():
+            return str(metadata.description_manual).strip()
+        return fallback

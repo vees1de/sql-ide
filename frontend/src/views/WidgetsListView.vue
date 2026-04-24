@@ -1,7 +1,7 @@
 <template>
   <main class="widgets-list-view">
     <div class="widgets-list-view__header">
-      <h1 class="widgets-list-view__heading">Reports</h1>
+      <h1 class="widgets-list-view__heading">Charts</h1>
       <div class="widgets-list-view__header-actions">
         <router-link to="/dashboards/new" class="wbtn wbtn--ghost">
           + New dashboard
@@ -34,9 +34,9 @@
       </div>
     </div>
     <div v-else-if="!widgetsStore.widgets.length" class="widgets-list-view__empty">
-      <p>Your saved reports will appear here.</p>
+      <p>Your saved charts will appear here.</p>
       <p class="widgets-list-view__hint-sub">
-        Use "Save report" after running SQL in chat.
+        Use "Save chart" after running SQL in chat.
       </p>
     </div>
 

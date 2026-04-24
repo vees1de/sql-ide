@@ -37,6 +37,9 @@ from app.schemas.semantic_catalog import (
     SemanticTableDescription,
 )
 from app.db.models import (
+    DatabaseKnowledgeColumnModel,
+    DatabaseKnowledgeRelationshipModel,
+    DatabaseKnowledgeTableModel,
     SemanticCatalogColumnModel,
     SemanticCatalogJoinPathModel,
     SemanticCatalogModel,
@@ -80,6 +83,11 @@ class SemanticCatalogService:
         refresh: bool = False,
         database_description: str | None = None,
     ) -> SemanticCatalog:
+        effective_database_description = self._effective_database_description(
+            db,
+            database_id,
+            database_description,
+        )
         if not refresh:
             cached = self._load_active_catalog(db, database_id)
             if cached is not None:
@@ -88,12 +96,12 @@ class SemanticCatalogService:
         catalog = self.build_catalog(
             db,
             database_id,
-            database_description=database_description,
+            database_description=effective_database_description,
         )
         return self.save_catalog(
             db,
             catalog,
-            database_description=database_description,
+            database_description=effective_database_description,
         )
 
     def activate_catalog(
@@ -107,9 +115,24 @@ class SemanticCatalogService:
         relationship_descriptions: list[SemanticRelationshipDescription] | None = None,
         column_descriptions: list[SemanticColumnDescription] | None = None,
     ) -> SemanticCatalog:
+        if database_description is not None:
+            self.knowledge_service.set_database_description(db, database_id, database_description)
+        if table_descriptions or relationship_descriptions or column_descriptions:
+            self._persist_manual_descriptions(
+                db,
+                database_id,
+                table_descriptions=table_descriptions or [],
+                relationship_descriptions=relationship_descriptions or [],
+                column_descriptions=column_descriptions or [],
+            )
+        effective_database_description = self._effective_database_description(
+            db,
+            database_id,
+            database_description,
+        )
         has_manual_input = any(
             [
-                (database_description or "").strip(),
+                (effective_database_description or "").strip(),
                 bool(table_descriptions),
                 bool(relationship_descriptions),
                 bool(column_descriptions),
@@ -121,7 +144,7 @@ class SemanticCatalogService:
         catalog = self.build_catalog(
             db,
             database_id,
-            database_description=database_description,
+            database_description=effective_database_description,
         )
         effective_overrides = self._merge_descriptions(
             cached if cached is not None else catalog,
@@ -139,7 +162,7 @@ class SemanticCatalogService:
             effective_overrides[section].update(overrides[section])
         if any(effective_overrides.values()):
             catalog = self._apply_manual_descriptions(catalog, effective_overrides)
-        return self.save_catalog(db, catalog, database_description=database_description)
+        return self.save_catalog(db, catalog, database_description=effective_database_description)
 
     def save_catalog(
         self,
@@ -332,6 +355,72 @@ class SemanticCatalogService:
         db.commit()
         return True
 
+    def _effective_database_description(
+        self,
+        db: Session,
+        database_id: str,
+        database_description: str | None,
+    ) -> str | None:
+        explicit = (database_description or "").strip()
+        if explicit:
+            return explicit
+        metadata = self.knowledge_service.get_database_metadata(db, database_id)
+        if metadata is None:
+            return None
+        stored = (metadata.description_manual or "").strip()
+        return stored or None
+
+    def _persist_manual_descriptions(
+        self,
+        db: Session,
+        database_id: str,
+        *,
+        table_descriptions: list[SemanticTableDescription],
+        relationship_descriptions: list[SemanticRelationshipDescription],
+        column_descriptions: list[SemanticColumnDescription],
+    ) -> None:
+        for item in table_descriptions:
+            table = (
+                db.query(DatabaseKnowledgeTableModel)
+                .filter(
+                    DatabaseKnowledgeTableModel.database_id == database_id,
+                    DatabaseKnowledgeTableModel.table_name == item.table_name.strip(),
+                )
+                .first()
+            )
+            if table is not None:
+                table.description_manual = item.business_description.strip()
+
+        for item in column_descriptions:
+            column = (
+                db.query(DatabaseKnowledgeColumnModel)
+                .filter(
+                    DatabaseKnowledgeColumnModel.database_id == database_id,
+                    DatabaseKnowledgeColumnModel.table_name == item.table_name.strip(),
+                    DatabaseKnowledgeColumnModel.column_name == item.column_name.strip(),
+                )
+                .first()
+            )
+            if column is not None:
+                column.description_manual = item.business_description.strip()
+
+        for item in relationship_descriptions:
+            relationship = (
+                db.query(DatabaseKnowledgeRelationshipModel)
+                .filter(
+                    DatabaseKnowledgeRelationshipModel.database_id == database_id,
+                    DatabaseKnowledgeRelationshipModel.from_table_name == item.from_table.strip(),
+                    DatabaseKnowledgeRelationshipModel.from_column_name == item.from_column.strip(),
+                    DatabaseKnowledgeRelationshipModel.to_table_name == item.to_table.strip(),
+                    DatabaseKnowledgeRelationshipModel.to_column_name == item.to_column.strip(),
+                )
+                .first()
+            )
+            if relationship is not None:
+                relationship.description_manual = item.business_meaning.strip()
+
+        db.commit()
+
     def patch_catalog_table(
         self,
         db: Session,
@@ -339,6 +428,14 @@ class SemanticCatalogService:
         table_name: str,
         patch: SemanticTablePatch,
     ) -> SemanticTable | None:
+        knowledge_model = (
+            db.query(DatabaseKnowledgeTableModel)
+            .filter(
+                DatabaseKnowledgeTableModel.database_id == database_id,
+                DatabaseKnowledgeTableModel.table_name == table_name,
+            )
+            .first()
+        )
         model = (
             db.query(SemanticCatalogTableModel)
             .join(SemanticCatalogModel, SemanticCatalogTableModel.catalog_id == SemanticCatalogModel.id)
@@ -349,32 +446,65 @@ class SemanticCatalogService:
             )
             .first()
         )
-        if model is None:
+        if model is None and knowledge_model is None:
             return None
         if patch.label is not None:
-            model.label = patch.label
+            if model is not None:
+                model.label = patch.label
+            if knowledge_model is not None:
+                knowledge_model.semantic_label_manual = patch.label
         if patch.business_description is not None:
-            model.business_description = patch.business_description
+            if model is not None:
+                model.business_description = patch.business_description
+            if knowledge_model is not None:
+                knowledge_model.description_manual = patch.business_description
         if patch.table_role is not None:
-            model.table_role = patch.table_role
+            if model is not None:
+                model.table_role = patch.table_role
+            if knowledge_model is not None:
+                knowledge_model.semantic_table_role_manual = patch.table_role
         if patch.grain is not None:
-            model.grain = patch.grain
+            if model is not None:
+                model.grain = patch.grain
+            if knowledge_model is not None:
+                knowledge_model.semantic_grain_manual = patch.grain
         if patch.main_date_column is not None:
-            model.main_date_column = patch.main_date_column
+            if model is not None:
+                model.main_date_column = patch.main_date_column
+            if knowledge_model is not None:
+                knowledge_model.semantic_main_date_column_manual = patch.main_date_column
         if patch.main_entity is not None:
-            model.main_entity = patch.main_entity
+            if model is not None:
+                model.main_entity = patch.main_entity
+            if knowledge_model is not None:
+                knowledge_model.semantic_main_entity_manual = patch.main_entity
         if patch.synonyms is not None:
-            model.synonyms = patch.synonyms
+            if model is not None:
+                model.synonyms = patch.synonyms
+            if knowledge_model is not None:
+                knowledge_model.semantic_synonyms = list(patch.synonyms)
         if patch.important_metrics is not None:
-            model.important_metrics = patch.important_metrics
+            if model is not None:
+                model.important_metrics = patch.important_metrics
+            if knowledge_model is not None:
+                knowledge_model.semantic_important_metrics = list(patch.important_metrics)
         if patch.important_dimensions is not None:
-            model.important_dimensions = patch.important_dimensions
-        if model.table_role == "fact" and not str(model.grain or "").strip():
+            if model is not None:
+                model.important_dimensions = patch.important_dimensions
+            if knowledge_model is not None:
+                knowledge_model.semantic_important_dimensions = list(patch.important_dimensions)
+        if model is not None and model.table_role == "fact" and not str(model.grain or "").strip():
             model.grain = self._fallback_grain(model.table_name)
+        if (
+            knowledge_model is not None
+            and knowledge_model.semantic_table_role_manual == "fact"
+            and not str(knowledge_model.semantic_grain_manual or "").strip()
+        ):
+            knowledge_model.semantic_grain_manual = self._fallback_grain(knowledge_model.table_name)
         db.commit()
         catalog = self._load_active_catalog(db, database_id)
         if catalog is None:
-            return None
+            catalog = self.get_catalog(db, database_id, refresh=True)
         return next((t for t in catalog.tables if t.table_name == table_name), None)
 
     def patch_catalog_column(
@@ -385,6 +515,15 @@ class SemanticCatalogService:
         column_name: str,
         patch: SemanticColumnPatch,
     ) -> SemanticTable | None:
+        knowledge_model = (
+            db.query(DatabaseKnowledgeColumnModel)
+            .filter(
+                DatabaseKnowledgeColumnModel.database_id == database_id,
+                DatabaseKnowledgeColumnModel.table_name == table_name,
+                DatabaseKnowledgeColumnModel.column_name == column_name,
+            )
+            .first()
+        )
         model = (
             db.query(SemanticCatalogColumnModel)
             .join(SemanticCatalogModel, SemanticCatalogColumnModel.catalog_id == SemanticCatalogModel.id)
@@ -396,26 +535,39 @@ class SemanticCatalogService:
             )
             .first()
         )
-        if model is None:
+        if model is None and knowledge_model is None:
             return None
         if patch.label is not None:
-            model.label = patch.label
+            if model is not None:
+                model.label = patch.label
+            if knowledge_model is not None:
+                knowledge_model.semantic_label_manual = patch.label
         if patch.business_description is not None:
-            model.business_description = patch.business_description
+            if model is not None:
+                model.business_description = patch.business_description
+            if knowledge_model is not None:
+                knowledge_model.description_manual = patch.business_description
         if patch.semantic_types is not None:
-            model.semantic_types = list(patch.semantic_types)
+            if model is not None:
+                model.semantic_types = list(patch.semantic_types)
         if patch.analytics_roles is not None:
-            model.analytics_roles = list(patch.analytics_roles)
+            if model is not None:
+                model.analytics_roles = list(patch.analytics_roles)
         if patch.synonyms is not None:
-            model.synonyms = list(patch.synonyms)
+            if model is not None:
+                model.synonyms = list(patch.synonyms)
+            if knowledge_model is not None:
+                knowledge_model.synonyms = list(patch.synonyms)
         if patch.groupable is not None:
-            model.groupable = patch.groupable
+            if model is not None:
+                model.groupable = patch.groupable
         if patch.filterable is not None:
-            model.filterable = patch.filterable
+            if model is not None:
+                model.filterable = patch.filterable
         db.commit()
         catalog = self._load_active_catalog(db, database_id)
         if catalog is None:
-            return None
+            catalog = self.get_catalog(db, database_id, refresh=True)
         return next((t for t in catalog.tables if t.table_name == table_name), None)
 
     def delete_database_catalog(self, db: Session, database_id: str) -> None:
@@ -1384,17 +1536,57 @@ class SemanticCatalogService:
 
         columns: list[SemanticColumn] = []
         relationships: list[SemanticRelationship] = []
+        physical_columns = {
+            column.column_name: column
+            for column in getattr(physical, "columns", []) or []
+            if getattr(column, "status", "active") == "active"
+        }
+        hidden_column_names = {
+            column_name
+            for column_name, column in physical_columns.items()
+            if bool(getattr(column, "hidden_for_llm", False))
+        }
+        physical_relationships = {
+            self._relationship_key(
+                relationship.from_table_name,
+                relationship.from_column_name,
+                relationship.to_table_name,
+                relationship.to_column_name,
+            ): relationship
+            for relationship in getattr(physical, "_prefetched_relationships", []) or []
+        }
         fk_lookup = {
             row["constrained_columns"][0]: row
             for row in relationship_rows
             if row.get("constrained_columns") and row.get("referred_table")
         }
-        primary_key = [str(name) for name in (pk_constraint.get("constrained_columns") or []) if name]
+        primary_key = [
+            str(name)
+            for name in (pk_constraint.get("constrained_columns") or [])
+            if name and str(name) not in hidden_column_names
+        ]
 
         for ordinal, column in enumerate(columns_meta, start=1):
             column_name = str(column.get("name"))
+            if column_name in hidden_column_names:
+                continue
             foreign_key = fk_lookup.get(column_name)
+            physical_column = physical_columns.get(column_name)
             profile = self._profile_column(column_name, sample_rows)
+            if physical_column is not None:
+                profile = profile.model_copy(
+                    update={
+                        "distinct_count": physical_column.distinct_count or profile.distinct_count,
+                        "null_ratio": (
+                            physical_column.null_ratio
+                            if physical_column.null_ratio is not None
+                            else profile.null_ratio
+                        ),
+                        "min_value": physical_column.min_value or profile.min_value,
+                        "max_value": physical_column.max_value or profile.max_value,
+                        "top_values": list(physical_column.sample_values or []) or profile.top_values,
+                    }
+                )
             semantic_types, analytics_roles, value_type, aggregation, filterable, groupable, sortable = self._infer_column_semantics(
                 table_name=table_name,
                 column_name=column_name,
@@ -1403,12 +1595,22 @@ class SemanticCatalogService:
                 is_pk=column_name in primary_key,
                 foreign_key=foreign_key,
             )
-            label = self._humanize(column_name)
-            business_description = self._default_column_description(table_name, column_name, language_hint=language_hint)
+            label = (
+                str(physical_column.semantic_label_manual).strip()
+                if physical_column is not None and str(physical_column.semantic_label_manual or "").strip()
+                else self._humanize(column_name)
+            )
+            business_description = (
+                str(physical_column.description_manual).strip()
+                if physical_column is not None and str(physical_column.description_manual or "").strip()
+                else self._default_column_description(table_name, column_name, language_hint=language_hint)
+            )
             if column_name in primary_key:
                 business_description = self._primary_key_description(table_name, language_hint=language_hint)
             if foreign_key:
                 business_description = self._foreign_key_description(foreign_key.get("referred_table"), language_hint=language_hint)
+            if physical_column is not None and str(physical_column.description_manual or "").strip():
+                business_description = str(physical_column.description_manual).strip()
 
             columns.append(
                 SemanticColumn(
@@ -1424,13 +1626,39 @@ class SemanticCatalogService:
                     filterable=filterable,
                     groupable=groupable,
                     sortable=sortable,
-                    synonyms=self._column_synonyms(table_name, column_name, label),
-                    example_values=profile.top_values[:5],
-                    data_type=str(column.get("type")),
-                    nullable=bool(column.get("nullable", True)),
-                    default_value=self._stringify(column.get("default")),
-                    max_length=self._max_length_from_type(str(column.get("type"))),
-                    ordinal_position=ordinal,
+                    synonyms=(
+                        list(physical_column.synonyms or [])
+                        if physical_column is not None and list(physical_column.synonyms or [])
+                        else self._column_synonyms(table_name, column_name, label)
+                    ),
+                    example_values=(
+                        list(physical_column.sample_values or [])[:5]
+                        if physical_column is not None and list(physical_column.sample_values or [])
+                        else profile.top_values[:5]
+                    ),
+                    data_type=(
+                        physical_column.data_type
+                        if physical_column is not None and physical_column.data_type
+                        else str(column.get("type"))
+                    ),
+                    nullable=(
+                        bool(physical_column.is_nullable)
+                        if physical_column is not None
+                        else bool(column.get("nullable", True))
+                    ),
+                    default_value=(
+                        physical_column.default_value
+                        if physical_column is not None
+                        else self._stringify(column.get("default"))
+                    ),
+                    max_length=self._max_length_from_type(
+                        physical_column.data_type if physical_column is not None and physical_column.data_type else str(column.get("type"))
+                    ),
+                    ordinal_position=(
+                        int(physical_column.ordinal_position)
+                        if physical_column is not None
+                        else ordinal
+                    ),
                     is_pk=column_name in primary_key,
                     is_fk=foreign_key is not None,
                     referenced_table=str(foreign_key.get("referred_table")) if foreign_key else None,
@@ -1441,35 +1669,88 @@ class SemanticCatalogService:
             )
 
             if foreign_key:
-                relationships.append(
-                    self._build_relationship(
-                        table_name=table_name,
-                        column_name=column_name,
-                        foreign_key=foreign_key,
+                relationship = self._build_relationship(
+                    table_name=table_name,
+                    column_name=column_name,
+                    foreign_key=foreign_key,
+                )
+                physical_relationship = physical_relationships.get(
+                    self._relationship_key(
+                        relationship.from_table,
+                        relationship.from_column,
+                        relationship.to_table,
+                        relationship.to_column,
                     )
                 )
+                if physical_relationship is not None:
+                    relationship = relationship.model_copy(
+                        update={
+                            "business_meaning": (
+                                str(physical_relationship.description_manual).strip()
+                                if str(physical_relationship.description_manual or "").strip()
+                                else relationship.business_meaning
+                            ),
+                            "confidence": float(physical_relationship.confidence or relationship.confidence),
+                        }
+                    )
+                relationships.append(relationship)
 
-        row_count = self._safe_row_count(engine, schema_name, table_name)
-        table_role = self._infer_table_role(table_name, columns, relationships, row_count)
-        main_date_column = self._pick_main_date_column(columns)
-        main_entity = self._humanize(table_name)
-        important_metrics = self._infer_important_metrics(table_name, columns, table_role)
+        row_count = physical.row_count if physical is not None and physical.row_count is not None else self._safe_row_count(engine, schema_name, table_name)
+        inferred_table_role = self._infer_table_role(table_name, columns, relationships, row_count)
+        table_role = (
+            physical.semantic_table_role_manual
+            if physical is not None and str(physical.semantic_table_role_manual or "").strip()
+            else inferred_table_role
+        )
+        main_date_column = (
+            physical.semantic_main_date_column_manual
+            if physical is not None and str(physical.semantic_main_date_column_manual or "").strip()
+            else self._pick_main_date_column(columns)
+        )
+        main_entity = (
+            physical.semantic_main_entity_manual
+            if physical is not None and str(physical.semantic_main_entity_manual or "").strip()
+            else self._humanize(table_name)
+        )
+        important_metrics = (
+            list(physical.semantic_important_metrics or [])
+            if physical is not None and list(physical.semantic_important_metrics or [])
+            else self._infer_important_metrics(table_name, columns, table_role)
+        )
         important_dimensions = [
             column.column_name
             for column in columns
             if any(role in column.analytics_roles for role in ("default_group_by", "default_filter", "display_name", "time_axis"))
         ]
+        if physical is not None and list(physical.semantic_important_dimensions or []):
+            important_dimensions = list(physical.semantic_important_dimensions or [])
 
         return SemanticTable(
             schema_name=schema_name,
             table_name=table_name,
-            label=self._humanize(table_name),
-            business_description=self._default_table_description(table_name, language_hint=language_hint),
+            label=(
+                str(physical.semantic_label_manual).strip()
+                if physical is not None and str(physical.semantic_label_manual or "").strip()
+                else self._humanize(table_name)
+            ),
+            business_description=(
+                str(physical.description_manual).strip()
+                if physical is not None and str(physical.description_manual or "").strip()
+                else self._default_table_description(table_name, language_hint=language_hint)
+            ),
             table_role=table_role,
-            grain=self._infer_grain(table_name, columns),
+            grain=(
+                physical.semantic_grain_manual
+                if physical is not None and str(physical.semantic_grain_manual or "").strip()
+                else self._infer_grain(table_name, columns)
+            ),
             main_date_column=main_date_column,
             main_entity=main_entity,
-            synonyms=self._table_synonyms(table_name),
+            synonyms=(
+                list(physical.semantic_synonyms or [])
+                if physical is not None and list(physical.semantic_synonyms or [])
+                else self._table_synonyms(table_name)
+            ),
             important_metrics=important_metrics,
             important_dimensions=important_dimensions,
             row_count_estimate=row_count,

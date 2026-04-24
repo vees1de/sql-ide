@@ -115,9 +115,9 @@
               v-else-if="!widgetsStore.widgets.length"
               class="dashboards-list-view__empty"
             >
-              <p>Виджетов пока нет.</p>
+              <p>Графиков пока нет.</p>
               <p class="dashboards-list-view__hint-sub">
-                Сохраните отчёт из чата, чтобы он появился здесь.
+                Сохраните график из чата, чтобы он появился здесь.
               </p>
             </div>
             <div

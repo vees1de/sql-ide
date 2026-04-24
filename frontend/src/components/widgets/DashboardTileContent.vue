@@ -28,6 +28,7 @@
           :run="run"
           :viz-type="widget.visualization_type"
           :viz-config="widget.visualization_config"
+          :chart-spec="widget.chart_spec_json"
         />
       </template>
     </template>

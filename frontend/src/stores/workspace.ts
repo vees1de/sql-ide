@@ -39,6 +39,7 @@ function augmentPromptWithClarifications(
 const emptyDatabase: DatabaseConnection = {
   id: 'unconfigured',
   name: 'No database',
+  description: '',
   engine: 'Unknown',
   mode: 'read-only',
   tables: 0,

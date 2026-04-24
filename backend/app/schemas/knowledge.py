@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.dictionary import DictionaryEntryRead
+
 
 class KnowledgeScanRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -87,6 +89,14 @@ class KnowledgeTableRead(BaseModel):
     business_meaning_manual: str | None = None
     domain_auto: str | None = None
     domain_manual: str | None = None
+    semantic_label_manual: str | None = None
+    semantic_table_role_manual: str | None = None
+    semantic_grain_manual: str | None = None
+    semantic_main_date_column_manual: str | None = None
+    semantic_main_entity_manual: str | None = None
+    semantic_synonyms: list[str] = Field(default_factory=list)
+    semantic_important_metrics: list[str] = Field(default_factory=list)
+    semantic_important_dimensions: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     sensitivity: str | None = None
     usage_score: float | None = None
@@ -98,6 +108,14 @@ class KnowledgeTableUpdate(BaseModel):
     description_manual: str | None = None
     business_meaning_manual: str | None = None
     domain_manual: str | None = None
+    semantic_label_manual: str | None = None
+    semantic_table_role_manual: str | None = None
+    semantic_grain_manual: str | None = None
+    semantic_main_date_column_manual: str | None = None
+    semantic_main_entity_manual: str | None = None
+    semantic_synonyms: list[str] | None = None
+    semantic_important_metrics: list[str] | None = None
+    semantic_important_dimensions: list[str] | None = None
     tags: list[str] | None = None
     sensitivity: str | None = None
 
@@ -123,10 +141,13 @@ class KnowledgeSummaryResponse(BaseModel):
     database_label: str
     dialect: str
     status: str
+    database_description: str | None = None
     active_table_count: int = 0
     active_column_count: int = 0
     active_relationship_count: int = 0
     last_scan: KnowledgeScanRunRead | None = None
+    scan_runs: list[KnowledgeScanRunRead] = Field(default_factory=list)
+    dictionary_entries: list[DictionaryEntryRead] = Field(default_factory=list)
     tables: list[KnowledgeTableRead] = Field(default_factory=list)
 
 
@@ -155,4 +176,3 @@ class ERDGraphResponse(BaseModel):
     database_id: str
     nodes: list[ERDNode] = Field(default_factory=list)
     edges: list[ERDEdge] = Field(default_factory=list)
-

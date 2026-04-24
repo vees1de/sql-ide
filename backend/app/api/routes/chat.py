@@ -65,6 +65,7 @@ def _message_to_read(message: ChatMessageModel) -> ChatMessageRead:
 
 
 def _execution_to_read(execution: QueryExecutionModel) -> QueryExecutionRead:
+    dataset = execution.dataset
     payload = {
         "id": execution.id,
         "session_id": execution.session_id,
@@ -74,11 +75,22 @@ def _execution_to_read(execution: QueryExecutionModel) -> QueryExecutionRead:
         "rows_preview_truncated": execution.rows_preview_truncated,
         "row_count": execution.row_count,
         "execution_time_ms": execution.execution_time_ms,
-        "dataset": {
-            "dataset_id": f"query_execution:{execution.id}",
+        "dataset": None
+        if dataset is None
+        else {
+            "dataset_id": dataset.id,
             "query_execution_id": execution.id,
-            "row_count": execution.row_count,
-            "columns": execution.columns_json or [],
+            "name": dataset.name,
+            "database_connection_id": dataset.database_connection_id,
+            "source_type": dataset.source_type,
+            "sql": dataset.sql,
+            "columns_schema": dataset.columns_schema or [],
+            "preview_rows": dataset.preview_rows or [],
+            "row_count": dataset.row_count,
+            "created_by": dataset.created_by,
+            "created_at": dataset.created_at,
+            "refresh_policy": dataset.refresh_policy,
+            "last_refresh_at": dataset.last_refresh_at,
         },
         "chart_recommendation": execution.chart_recommendation_json,
         "error_message": execution.error_message,

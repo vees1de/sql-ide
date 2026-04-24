@@ -298,8 +298,17 @@ export interface ApiChatChartSpec {
 export interface ApiChatExecutionDataset {
   dataset_id: string;
   query_execution_id: string;
+  name: string;
+  database_connection_id: string;
+  source_type: string;
+  sql: string;
+  columns_schema: Array<{ name: string; type: string }>;
+  preview_rows: Array<Record<string, unknown>>;
   row_count: number;
-  columns: Array<{ name: string; type: string }>;
+  created_by: string;
+  created_at: string;
+  refresh_policy: string;
+  last_refresh_at?: string | null;
 }
 
 export interface ApiChatExecutionRead {
@@ -713,6 +722,14 @@ export interface ApiKnowledgeTable {
   business_meaning_manual?: string | null;
   domain_auto?: string | null;
   domain_manual?: string | null;
+  semantic_label_manual?: string | null;
+  semantic_table_role_manual?: string | null;
+  semantic_grain_manual?: string | null;
+  semantic_main_date_column_manual?: string | null;
+  semantic_main_entity_manual?: string | null;
+  semantic_synonyms: string[];
+  semantic_important_metrics: string[];
+  semantic_important_dimensions: string[];
   tags: string[];
   sensitivity?: string | null;
   usage_score?: number | null;
@@ -725,10 +742,13 @@ export interface ApiKnowledgeSummary {
   database_label: string;
   dialect: string;
   status: string;
+  database_description?: string | null;
   active_table_count: number;
   active_column_count: number;
   active_relationship_count: number;
   last_scan?: ApiKnowledgeScanRun | null;
+  scan_runs: ApiKnowledgeScanRun[];
+  dictionary_entries: ApiDictionaryEntryRead[];
   tables: ApiKnowledgeTable[];
 }
 
@@ -833,6 +853,11 @@ export interface ApiDictionaryEntryRead {
   synonyms: string[];
   mapped_expression: string;
   description: string;
+  object_type?: string | null;
+  table_name?: string | null;
+  column_name?: string | null;
+  database_id?: string | null;
+  source_database?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -845,6 +870,7 @@ export interface ApiDictionaryEntryCreate {
   object_type?: string | null;
   table_name?: string | null;
   column_name?: string | null;
+  database_id?: string | null;
   source_database?: string | null;
 }
 
@@ -890,9 +916,11 @@ export interface ApiWidgetRead {
   description: string | null;
   source_type: ApiWidgetSourceType;
   source_query_run_id: string | null;
+  dataset_id: string | null;
   sql_text: string;
   visualization_type: ApiVisualizationType;
   visualization_config: Record<string, unknown> | null;
+  chart_spec_json: Record<string, unknown> | null;
   result_schema: Record<string, unknown> | null;
   refresh_policy: ApiRefreshPolicy;
   is_public: boolean;
@@ -911,9 +939,11 @@ export interface ApiWidgetCreate {
   description?: string | null;
   source_type?: ApiWidgetSourceType;
   source_query_run_id?: string | null;
+  dataset_id?: string | null;
   sql_text?: string;
   visualization_type?: ApiVisualizationType;
   visualization_config?: Record<string, unknown> | null;
+  chart_spec_json?: Record<string, unknown> | null;
   refresh_policy?: ApiRefreshPolicy;
   is_public?: boolean;
   database_connection_id?: string | null;
@@ -923,8 +953,10 @@ export interface ApiWidgetUpdate {
   title?: string | null;
   description?: string | null;
   sql_text?: string | null;
+  dataset_id?: string | null;
   visualization_type?: ApiVisualizationType | null;
   visualization_config?: Record<string, unknown> | null;
+  chart_spec_json?: Record<string, unknown> | null;
   refresh_policy?: ApiRefreshPolicy | null;
   is_public?: boolean | null;
 }

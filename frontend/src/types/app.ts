@@ -164,6 +164,7 @@ export interface Notebook {
 export interface DatabaseConnection {
   id: string;
   name: string;
+  description: string;
   engine: string;
   mode: string;
   tables: number;

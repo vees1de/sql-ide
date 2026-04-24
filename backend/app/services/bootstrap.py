@@ -11,6 +11,7 @@ from app.db.models import (
     ChatSessionModel,
     CellModel,
     DatabaseConnectionModel,
+    DatabaseKnowledgeMetadataModel,
     DatabaseKnowledgeColumnModel,
     DatabaseKnowledgeRelationshipModel,
     DatabaseKnowledgeScanRunModel,
@@ -58,6 +59,7 @@ def _ensure_semantic_dictionary_context_columns(engine: Engine) -> None:
             "object_type": "VARCHAR(32)",
             "table_name": "VARCHAR(255)",
             "column_name": "VARCHAR(255)",
+            "database_id": "VARCHAR(32)",
             "source_database": "VARCHAR(255)",
         }
         with engine.begin() as connection:
@@ -65,6 +67,33 @@ def _ensure_semantic_dictionary_context_columns(engine: Engine) -> None:
                 if name in columns:
                     continue
                 connection.execute(text(f"ALTER TABLE semantic_dictionary ADD COLUMN {name} {sql_type}"))
+    except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
+        pass
+
+
+def _ensure_database_knowledge_semantic_columns(engine: Engine) -> None:
+    try:
+        inspector = inspect(engine)
+        if "database_knowledge_tables" not in inspector.get_table_names():
+            return
+        columns = {col["name"] for col in inspector.get_columns("database_knowledge_tables")}
+        required = {
+            "semantic_label_manual": "VARCHAR(255)",
+            "semantic_table_role_manual": "VARCHAR(32)",
+            "semantic_grain_manual": "TEXT",
+            "semantic_main_date_column_manual": "VARCHAR(255)",
+            "semantic_main_entity_manual": "VARCHAR(255)",
+            "semantic_synonyms": "JSON",
+            "semantic_important_metrics": "JSON",
+            "semantic_important_dimensions": "JSON",
+        }
+        with engine.begin() as connection:
+            dialect = connection.dialect.name
+            for name, sql_type in required.items():
+                if name in columns:
+                    continue
+                effective_type = "JSONB" if sql_type == "JSON" and dialect != "sqlite" else sql_type
+                connection.execute(text(f"ALTER TABLE database_knowledge_tables ADD COLUMN {name} {effective_type}"))
     except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
         pass
 
@@ -105,12 +134,44 @@ def _ensure_dashboard_hidden_column(engine: Engine) -> None:
         pass
 
 
+def _ensure_chat_query_execution_dataset_column(engine: Engine) -> None:
+    try:
+        inspector = inspect(engine)
+        if "chat_query_executions" not in inspector.get_table_names():
+            return
+        columns = {col["name"] for col in inspector.get_columns("chat_query_executions")}
+        if "dataset_id" in columns:
+            return
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE chat_query_executions ADD COLUMN dataset_id VARCHAR(32)"))
+    except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
+        pass
+
+
+def _ensure_widget_dataset_columns(engine: Engine) -> None:
+    try:
+        inspector = inspect(engine)
+        if "widgets" not in inspector.get_table_names():
+            return
+        columns = {col["name"] for col in inspector.get_columns("widgets")}
+        with engine.begin() as connection:
+            if "dataset_id" not in columns:
+                connection.execute(text("ALTER TABLE widgets ADD COLUMN dataset_id VARCHAR(32)"))
+            if "chart_spec_json" not in columns:
+                connection.execute(text("ALTER TABLE widgets ADD COLUMN chart_spec_json JSON"))
+    except Exception:  # noqa: BLE001 — best-effort migration for dev SQLite/Postgres
+        pass
+
+
 def bootstrap_application() -> None:
     Base.metadata.create_all(bind=service_engine)
     _ensure_database_connections_allowed_tables_column(service_engine)
     _ensure_semantic_dictionary_context_columns(service_engine)
+    _ensure_database_knowledge_semantic_columns(service_engine)
     _ensure_semantic_catalog_relationship_graph_column(service_engine)
     _ensure_dashboard_hidden_column(service_engine)
+    _ensure_chat_query_execution_dataset_column(service_engine)
+    _ensure_widget_dataset_columns(service_engine)
     with Session(service_engine) as session:
         _cleanup_legacy_demo_data(session)
         seed_service_data(session)
@@ -203,6 +264,9 @@ def _cleanup_legacy_demo_data(session: Session) -> None:
     session.query(DatabaseKnowledgeColumnModel).filter(
         DatabaseKnowledgeColumnModel.database_id.in_(legacy_database_ids)
     ).delete(synchronize_session=False)
+    session.query(DatabaseKnowledgeMetadataModel).filter(
+        DatabaseKnowledgeMetadataModel.database_id.in_(legacy_database_ids)
+    ).delete(synchronize_session=False)
     session.query(DatabaseKnowledgeRelationshipModel).filter(
         DatabaseKnowledgeRelationshipModel.database_id.in_(legacy_database_ids)
     ).delete(synchronize_session=False)
@@ -233,7 +297,8 @@ def _cleanup_legacy_demo_data(session: Session) -> None:
         DatabaseConnectionModel.id.in_(legacy_database_ids)
     ).delete(synchronize_session=False)
     session.query(SemanticDictionaryModel).filter(
-        SemanticDictionaryModel.source_database.in_(legacy_database_ids)
+        (SemanticDictionaryModel.source_database.in_(legacy_database_ids))
+        | (SemanticDictionaryModel.database_id.in_(legacy_database_ids))
     ).delete(synchronize_session=False)
 
     session.commit()

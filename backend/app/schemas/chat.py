@@ -250,8 +250,17 @@ class ChartSuggestionRequest(BaseModel):
 class ExecutionDatasetRead(BaseModel):
     dataset_id: str
     query_execution_id: str
+    name: str
+    database_connection_id: str
+    source_type: str
+    sql: str
+    columns_schema: list[dict[str, Any]] = Field(default_factory=list)
+    preview_rows: list[dict[str, Any]] = Field(default_factory=list)
     row_count: int = 0
-    columns: list[dict[str, Any]] = Field(default_factory=list)
+    created_by: str
+    created_at: datetime
+    refresh_policy: str
+    last_refresh_at: datetime | None = None
 
 
 class ChartRecommendation(BaseModel):

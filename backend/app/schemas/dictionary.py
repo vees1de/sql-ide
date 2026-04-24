@@ -13,6 +13,7 @@ class DictionaryEntryCreate(BaseModel):
     object_type: str | None = Field(default=None, max_length=32)
     table_name: str | None = Field(default=None, max_length=255)
     column_name: str | None = Field(default=None, max_length=255)
+    database_id: str | None = Field(default=None, max_length=32)
     source_database: str | None = Field(default=None, max_length=255)
 
 
@@ -24,10 +25,12 @@ class DictionaryEntryUpdate(BaseModel):
     object_type: str | None = Field(default=None, max_length=32)
     table_name: str | None = Field(default=None, max_length=255)
     column_name: str | None = Field(default=None, max_length=255)
+    database_id: str | None = Field(default=None, max_length=32)
     source_database: str | None = Field(default=None, max_length=255)
 
 
 class DictionaryImportSchemaRequest(BaseModel):
+    database_id: str | None = Field(default=None, max_length=32)
     database_label: str = Field(min_length=1, max_length=255)
     tables: list[dict[str, object]] = Field(default_factory=list)
     max_entries: int = Field(default=2000, ge=1, le=10000)
@@ -48,6 +51,7 @@ class DictionaryEntryRead(BaseModel):
     object_type: str | None = None
     table_name: str | None = None
     column_name: str | None = None
+    database_id: str | None = None
     source_database: str | None = None
     created_at: datetime = datetime.min
     updated_at: datetime = datetime.min

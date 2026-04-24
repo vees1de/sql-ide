@@ -59,6 +59,7 @@ def import_dictionary_from_schema(
     imported = dictionary_service.import_schema_tables(
         db=db,
         tables=payload.tables,
+        database_id=payload.database_id,
         database_label=payload.database_label,
         max_entries=payload.max_entries,
     )

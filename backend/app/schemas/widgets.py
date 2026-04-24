@@ -32,9 +32,11 @@ class WidgetCreate(BaseModel):
     description: str | None = None
     source_type: SourceType = "sql"
     source_query_run_id: str | None = None
+    dataset_id: str | None = None
     sql_text: str = ""
     visualization_type: VisualizationType = "table"
     visualization_config: dict[str, Any] | None = None
+    chart_spec_json: dict[str, Any] | None = None
     refresh_policy: RefreshPolicy = "on_view"
     is_public: bool = False
     database_connection_id: str | None = None
@@ -44,8 +46,10 @@ class WidgetUpdate(BaseModel):
     title: str | None = Field(default=None, max_length=255)
     description: str | None = None
     sql_text: str | None = None
+    dataset_id: str | None = None
     visualization_type: VisualizationType | None = None
     visualization_config: dict[str, Any] | None = None
+    chart_spec_json: dict[str, Any] | None = None
     refresh_policy: RefreshPolicy | None = None
     is_public: bool | None = None
 
@@ -58,9 +62,11 @@ class WidgetRead(BaseModel):
     description: str | None = None
     source_type: str
     source_query_run_id: str | None = None
+    dataset_id: str | None = None
     sql_text: str
     visualization_type: str
     visualization_config: dict[str, Any] | None = None
+    chart_spec_json: dict[str, Any] | None = None
     result_schema: dict[str, Any] | None = None
     refresh_policy: str
     is_public: bool
