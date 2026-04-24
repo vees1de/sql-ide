@@ -21,10 +21,9 @@
       </div>
 
       <div class="chat-result-panel__actions">
-        <span v-if="execution" class="chat-result-panel__summary">{{ summary }}</span>
-        <span v-if="execution?.dataset" class="chat-result-panel__dataset">
-          dataset: {{ execution.dataset.dataset_id }}
-        </span>
+        <span v-if="execution" class="chat-result-panel__summary">{{
+          summary
+        }}</span>
         <button
           v-if="execution && view === 'chart' && !execution.error_message"
           class="chat-result-panel__toggle-btn"
@@ -32,7 +31,7 @@
           :disabled="chat.suggestingChart"
           @click="requestAiSuggestion"
         >
-          {{ chat.suggestingChart ? 'ИИ думает…' : 'Предложить график с ИИ' }}
+          {{ chat.suggestingChart ? "ИИ думает…" : "Предложить график с ИИ" }}
         </button>
         <button
           v-if="execution && view === 'chart' && !execution.error_message"
@@ -48,7 +47,11 @@
           type="button"
           @click="showInterpretation = !showInterpretation"
         >
-          {{ showInterpretation ? 'Скрыть интерпретацию' : 'Показать интерпретацию' }}
+          {{
+            showInterpretation
+              ? "Скрыть интерпретацию"
+              : "Показать интерпретацию"
+          }}
         </button>
         <button
           v-if="execution && view === 'chart' && previewContent"
@@ -56,7 +59,7 @@
           type="button"
           @click="showChartHeader = !showChartHeader"
         >
-          {{ showChartHeader ? 'Скрыть заголовок' : 'Показать заголовок' }}
+          {{ showChartHeader ? "Скрыть заголовок" : "Показать заголовок" }}
         </button>
         <button
           v-if="execution && !execution.error_message && sqlText"
@@ -82,22 +85,38 @@
       />
 
       <section v-else class="chat-result-panel__chart-view">
-        <div v-if="showInterpretation && currentInterpretation" class="chat-result-panel__interpretation">
+        <div
+          v-if="showInterpretation && currentInterpretation"
+          class="chat-result-panel__interpretation"
+        >
           <strong>Как система поняла dataset</strong>
-          <p>{{ currentInterpretation.short_explanation ?? currentSubtitle }}</p>
+          <p>
+            {{ currentInterpretation.short_explanation ?? currentSubtitle }}
+          </p>
           <div class="chat-result-panel__chips">
-            <span v-if="currentInterpretation.intent">{{ currentInterpretation.intent }}</span>
-            <span v-if="currentInterpretation.time_dimension">X: {{ currentInterpretation.time_dimension }}</span>
-            <span v-if="currentInterpretation.series_dimension">Series: {{ currentInterpretation.series_dimension }}</span>
+            <span v-if="currentInterpretation.intent">{{
+              currentInterpretation.intent
+            }}</span>
+            <span v-if="currentInterpretation.time_dimension"
+              >X: {{ currentInterpretation.time_dimension }}</span
+            >
+            <span v-if="currentInterpretation.series_dimension"
+              >Series: {{ currentInterpretation.series_dimension }}</span
+            >
             <span v-if="primaryMetric">Metric: {{ primaryMetric }}</span>
           </div>
         </div>
 
-        <ChartCell v-if="previewContent" :content="previewContent" :show-header="showChartHeader" />
+        <ChartCell
+          v-if="previewContent"
+          :content="previewContent"
+          :show-header="showChartHeader"
+        />
         <div v-else class="chat-result-panel__empty">
           <p>{{ emptyChartMessage }}</p>
           <p class="chat-result-panel__empty-note">
-            Попробуйте выбрать поля вручную или попросить ИИ предложить более подходящую визуализацию.
+            Попробуйте выбрать поля вручную или попросить ИИ предложить более
+            подходящую визуализацию.
           </p>
         </div>
       </section>
@@ -128,27 +147,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import type { ApiChatChartSpec, ApiChatExecutionRead } from '@/api/types';
-import ChartCell from '@/components/cells/ChartCell.vue';
-import ChartBuilderModal from '@/components/chat/ChartBuilderModal.vue';
-import ChatResultTable from '@/components/chat/ChatResultTable.vue';
-import SaveReportModal from '@/components/widgets/SaveReportModal.vue';
-import { useChatStore } from '@/stores/chat';
+import { computed, ref, watch } from "vue";
+import type { ApiChatChartSpec, ApiChatExecutionRead } from "@/api/types";
+import ChartCell from "@/components/cells/ChartCell.vue";
+import ChartBuilderModal from "@/components/chat/ChartBuilderModal.vue";
+import ChatResultTable from "@/components/chat/ChatResultTable.vue";
+import SaveReportModal from "@/components/widgets/SaveReportModal.vue";
+import { useChatStore } from "@/stores/chat";
 import {
   buildChartCellContentFromRecommendation,
-  buildChartCellContentFromSpec
-} from '@/utils/chartPreview';
+  buildChartCellContentFromSpec,
+} from "@/utils/chartPreview";
 
 const props = defineProps<{
   execution: ApiChatExecutionRead | null;
-  view: 'table' | 'chart';
+  view: "table" | "chart";
   sqlText?: string | null;
   databaseConnectionId?: string | null;
 }>();
 
 const emit = defineEmits<{
-  (event: 'change-view', value: 'table' | 'chart'): void;
+  (event: "change-view", value: "table" | "chart"): void;
 }>();
 
 const chat = useChatStore();
@@ -156,18 +175,22 @@ const showSaveModal = ref(false);
 const showInterpretation = ref(false);
 const showChartHeader = ref(true);
 const showBuilder = ref(false);
-const activeSource = ref<'heuristic' | 'ai' | 'manual'>('heuristic');
+const activeSource = ref<"heuristic" | "ai" | "manual">("heuristic");
 const manualChartSpec = ref<ApiChatChartSpec | null>(null);
 
-const recommendation = computed(() => props.execution?.chart_recommendation ?? null);
-const defaultChartSpec = computed(() => recommendation.value?.chart_spec ?? null);
+const recommendation = computed(
+  () => props.execution?.chart_recommendation ?? null,
+);
+const defaultChartSpec = computed(
+  () => recommendation.value?.chart_spec ?? null,
+);
 const aiChartSpec = computed(() => recommendation.value?.ai_chart_spec ?? null);
 
 const currentChartSpec = computed<ApiChatChartSpec | null>(() => {
-  if (activeSource.value === 'manual' && manualChartSpec.value) {
+  if (activeSource.value === "manual" && manualChartSpec.value) {
     return manualChartSpec.value;
   }
-  if (activeSource.value === 'ai' && aiChartSpec.value) {
+  if (activeSource.value === "ai" && aiChartSpec.value) {
     return aiChartSpec.value;
   }
   return defaultChartSpec.value;
@@ -177,51 +200,74 @@ const previewContent = computed(() => {
   if (!props.execution) {
     return null;
   }
-  if (activeSource.value === 'manual' && manualChartSpec.value) {
-    return buildChartCellContentFromSpec(manualChartSpec.value, props.execution);
+  if (activeSource.value === "manual" && manualChartSpec.value) {
+    return buildChartCellContentFromSpec(
+      manualChartSpec.value,
+      props.execution,
+    );
   }
-  if (activeSource.value === 'ai' && aiChartSpec.value) {
+  if (activeSource.value === "ai" && aiChartSpec.value) {
     return buildChartCellContentFromSpec(aiChartSpec.value, props.execution);
   }
-  return buildChartCellContentFromRecommendation(recommendation.value, props.execution);
+  return buildChartCellContentFromRecommendation(
+    recommendation.value,
+    props.execution,
+  );
 });
 
 const currentInterpretation = computed(
-  () => currentChartSpec.value?.query_interpretation ?? recommendation.value?.query_interpretation ?? null
+  () =>
+    currentChartSpec.value?.query_interpretation ??
+    recommendation.value?.query_interpretation ??
+    null,
 );
 
-const primaryMetric = computed(() => currentInterpretation.value?.metrics?.[0]?.name ?? null);
+const primaryMetric = computed(
+  () => currentInterpretation.value?.metrics?.[0]?.name ?? null,
+);
 
 const currentSubtitle = computed(
-  () => currentChartSpec.value?.reason ?? recommendation.value?.reason ?? 'Визуализация результата'
+  () =>
+    currentChartSpec.value?.reason ??
+    recommendation.value?.reason ??
+    "Визуализация результата",
 );
 
 const summary = computed(() => {
   if (!props.execution) {
-    return '';
+    return "";
   }
   const columnCount = props.execution.columns?.length ?? 0;
   return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} мс`;
 });
 
 const emptyChartMessage = computed(() => {
-  if (activeSource.value === 'manual') {
-    return 'Текущий ручной ChartSpec не даёт корректного превью.';
+  if (activeSource.value === "manual") {
+    return "Текущий ручной ChartSpec не даёт корректного превью.";
   }
-  if (activeSource.value === 'ai' && aiChartSpec.value?.chart_type === 'table') {
-    return aiChartSpec.value.reason ?? 'ИИ посчитал, что результат лучше оставить таблицей.';
+  if (
+    activeSource.value === "ai" &&
+    aiChartSpec.value?.chart_type === "table"
+  ) {
+    return (
+      aiChartSpec.value.reason ??
+      "ИИ посчитал, что результат лучше оставить таблицей."
+    );
   }
-  if (recommendation.value?.recommended_view !== 'chart') {
-    return recommendation.value?.reason ?? 'Автоматическая визуализация не построена.';
+  if (recommendation.value?.recommended_view !== "chart") {
+    return (
+      recommendation.value?.reason ??
+      "Автоматическая визуализация не построена."
+    );
   }
-  return 'Для этого результата график не построен.';
+  return "Для этого результата график не построен.";
 });
 
 async function requestAiSuggestion() {
   try {
-    await chat.suggestChart('best_chart');
-    activeSource.value = 'ai';
-    emit('change-view', 'chart');
+    await chat.suggestChart("best_chart");
+    activeSource.value = "ai";
+    emit("change-view", "chart");
   } catch {
     // Store already exposes the error state.
   }
@@ -229,20 +275,20 @@ async function requestAiSuggestion() {
 
 function applyManualSpec(spec: ApiChatChartSpec) {
   manualChartSpec.value = spec;
-  activeSource.value = 'manual';
+  activeSource.value = "manual";
   showBuilder.value = false;
-  emit('change-view', 'chart');
+  emit("change-view", "chart");
 }
 
 watch(
   () => props.execution?.id,
   () => {
     manualChartSpec.value = null;
-    activeSource.value = 'heuristic';
+    activeSource.value = "heuristic";
     showInterpretation.value = false;
     showChartHeader.value = true;
     showBuilder.value = false;
-  }
+  },
 );
 </script>
 
@@ -253,6 +299,7 @@ watch(
   gap: 12px;
   min-height: 0;
   min-width: 0;
+  color: var(--canvas);
 }
 
 .chat-result-panel > :deep(*) {
@@ -331,7 +378,7 @@ watch(
 .chat-result-panel__save-btn {
   border: 1px solid rgba(112, 59, 247, 0.6);
   background: rgba(112, 59, 247, 0.12);
-  color: rgba(180, 140, 255, 1);
+  color: #262626;
 }
 
 .chat-result-panel__chart-view {

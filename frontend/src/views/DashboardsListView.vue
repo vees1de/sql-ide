@@ -28,11 +28,13 @@
           class="dashboards-list-view__panel dashboards-list-view__panel--hero"
         >
           <div class="dashboards-list-view__header">
-            <div>
-              <p class="dashboards-list-view__eyebrow">Дашборды</p>
-              <h1 class="dashboards-list-view__heading">
-                {{ sidebarMode === "dashboards" ? "Дашборды" : "Виджеты" }}
-              </h1>
+            <div class="dashboards-list-view__header-copy">
+              <p
+                v-if="sidebarMode === 'dashboards'"
+                class="dashboards-list-view__hero-note"
+              >
+                {{ heroTagline }}
+              </p>
             </div>
             <div class="dashboards-list-view__header-actions">
               <label
@@ -60,8 +62,13 @@
           </div>
         </div>
 
-        <div class="dashboards-list-view__panel">
-          <div v-if="sidebarMode === 'dashboards'">
+        <div
+          class="dashboards-list-view__panel dashboards-list-view__panel--content"
+        >
+          <div
+            v-if="sidebarMode === 'dashboards'"
+            class="dashboards-list-view__panel-content"
+          >
             <div
               v-if="dashboardsStore.loading"
               class="dashboards-list-view__hint"
@@ -107,7 +114,7 @@
             </div>
           </div>
 
-          <div v-else>
+          <div v-else class="dashboards-list-view__panel-content">
             <div v-if="widgetsStore.loading" class="dashboards-list-view__hint">
               Загрузка виджетов…
             </div>
@@ -165,6 +172,8 @@ import { useWidgetsStore } from "@/stores/widgets";
 const dashboardsStore = useDashboardsStore();
 const widgetsStore = useWidgetsStore();
 const sidebarMode = ref<"dashboards" | "widgets">("dashboards");
+const heroTagline =
+  "\u0414\u0430\u0448\u0431\u043e\u0440\u0434 \u043f\u0440\u043e\u0434\u0430\u0436 \u0438 \u0430\u043d\u0430\u043b\u0438\u0442\u0438\u043a\u0438";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("ru-RU", {
@@ -229,6 +238,8 @@ function translateVisualizationType(value: string) {
 .dashboards-shell__content {
   min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .dashboards-list-view {
@@ -244,18 +255,27 @@ function translateVisualizationType(value: string) {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 16px;
+  padding: 0 16px;
   box-shadow: var(--shadow-soft);
 }
 
 .dashboards-list-view__panel--hero {
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(138, 180, 248, 0.08),
-      transparent 28%
-    ),
-    linear-gradient(180deg, rgba(26, 29, 36, 0.96), rgba(18, 20, 27, 0.98));
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dashboards-list-view__panel--content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboards-list-view__panel-content {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .dashboards-list-view__eyebrow {
@@ -269,10 +289,14 @@ function translateVisualizationType(value: string) {
 
 .dashboards-list-view__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.dashboards-list-view__header-copy {
+  min-width: 0;
 }
 
 .dashboards-list-view__header-actions {
@@ -280,6 +304,15 @@ function translateVisualizationType(value: string) {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.dashboards-list-view__hero-note {
+  padding-inline-start: 0.9rem;
+  border-inline-start: 1px solid
+    color-mix(in srgb, var(--accent) 40%, var(--line));
+  color: var(--muted-2);
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .dashboards-list-view__toggle {
@@ -303,12 +336,16 @@ function translateVisualizationType(value: string) {
 }
 
 .dashboards-list-view__empty {
+  flex: 1;
   padding: 48px;
   text-align: center;
   border: 1px dashed var(--line);
   border-radius: var(--radius-lg);
   color: var(--muted);
   font-size: 0.9rem;
+  display: grid;
+  place-items: center;
+  align-content: center;
 }
 
 .dashboards-list-view__empty p {
@@ -326,6 +363,7 @@ function translateVisualizationType(value: string) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
+  align-content: start;
 }
 
 .dashboards-list-view__grid--widgets {
@@ -333,29 +371,62 @@ function translateVisualizationType(value: string) {
 }
 
 .dashboards-list-view__card {
-  border: 1px solid var(--line);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  padding: 14px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 88px
+    ),
+    var(--surface);
+  padding: 16px;
   text-decoration: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  transition: border-color 0.15s;
+  gap: 8px;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 58%, transparent),
+      transparent 72%
+    );
+    pointer-events: none;
+  }
 
   &:hover {
-    border-color: rgba(112, 59, 247, 0.5);
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--line-strong));
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--accent) 12%, transparent),
+        transparent 96px
+      ),
+      var(--surface);
+    transform: translateY(-1px);
   }
 }
 
 .dashboards-list-view__card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .dashboards-list-view__card-title {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--ink-strong);
   overflow: hidden;
@@ -366,8 +437,8 @@ function translateVisualizationType(value: string) {
 
 .dashboards-list-view__card-badge {
   font-size: 0.68rem;
-  color: rgba(112, 59, 247, 0.9);
-  background: rgba(112, 59, 247, 0.15);
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   padding: 1px 6px;
   border-radius: 4px;
   flex-shrink: 0;
