@@ -8,6 +8,7 @@ import WidgetView from '@/views/WidgetView.vue';
 import DashboardsListView from '@/views/DashboardsListView.vue';
 import DashboardBuilderView from '@/views/DashboardBuilderView.vue';
 import DashboardView from '@/views/DashboardView.vue';
+import BIStudioView from '@/views/BIStudioView.vue';
 
 type ViewTransitionScope = 'page' | 'section';
 
@@ -35,6 +36,12 @@ const router = createRouter({
         },
         { path: 'notebooks/:notebookId', name: 'notebook', component: NotebookView },
         { path: 'widgets', name: 'widgets', component: WidgetsListView },
+        {
+          path: 'bi',
+          name: 'bi-studio',
+          component: BIStudioView,
+          meta: { viewTransitionScope: 'section' satisfies ViewTransitionScope },
+        },
         { path: 'widget/:id', name: 'widget', component: WidgetView },
         {
           path: 'dashboards',

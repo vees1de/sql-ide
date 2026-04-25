@@ -63,6 +63,23 @@
               <rect x="13" y="13" width="7" height="7" rx="1.5" />
             </svg>
             <svg
+              v-else-if="item.key === 'bi'"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 19V5" />
+              <path d="M4 19h16" />
+              <rect x="7" y="11" width="3" height="5" rx="0.8" />
+              <rect x="12" y="7" width="3" height="9" rx="0.8" />
+              <rect x="17" y="9" width="3" height="7" rx="0.8" />
+            </svg>
+            <svg
               v-else
               viewBox="0 0 24 24"
               width="16"
@@ -747,6 +764,7 @@ const sectionTitle = computed(() => sectionTitleByMode[props.mode ?? "chat"]);
 const navItems = [
   { to: "/chat", label: "Чат", key: "chat" as const },
   { to: "/dashboards", label: "Дашборды", key: "dashboards" as const },
+  { to: "/bi", label: "BI Studio", key: "bi" as const },
   { to: "/data", label: "Источники", key: "data" as const },
 ];
 
@@ -974,7 +992,7 @@ watch(
   { immediate: true },
 );
 
-function isRouteActive(key: "chat" | "dashboards" | "data") {
+function isRouteActive(key: "chat" | "dashboards" | "bi" | "data") {
   const path = route.path;
   if (key === "chat") {
     return (
@@ -990,6 +1008,9 @@ function isRouteActive(key: "chat" | "dashboards" | "data") {
       path.startsWith("/widgets") ||
       path.startsWith("/widget/")
     );
+  }
+  if (key === "bi") {
+    return path === "/bi" || path.startsWith("/bi");
   }
   return path === "/data" || path.startsWith("/data");
 }

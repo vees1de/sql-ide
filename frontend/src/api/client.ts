@@ -38,6 +38,16 @@ import type {
   ApiDashboardWidgetDetail,
   ApiDashboardWidgetAdd,
   ApiDashboardWidgetPatch,
+  ApiDatasetRead,
+  ApiDatasetUpdate,
+  ApiDatasetPreviewResponse,
+  ApiChartRecommendationRead,
+  ApiBiChartSpec,
+  ApiBiFilterCondition,
+  ApiChartValidationResponse,
+  ApiChartPreviewResponse,
+  ApiChartSaveResponse,
+  ApiQuickDashboardResponse,
 } from "@/api/types";
 
 const apiBaseUrl = "http://localhost:8000";
@@ -517,5 +527,63 @@ export const api = {
   },
   exportDashboardPdf(dashboardId: string) {
     return fetch(toUrl(`/api/dashboards/${dashboardId}/export/pdf`));
+  },
+  listDatasets() {
+    return request<ApiDatasetRead[]>("/api/datasets");
+  },
+  getDataset(datasetId: string) {
+    return request<ApiDatasetRead>(`/api/datasets/${datasetId}`);
+  },
+  updateDataset(datasetId: string, payload: ApiDatasetUpdate) {
+    return request<ApiDatasetRead>(`/api/datasets/${datasetId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteDataset(datasetId: string) {
+    return request<void>(`/api/datasets/${datasetId}`, {
+      method: "DELETE",
+    });
+  },
+  previewDataset(datasetId: string) {
+    return request<ApiDatasetPreviewResponse>(`/api/datasets/${datasetId}/preview`);
+  },
+  refreshDataset(datasetId: string) {
+    return request<ApiDatasetRead>(`/api/datasets/${datasetId}/refresh`, {
+      method: "POST",
+    });
+  },
+  recommendDatasetCharts(datasetId: string) {
+    return request<ApiChartRecommendationRead[]>(`/api/datasets/${datasetId}/chart-recommendations`);
+  },
+  validateBiChart(datasetId: string, chartSpec: ApiBiChartSpec, filters: ApiBiFilterCondition[] = []) {
+    return request<ApiChartValidationResponse>("/api/charts/validate", {
+      method: "POST",
+      body: JSON.stringify({ dataset_id: datasetId, chart_spec: chartSpec, filters }),
+    });
+  },
+  previewBiChart(datasetId: string, chartSpec: ApiBiChartSpec, filters: ApiBiFilterCondition[] = []) {
+    return request<ApiChartPreviewResponse>("/api/charts/preview", {
+      method: "POST",
+      body: JSON.stringify({ dataset_id: datasetId, chart_spec: chartSpec, filters }),
+    });
+  },
+  saveBiChart(payload: {
+    dataset_id: string;
+    chart_spec: ApiBiChartSpec;
+    title?: string | null;
+    description?: string | null;
+    run_immediately?: boolean;
+  }) {
+    return request<ApiChartSaveResponse>("/api/charts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  createQuickDashboard(datasetId: string, payload: { title?: string | null; max_widgets?: number }) {
+    return request<ApiQuickDashboardResponse>(`/api/datasets/${datasetId}/quick-dashboard`, {
+      method: "POST",
+      body: JSON.stringify({ dataset_id: datasetId, ...payload }),
+    });
   },
 };

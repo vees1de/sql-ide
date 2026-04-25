@@ -256,6 +256,7 @@ export interface ApiChatExecutionRecommendation {
 }
 
 export interface ApiChatChartEncoding {
+  aggregation?: 'sum' | 'avg' | 'count' | 'count_distinct' | 'min' | 'max' | 'none' | null;
   x_field?: string | null;
   y_field?: string | null;
   series_field?: string | null;
@@ -270,7 +271,9 @@ export interface ApiChatChartEncoding {
 }
 
 export interface ApiChatChartSpec {
-  chart_type: 'line' | 'bar' | 'pie' | 'metric_card' | 'table';
+  dataset_id?: string | null;
+  filters?: ApiBiFilterCondition[] | null;
+  chart_type: 'line' | 'bar' | 'area' | 'pie' | 'metric_card' | 'table';
   title: string;
   encoding: ApiChatChartEncoding;
   options?: Record<string, unknown>;
@@ -1058,4 +1061,123 @@ export interface ApiDashboardScheduleUpsert {
   timezone: string;
   enabled: boolean;
   subject: string;
+}
+
+export type ApiBiSemanticRole = 'dimension' | 'measure' | 'time' | 'unknown';
+export type ApiBiDataType = 'string' | 'number' | 'date' | 'datetime' | 'boolean' | 'unknown';
+export type ApiBiAggregation = 'sum' | 'avg' | 'count' | 'count_distinct' | 'min' | 'max' | 'none';
+export type ApiBiChartType = 'table' | 'line' | 'bar' | 'area' | 'pie' | 'metric_card';
+export type ApiBiFilterOperator = '=' | '!=' | '>' | '>=' | '<' | '<=' | 'in' | 'not_in' | 'between' | 'contains' | 'is_null' | 'is_not_null';
+
+export interface ApiBiFieldRead {
+  name: string;
+  source_type?: string | null;
+  data_type: ApiBiDataType;
+  semantic_role: ApiBiSemanticRole;
+  default_aggregation?: ApiBiAggregation | null;
+  distinct_count?: number | null;
+  sample_values: unknown[];
+}
+
+export interface ApiDatasetRead {
+  id: string;
+  name: string;
+  database_connection_id: string;
+  source_type: string;
+  source_query_execution_id: string;
+  sql: string;
+  columns_schema: Array<Record<string, unknown>>;
+  fields: ApiBiFieldRead[];
+  preview_rows: Array<Record<string, unknown>>;
+  row_count: number;
+  widgets_count: number;
+  created_by: string;
+  created_at: string;
+  refresh_policy: string;
+  last_refresh_at?: string | null;
+}
+
+export interface ApiDatasetUpdate {
+  name?: string | null;
+  refresh_policy?: 'manual' | 'on_view' | 'scheduled' | null;
+}
+
+export interface ApiDatasetPreviewResponse {
+  dataset: ApiDatasetRead;
+  columns: Array<Record<string, unknown>>;
+  rows: Array<Record<string, unknown>>;
+  row_count: number;
+  rows_preview_truncated: boolean;
+}
+
+export interface ApiBiFilterCondition {
+  field: string;
+  operator: ApiBiFilterOperator;
+  value?: unknown;
+}
+
+export interface ApiBiChartEncoding {
+  x_field?: string | null;
+  y_field?: string | null;
+  series_field?: string | null;
+  facet_field?: string | null;
+  aggregation: ApiBiAggregation;
+  sort?: 'x_asc' | 'x_desc' | 'y_asc' | 'y_desc' | 'none' | null;
+  normalize?: 'none' | 'percent' | 'index_100' | 'running_total' | null;
+  series_limit?: number | null;
+  category_limit?: number | null;
+  top_n_strategy?: 'top_plus_other' | 'top_only' | 'none' | null;
+  value_format?: string | null;
+}
+
+export interface ApiBiChartSpec {
+  chart_type: ApiBiChartType;
+  title: string;
+  dataset_id?: string | null;
+  encoding: ApiBiChartEncoding;
+  filters: ApiBiFilterCondition[];
+  options?: Record<string, unknown>;
+  data?: Record<string, unknown> | null;
+  variant?: string | null;
+  explanation?: string | null;
+  reason?: string | null;
+  rule_id?: string | null;
+  confidence?: number | null;
+}
+
+export interface ApiChartRecommendationRead {
+  title: string;
+  score: number;
+  reason: string;
+  chart_spec: ApiBiChartSpec;
+}
+
+export interface ApiChartValidationResponse {
+  valid: boolean;
+  chart_spec?: ApiBiChartSpec | null;
+  errors: string[];
+  warnings: string[];
+  sql?: string | null;
+}
+
+export interface ApiChartPreviewResponse {
+  chart_spec: ApiBiChartSpec;
+  sql: string;
+  columns: Array<{ name: string; type: string }>;
+  rows: Array<Record<string, unknown>>;
+  row_count: number;
+  rows_preview_truncated: boolean;
+  execution_time_ms: number;
+  warnings: string[];
+}
+
+export interface ApiChartSaveResponse {
+  widget: ApiWidgetDetail;
+  preview?: ApiChartPreviewResponse | null;
+}
+
+export interface ApiQuickDashboardResponse {
+  dashboard: ApiDashboardDetail;
+  widgets: ApiWidgetDetail[];
+  recommendations: ApiChartRecommendationRead[];
 }
