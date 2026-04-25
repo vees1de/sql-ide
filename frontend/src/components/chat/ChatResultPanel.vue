@@ -24,6 +24,38 @@
         <span v-if="execution" class="chat-result-panel__summary">{{
           summary
         }}</span>
+        <div
+          v-if="execution && !execution.error_message"
+          class="chat-result-panel__export"
+          @keydown.esc="showExportMenu = false"
+        >
+          <button
+            class="chat-result-panel__download-btn"
+            type="button"
+            :disabled="!canExport"
+            aria-haspopup="menu"
+            :aria-expanded="showExportMenu"
+            title="Скачать результат"
+            @click="showExportMenu = !showExportMenu"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M7 1.5v7m0 0 2.6-2.6M7 8.5 4.4 5.9M2.2 9.8v1.7c0 .6.4 1 1 1h7.6c.6 0 1-.4 1-1V9.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Скачать
+          </button>
+          <div
+            v-if="showExportMenu"
+            class="chat-result-panel__export-menu"
+            role="menu"
+          >
+            <button type="button" role="menuitem" @click="exportResult('excel')">
+              Excel
+            </button>
+            <button type="button" role="menuitem" @click="exportResult('csv')">
+              CSV
+            </button>
+          </div>
+        </div>
         <div v-if="execution && !execution.error_message" class="chat-result-panel__feedback">
           <button
             class="chat-result-panel__feedback-btn"
@@ -199,6 +231,7 @@ const emit = defineEmits<{
 const chat = useChatStore();
 const showSaveModal = ref(false);
 const feedbackSent = ref<'good' | 'bad' | null>(null);
+const showExportMenu = ref(false);
 
 async function sendFeedback(value: 'good' | 'bad') {
   if (!props.execution || !props.sessionId) return;
@@ -278,6 +311,12 @@ const summary = computed(() => {
   return `${props.execution.row_count} строк · ${columnCount} колонок · ${props.execution.execution_time_ms} мс`;
 });
 
+const exportColumns = computed(() => props.execution?.columns ?? []);
+const exportRows = computed(() => props.execution?.rows_preview ?? []);
+const canExport = computed(
+  () => exportColumns.value.length > 0 && exportRows.value.length > 0,
+);
+
 const emptyChartMessage = computed(() => {
   if (activeSource.value === "manual") {
     return "Текущий ручной ChartSpec не даёт корректного превью.";
@@ -317,6 +356,89 @@ function applyManualSpec(spec: ApiChatChartSpec) {
   emit("change-view", "chart");
 }
 
+function exportResult(format: "csv" | "excel") {
+  if (!props.execution || !canExport.value) return;
+
+  showExportMenu.value = false;
+  const filename = buildExportFilename(format);
+  const content =
+    format === "csv" ? buildCsvContent() : buildExcelCompatibleContent();
+  const mimeType =
+    format === "csv"
+      ? "text/csv;charset=utf-8"
+      : "application/vnd.ms-excel;charset=utf-8";
+
+  downloadBlob(filename, content, mimeType);
+}
+
+function buildExportFilename(format: "csv" | "excel") {
+  const extension = format === "csv" ? "csv" : "xls";
+  const suffix = props.execution?.id.slice(0, 8) ?? "result";
+  return `chat-result-${suffix}.${extension}`;
+}
+
+function buildCsvContent() {
+  const header = exportColumns.value.map((column) => csvCell(column.name));
+  const rows = exportRows.value.map((row) =>
+    exportColumns.value.map((column) => csvCell(row[column.name])).join(","),
+  );
+  return `\ufeff${[header.join(","), ...rows].join("\n")}`;
+}
+
+function buildExcelCompatibleContent() {
+  const header = exportColumns.value
+    .map((column) => `<th>${escapeHtml(column.name)}</th>`)
+    .join("");
+  const rows = exportRows.value
+    .map((row) => {
+      const cells = exportColumns.value
+        .map((column) => `<td>${escapeHtml(formatCellValue(row[column.name]))}</td>`)
+        .join("");
+      return `<tr>${cells}</tr>`;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html>
+<head><meta charset="utf-8"></head>
+<body><table><thead><tr>${header}</tr></thead><tbody>${rows}</tbody></table></body>
+</html>`;
+}
+
+function csvCell(value: unknown) {
+  const text = formatCellValue(value);
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function formatCellValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function downloadBlob(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 watch(
   () => props.execution?.id,
   () => {
@@ -326,6 +448,7 @@ watch(
     showChartHeader.value = true;
     showBuilder.value = false;
     feedbackSent.value = null;
+    showExportMenu.value = false;
   },
 );
 </script>
@@ -392,7 +515,8 @@ watch(
 }
 
 .chat-result-panel__toggle-btn,
-.chat-result-panel__save-btn {
+.chat-result-panel__save-btn,
+.chat-result-panel__download-btn {
   padding: 0 10px;
   min-height: 26px;
   border-radius: 8px;
@@ -407,9 +531,59 @@ watch(
   color: var(--muted);
 }
 
-.chat-result-panel__toggle-btn:hover {
+.chat-result-panel__toggle-btn:hover,
+.chat-result-panel__download-btn:hover {
   color: var(--ink-strong);
   border-color: rgba(112, 59, 247, 0.5);
+  background: rgba(112, 59, 247, 0.12);
+}
+
+.chat-result-panel__export {
+  position: relative;
+  display: inline-flex;
+}
+
+.chat-result-panel__download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+
+.chat-result-panel__download-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chat-result-panel__export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  min-width: 118px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+}
+
+.chat-result-panel__export-menu button {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.74rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-result-panel__export-menu button:hover {
   background: rgba(112, 59, 247, 0.12);
 }
 

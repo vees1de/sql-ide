@@ -76,6 +76,14 @@ def _apply_single(intent: IntentPayload, answer: ClarificationAnswerRecord) -> I
     option_id = answer.option_id
     text = (answer.text_answer or "").strip()
 
+    if answer.ambiguity_type == "metric" and text:
+        # Free-text metric answers are user definitions, not follow-up prompts.
+        # They must replace unresolved placeholder metrics from the classifier
+        # (for example "metric_rides_count"), otherwise the same term is
+        # re-clarified on the next planning pass.
+        intent.metric = text
+        return intent
+
     if option_id:
         kind, _, value = option_id.partition(":")
         if kind == "metric":
@@ -99,7 +107,7 @@ def _apply_single(intent: IntentPayload, answer: ClarificationAnswerRecord) -> I
         # Unknown kind — fall through to text handling below.
 
     if text:
-        if answer.ambiguity_type == "metric" and not intent.metric:
+        if answer.ambiguity_type == "metric":
             intent.metric = text
         elif answer.ambiguity_type == "dimension" and text not in intent.dimensions:
             intent.dimensions = [*intent.dimensions, text]

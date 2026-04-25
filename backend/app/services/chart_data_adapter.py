@@ -144,7 +144,7 @@ class ChartDataAdapter:
         x_values, groups, matrix = self._prepare_multi_series_matrix(execution.rows, x_field, y_field, series_field, decision)
         series = [
             {
-                "name": group,
+                "name": self._stringify_series_name(group),
                 "data": [matrix.get((x_value, group), 0.0) for x_value in x_values],
             }
             for group in groups
@@ -404,3 +404,8 @@ class ChartDataAdapter:
                 if number != 0.0 or value in {0, 0.0, "0", "0.0"}:
                     return number
         return None
+
+    def _stringify_series_name(self, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value)

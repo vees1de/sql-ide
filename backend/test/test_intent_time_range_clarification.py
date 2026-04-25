@@ -40,6 +40,48 @@ def test_time_range_clarification_accepts_free_text_date() -> None:
     assert resolved.date_range.start.isoformat() == "2026-04-14"
 
 
+def test_metric_clarification_free_text_replaces_unresolved_placeholder() -> None:
+    intent = IntentAgent().run("Через какое количество завершенных поездок пассы начинают активнее пользоваться приложением")
+    intent.metric = "metric_rides_count"
+    intent.ambiguities = ["metric"]
+    intent.clarification_question = "Уточните, что означает «metric_rides_count»."
+
+    resolved = apply_answers(
+        intent,
+        [
+            ClarificationAnswerRecord(
+                clarification_id="metric",
+                ambiguity_type="metric",
+                text_answer="Увеличение количества поездок (rides_count)",
+            )
+        ],
+    )
+
+    assert resolved.metric == "Увеличение количества поездок (rides_count)"
+    assert resolved.ambiguities == []
+    assert resolved.clarification_question is None
+
+
+def test_metric_clarification_generic_option_uses_free_text_answer() -> None:
+    intent = IntentAgent().run("Покажи metric_rides_count")
+    intent.metric = "metric_rides_count"
+
+    resolved = apply_answers(
+        intent,
+        [
+            ClarificationAnswerRecord(
+                clarification_id="metric",
+                ambiguity_type="metric",
+                option_id="metric:option",
+                option_label="Уточнить вручную",
+                text_answer="Увеличение количества поездок (rides_count)",
+            )
+        ],
+    )
+
+    assert resolved.metric == "Увеличение количества поездок (rides_count)"
+
+
 def test_broad_analytics_prioritizes_time_range_question() -> None:
     intent = IntentAgent().run(
         "Хочу увидеть, как у нас проходит заказ от создания до завершения. "

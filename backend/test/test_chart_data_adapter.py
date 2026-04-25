@@ -97,3 +97,27 @@ def test_build_multi_series_payload_matches_contract() -> None:
     assert payload["seriesField"] == "city"
     assert payload["x"]["field"] == "month"
     assert all(len(item["data"]) == len(payload["x"]["values"]) for item in payload["series"])
+
+
+def test_build_multi_series_payload_stringifies_numeric_series_names() -> None:
+    service = ChartDecisionService()
+    adapter = ChartDataAdapter()
+    execution = _execution(
+        ["month", "city_id", "cancelled_rides_count"],
+        [
+            {"month": "2026-01", "city_id": 60, "cancelled_rides_count": 10},
+            {"month": "2026-01", "city_id": 50, "cancelled_rides_count": 12},
+            {"month": "2026-02", "city_id": 60, "cancelled_rides_count": 11},
+            {"month": "2026-02", "city_id": 76, "cancelled_rides_count": 7},
+        ],
+    )
+
+    decision = service.decide(
+        _semantics(intent="comparison_over_time", x="month", y="cancelled_rides_count", series="city_id"),
+        execution,
+    )
+    payload = adapter.build(execution, decision)
+
+    assert payload["kind"] == "multi_series"
+    assert [item["name"] for item in payload["series"]] == ["60", "50", "76"]
+    assert all(isinstance(item["name"], str) for item in payload["series"])
