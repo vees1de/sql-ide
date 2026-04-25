@@ -50,7 +50,7 @@ import type {
   ApiQuickDashboardResponse,
 } from "@/api/types";
 
-const apiBaseUrl = "http://localhost:8000";
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 function toUrl(path: string) {
   return `${apiBaseUrl}${path}`;

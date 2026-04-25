@@ -80,7 +80,7 @@ const chartOption = computed(() => {
       series: [
         {
           type: 'pie',
-          radius: ['46%', '72%'],
+          radius: props.content.donut ? ['46%', '72%'] : '72%',
           itemStyle: {
             borderRadius: 10,
             borderColor: '#ffffff',
@@ -95,6 +95,10 @@ const chartOption = computed(() => {
       ]
     };
   }
+
+  const isHorizontal = props.content.orientation === 'horizontal' && props.content.chartType === 'bar';
+  const isArea = props.content.chartType === 'area' || props.content.showArea;
+  const seriesType = props.content.chartType === 'area' ? 'line' : props.content.chartType;
 
   return {
     color: palette.value,
@@ -114,8 +118,8 @@ const chartOption = computed(() => {
       containLabel: true
     },
     xAxis: {
-      type: 'category',
-      data: props.content.xAxis ?? [],
+      type: isHorizontal ? 'value' : 'category',
+      data: isHorizontal ? undefined : (props.content.xAxis ?? []),
       axisLine: {
         lineStyle: {
           color: 'rgba(15, 23, 42, 0.16)'
@@ -126,7 +130,8 @@ const chartOption = computed(() => {
       }
     },
     yAxis: {
-      type: 'value',
+      type: isHorizontal ? 'category' : 'value',
+      data: isHorizontal ? (props.content.xAxis ?? []) : undefined,
       axisLabel: {
         color: '#51607a',
         formatter: (value: number) => {
@@ -142,17 +147,16 @@ const chartOption = computed(() => {
     },
     series: (props.content.series ?? []).map((series) => ({
       ...series,
-      type: props.content.chartType,
+      type: seriesType,
       stack: props.content.stacked ? 'total' : undefined,
-      smooth: props.content.chartType === 'line',
-      symbolSize: props.content.chartType === 'line' ? 9 : undefined,
+      smooth: props.content.smooth ?? (props.content.chartType === 'line' || props.content.chartType === 'area'),
+      symbolSize: props.content.chartType === 'line' || props.content.chartType === 'area' ? 9 : undefined,
       barMaxWidth: props.content.chartType === 'bar' ? 30 : undefined,
-      areaStyle:
-        props.content.chartType === 'line'
-          ? {
-              opacity: 0.08
-            }
-          : undefined
+      areaStyle: isArea
+        ? {
+            opacity: 0.14
+          }
+        : undefined
     }))
   };
 });

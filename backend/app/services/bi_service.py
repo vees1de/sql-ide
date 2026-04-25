@@ -217,6 +217,28 @@ class BiService:
                     ),
                 )
             )
+            recommendations.append(
+                ChartRecommendationRead(
+                    title=f"{primary_measure.name}: area trend",
+                    score=0.88,
+                    reason="Area chart подчёркивает накопление и общий объём метрики во времени.",
+                    chart_spec=BiChartSpec(
+                        chart_type="area",
+                        title=f"{primary_measure.name} по {primary_time.name}",
+                        dataset_id=dataset.id,
+                        encoding=BiChartEncoding(
+                            x_field=primary_time.name,
+                            y_field=primary_measure.name,
+                            aggregation=primary_measure.default_aggregation or "sum",
+                            sort="x_asc",
+                            category_limit=240,
+                            value_format=self._guess_value_format(primary_measure.name),
+                        ),
+                        rule_id="bi_area_time_series",
+                        confidence=0.88,
+                    ),
+                )
+            )
 
         if primary_dimension is not None and primary_measure is not None:
             chart_type = "pie" if (primary_dimension.distinct_count or 999) <= 6 else "bar"
@@ -242,6 +264,53 @@ class BiService:
                     ),
                 )
             )
+            recommendations.append(
+                ChartRecommendationRead(
+                    title=f"{primary_measure.name}: top {primary_dimension.name}",
+                    score=0.85,
+                    reason="Горизонтальный bar удобнее для длинных категориальных подписей и ranking views.",
+                    chart_spec=BiChartSpec(
+                        chart_type="bar",
+                        title=f"Top {primary_dimension.name} по {primary_measure.name}",
+                        dataset_id=dataset.id,
+                        encoding=BiChartEncoding(
+                            x_field=primary_dimension.name,
+                            y_field=primary_measure.name,
+                            aggregation=primary_measure.default_aggregation or "sum",
+                            sort="y_desc",
+                            category_limit=12,
+                            value_format=self._guess_value_format(primary_measure.name),
+                        ),
+                        variant="horizontal",
+                        rule_id="bi_horizontal_ranking",
+                        confidence=0.85,
+                    ),
+                )
+            )
+            if (primary_dimension.distinct_count or 999) <= 8:
+                recommendations.append(
+                    ChartRecommendationRead(
+                        title=f"{primary_measure.name}: donut by {primary_dimension.name}",
+                        score=0.81,
+                        reason="Donut chart подходит для компактного breakdown по небольшому числу сегментов.",
+                        chart_spec=BiChartSpec(
+                            chart_type="pie",
+                            title=f"{primary_measure.name} по {primary_dimension.name}",
+                            dataset_id=dataset.id,
+                            encoding=BiChartEncoding(
+                                x_field=primary_dimension.name,
+                                y_field=primary_measure.name,
+                                aggregation=primary_measure.default_aggregation or "sum",
+                                sort="y_desc",
+                                category_limit=8,
+                                value_format=self._guess_value_format(primary_measure.name),
+                            ),
+                            variant="donut",
+                            rule_id="bi_donut_breakdown",
+                            confidence=0.81,
+                        ),
+                    )
+                )
 
         if primary_time is not None and primary_measure is not None and secondary_dimension is not None:
             recommendations.append(
@@ -320,7 +389,7 @@ class BiService:
                 continue
             seen.add(key)
             unique.append(recommendation)
-        return unique[:6]
+        return unique[:8]
 
     # ------------------------------------------------------------------
     # Chart validation / SQL compilation / execution

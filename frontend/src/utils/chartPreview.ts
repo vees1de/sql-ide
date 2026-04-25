@@ -115,6 +115,11 @@ export function buildChartCellContentFromSpec(
   const xField = spec.encoding.x_field ?? null;
   const yField = spec.encoding.y_field ?? null;
   const seriesField = spec.encoding.series_field ?? null;
+  const chartType = resolveChartType(spec.chart_type);
+  const orientation = resolveOrientation(spec.variant);
+  const donut = spec.variant === 'donut';
+  const smooth = spec.chart_type === 'line' || spec.chart_type === 'area';
+  const showArea = spec.chart_type === 'area';
 
   if (spec.chart_type === 'metric_card') {
     const field = yField ?? inferColumnKinds(columns, rows).numeric[0] ?? null;
@@ -148,6 +153,7 @@ export function buildChartCellContentFromSpec(
       confidence: meta.confidence,
       variant: meta.variant,
       valueFormat: meta.valueFormat,
+      donut,
       pieData
     };
   }
@@ -155,7 +161,7 @@ export function buildChartCellContentFromSpec(
   if (seriesField) {
     const multiSeries = buildMultiSeries(rows, xField, yField, seriesField);
     return {
-      chartType: spec.chart_type === 'bar' ? 'bar' : 'line',
+      chartType,
       title: meta.title,
       subtitle: meta.subtitle,
       explanation: meta.explanation,
@@ -163,15 +169,18 @@ export function buildChartCellContentFromSpec(
       confidence: meta.confidence,
       variant: meta.variant,
       valueFormat: meta.valueFormat,
+      orientation,
       xAxis: multiSeries.xAxis,
       series: multiSeries.series,
-      stacked: spec.variant === 'stacked'
+      stacked: spec.variant === 'stacked',
+      smooth,
+      showArea
     };
   }
 
   const singleSeries = buildSingleSeries(rows, xField, yField);
   return {
-    chartType: spec.chart_type === 'bar' ? 'bar' : 'line',
+    chartType,
     title: meta.title,
     subtitle: meta.subtitle,
     explanation: meta.explanation,
@@ -179,6 +188,7 @@ export function buildChartCellContentFromSpec(
     confidence: meta.confidence,
     variant: meta.variant,
     valueFormat: meta.valueFormat,
+    orientation,
     xAxis: singleSeries.xAxis,
     series: [
       {
@@ -186,7 +196,9 @@ export function buildChartCellContentFromSpec(
         data: singleSeries.values
       }
     ],
-    stacked: spec.variant === 'stacked'
+    stacked: spec.variant === 'stacked',
+    smooth,
+    showArea
   };
 }
 
@@ -253,6 +265,7 @@ function buildChartCellContentFromPayload(
       confidence: meta.confidence,
       variant: meta.variant,
       valueFormat: meta.valueFormat,
+      donut: meta.variant === 'donut',
       pieData:
         payload.slices?.map((slice, index) => ({
           name: String(slice.name ?? `Segment ${index + 1}`),
@@ -268,7 +281,7 @@ function buildChartCellContentFromPayload(
 
     if (!hasSeries) {
       return {
-        chartType: meta.chartType === 'bar' ? 'bar' : 'line',
+        chartType: resolveChartType(meta.chartType),
         title: meta.title,
         subtitle: meta.subtitle,
         explanation: meta.explanation,
@@ -276,6 +289,7 @@ function buildChartCellContentFromPayload(
         confidence: meta.confidence,
         variant: meta.variant,
         valueFormat: meta.valueFormat,
+        orientation: resolveOrientation(meta.variant),
         xAxis: (payload.x?.values ?? []).map((value) => String(value ?? '—')),
         series: [
           {
@@ -283,12 +297,14 @@ function buildChartCellContentFromPayload(
             data: (payload.y?.values ?? []).map((value) => toNumber(value))
           }
         ],
-        stacked: Boolean(payload.stacked || payload.stackable)
+        stacked: Boolean(payload.stacked || payload.stackable),
+        smooth: meta.chartType === 'line' || meta.chartType === 'area',
+        showArea: meta.chartType === 'area'
       };
     }
 
     return {
-      chartType: meta.chartType === 'bar' ? 'bar' : 'line',
+      chartType: resolveChartType(meta.chartType),
       title: meta.title,
       subtitle: meta.subtitle,
       explanation: meta.explanation,
@@ -296,19 +312,22 @@ function buildChartCellContentFromPayload(
       confidence: meta.confidence,
       variant: meta.variant,
       valueFormat: meta.valueFormat,
+      orientation: resolveOrientation(meta.variant),
       xAxis: (payload.x?.values ?? []).map((value) => String(value ?? '—')),
       series:
         payload.series?.map((series) => ({
           name: String(series.name ?? 'Series'),
           data: (series.data ?? []).map((value) => toNumber(value))
         })) ?? [],
-      stacked: Boolean(payload.stacked || payload.stackable)
+      stacked: Boolean(payload.stacked || payload.stackable),
+      smooth: meta.chartType === 'line' || meta.chartType === 'area',
+      showArea: meta.chartType === 'area'
     };
   }
 
   if (payload.kind === 'single_series') {
     return {
-      chartType: meta.chartType === 'bar' ? 'bar' : 'line',
+      chartType: resolveChartType(meta.chartType),
       title: meta.title,
       subtitle: meta.subtitle,
       explanation: meta.explanation,
@@ -316,6 +335,7 @@ function buildChartCellContentFromPayload(
       confidence: meta.confidence,
       variant: meta.variant,
       valueFormat: meta.valueFormat,
+      orientation: resolveOrientation(meta.variant),
       xAxis: (payload.x?.values ?? []).map((value) => String(value ?? '—')),
       series: [
         {
@@ -323,7 +343,9 @@ function buildChartCellContentFromPayload(
           data: (payload.y?.values ?? []).map((value) => toNumber(value))
         }
       ],
-      stacked: Boolean(payload.stacked)
+      stacked: Boolean(payload.stacked || payload.stackable),
+      smooth: meta.chartType === 'line' || meta.chartType === 'area',
+      showArea: meta.chartType === 'area'
     };
   }
 
@@ -418,27 +440,37 @@ function looksNumeric(type: string, name: string, values: unknown[]) {
     const parsed = Number(String(value).replace(',', '.'));
     return Number.isFinite(parsed);
   }).length;
-  return numericCount >= Math.max(1, Math.ceil(values.length * 0.7));
+  return numericCount >= Math.ceil(values.length * 0.7);
 }
 
 function looksTemporal(type: string, name: string, values: unknown[]) {
-  if (/(date|time|timestamp)/.test(type) || /(date|time|month|day|week|year|_at)$/i.test(name)) {
+  if (/(date|time|timestamp)/.test(type) || /(date|time|day|month|year|_at)$/i.test(name)) {
     return true;
   }
-  if (!values.length) {
-    return false;
-  }
-  const temporalCount = values.filter((value) => {
-    const text = String(value ?? '').trim();
-    return /^\d{4}-\d{2}-\d{2}/.test(text) || !Number.isNaN(Date.parse(text));
-  }).length;
-  return temporalCount >= Math.max(1, Math.ceil(values.length * 0.6));
+  return values.some((value) => {
+    if (value instanceof Date) {
+      return true;
+    }
+    const text = String(value ?? '');
+    return /^\d{4}-\d{2}-\d{2}/.test(text);
+  });
 }
 
 function toNumber(value: unknown) {
   if (typeof value === 'number') {
-    return value;
+    return Number.isFinite(value) ? value : 0;
   }
   const parsed = Number(String(value ?? '').replace(',', '.'));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function resolveChartType(chartType: string | null | undefined): 'line' | 'bar' | 'area' | 'pie' {
+  if (chartType === 'bar') return 'bar';
+  if (chartType === 'area') return 'area';
+  if (chartType === 'pie') return 'pie';
+  return 'line';
+}
+
+function resolveOrientation(variant: string | null | undefined): 'horizontal' | 'vertical' {
+  return variant === 'horizontal' ? 'horizontal' : 'vertical';
 }

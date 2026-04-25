@@ -17,7 +17,7 @@
       </header>
 
       <p class="bi-studio__hint">
-        Любой успешный SQL-запрос из чата уже сохранён как dataset. Здесь из него можно собрать ChartSpec, widget и dashboard.
+        Любой успешный SQL-запрос из чата уже сохранён как dataset. Здесь можно собрать несколько вариантов ChartSpec и быстро превратить их в widget или dashboard.
       </p>
 
       <div v-if="loading" class="bi-studio__state">Загружаю datasets…</div>
@@ -71,174 +71,140 @@
       <p v-if="notice" class="bi-studio__notice">{{ notice }}</p>
 
       <template v-if="activeDataset">
-        <section class="bi-studio__panel bi-studio__panel--dataset">
+        <section class="bi-studio__panel">
           <div class="bi-studio__panel-head">
             <div>
-              <p class="bi-studio__eyebrow">Dataset schema</p>
-              <h3>Поля, роли и preview</h3>
+              <p class="bi-studio__eyebrow">Manual chart builder</p>
+              <h3>ChartSpec</h3>
             </div>
-            <span class="bi-studio__pill">{{ activeDataset.source_type }}</span>
+            <span class="bi-studio__pill">10 visual variants</span>
           </div>
 
-          <div class="bi-studio__field-grid">
-            <article v-for="field in activeDataset.fields" :key="field.name" class="bi-studio__field-card">
-              <strong>{{ field.name }}</strong>
-              <div class="bi-studio__chips">
-                <span>{{ field.semantic_role }}</span>
-                <span>{{ field.data_type }}</span>
-                <span v-if="field.default_aggregation">{{ field.default_aggregation }}</span>
-              </div>
-              <small v-if="field.sample_values.length">{{ field.sample_values.slice(0, 3).join(', ') }}</small>
-            </article>
+          <div class="bi-studio__visual-grid">
+            <button
+              v-for="option in visualizationOptions"
+              :key="option.key"
+              class="bi-studio__visual-card"
+              :class="{ 'bi-studio__visual-card--active': selectedVisualPreset === option.key }"
+              type="button"
+              @click="selectedVisualPreset = option.key"
+            >
+              <strong>{{ option.label }}</strong>
+              <small>{{ option.description }}</small>
+            </button>
+          </div>
+
+          <div class="bi-studio__form-grid">
+            <label class="bi-studio__wide">
+              <span>Title</span>
+              <input v-model="manualSpec.title" type="text" />
+            </label>
+
+            <label>
+              <span>X axis</span>
+              <select v-model="manualSpec.encoding.x_field" :disabled="isMetricChart || isTableChart">
+                <option :value="null">—</option>
+                <option v-for="field in xFields" :key="field.name" :value="field.name">{{ field.name }}</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Y metric</span>
+              <select v-model="manualSpec.encoding.y_field" :disabled="isTableChart">
+                <option :value="null">—</option>
+                <option v-for="field in yFields" :key="field.name" :value="field.name">{{ field.name }}</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Series / breakdown</span>
+              <select v-model="manualSpec.encoding.series_field" :disabled="!supportsSeriesField">
+                <option :value="null">—</option>
+                <option v-for="field in seriesFields" :key="field.name" :value="field.name">{{ field.name }}</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Aggregation</span>
+              <select v-model="manualSpec.encoding.aggregation" :disabled="isTableChart">
+                <option value="sum">sum</option>
+                <option value="avg">avg</option>
+                <option value="count">count</option>
+                <option value="count_distinct">count distinct</option>
+                <option value="min">min</option>
+                <option value="max">max</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Sort</span>
+              <select v-model="manualSpec.encoding.sort" :disabled="isMetricChart || isTableChart">
+                <option value="x_asc">X asc</option>
+                <option value="x_desc">X desc</option>
+                <option value="y_desc">Y desc</option>
+                <option value="y_asc">Y asc</option>
+                <option value="none">No sort</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Category limit</span>
+              <input v-model.number="manualSpec.encoding.category_limit" min="1" max="500" type="number" />
+            </label>
+
+            <label>
+              <span>Series limit</span>
+              <input v-model.number="manualSpec.encoding.series_limit" min="1" max="50" type="number" :disabled="!supportsSeriesField" />
+            </label>
+
+            <label>
+              <span>Value format</span>
+              <select v-model="manualSpec.encoding.value_format">
+                <option :value="null">Auto</option>
+                <option value="compact">Compact</option>
+                <option value="integer">Integer</option>
+                <option value="currency">Currency</option>
+                <option value="percent">Percent</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Variant</span>
+              <input :value="manualSpec.variant ?? 'default'" disabled type="text" />
+            </label>
+          </div>
+
+          <div class="bi-studio__builder-actions">
+            <button class="wbtn wbtn--ghost" type="button" :disabled="previewing" @click="previewManualSpec">
+              {{ previewing ? 'Строю…' : 'Preview' }}
+            </button>
+            <button class="wbtn wbtn--primary" type="button" :disabled="savingChart" @click="saveChart">
+              {{ savingChart ? 'Сохраняю…' : 'Save chart' }}
+            </button>
           </div>
         </section>
 
-        <section class="bi-studio__main-grid">
-          <div class="bi-studio__left-column">
-            <section class="bi-studio__panel">
-              <div class="bi-studio__panel-head">
-                <div>
-                  <p class="bi-studio__eyebrow">Auto chart suggestions</p>
-                  <h3>Рекомендации</h3>
-                </div>
-                <button class="wbtn wbtn--ghost wbtn--sm" type="button" :disabled="recommending" @click="loadRecommendations">
-                  {{ recommending ? '…' : 'Обновить' }}
-                </button>
+        <section class="bi-studio__content-grid">
+          <section class="bi-studio__panel bi-studio__data-panel">
+            <div class="bi-studio__panel-head">
+              <div>
+                <p class="bi-studio__eyebrow">Dataset preview</p>
+                <h3>Таблица данных</h3>
               </div>
+              <span class="bi-studio__pill">{{ datasetColumns.length }} cols · {{ activeDataset.row_count }} rows</span>
+            </div>
 
-              <div v-if="!recommendations.length" class="bi-studio__state bi-studio__state--compact">
-                Рекомендаций пока нет.
-              </div>
-              <div v-else class="bi-studio__recommendations">
-                <button
-                  v-for="recommendation in recommendations"
-                  :key="recommendation.title + recommendation.chart_spec.chart_type"
-                  class="bi-studio__recommendation"
-                  type="button"
-                  @click="applyRecommendation(recommendation)"
-                >
-                  <span>
-                    <strong>{{ recommendation.title }}</strong>
-                    <small>{{ recommendation.reason }}</small>
-                  </span>
-                  <b>{{ Math.round(recommendation.score * 100) }}%</b>
-                </button>
-              </div>
-            </section>
-
-            <section class="bi-studio__panel">
-              <div class="bi-studio__panel-head">
-                <div>
-                  <p class="bi-studio__eyebrow">Manual chart builder</p>
-                  <h3>ChartSpec</h3>
-                </div>
-              </div>
-
-              <div class="bi-studio__form-grid">
-                <label>
-                  <span>Title</span>
-                  <input v-model="manualSpec.title" type="text" />
-                </label>
-
-                <label>
-                  <span>Chart type</span>
-                  <select v-model="manualSpec.chart_type">
-                    <option value="table">Table</option>
-                    <option value="metric_card">KPI card</option>
-                    <option value="line">Line</option>
-                    <option value="bar">Bar</option>
-                    <option value="area">Area</option>
-                    <option value="pie">Pie</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>X axis</span>
-                  <select v-model="manualSpec.encoding.x_field" :disabled="manualSpec.chart_type === 'metric_card' || manualSpec.chart_type === 'table'">
-                    <option :value="null">—</option>
-                    <option v-for="field in xFields" :key="field.name" :value="field.name">{{ field.name }}</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Y metric</span>
-                  <select v-model="manualSpec.encoding.y_field" :disabled="manualSpec.chart_type === 'table'">
-                    <option :value="null">—</option>
-                    <option v-for="field in yFields" :key="field.name" :value="field.name">{{ field.name }}</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Series / breakdown</span>
-                  <select v-model="manualSpec.encoding.series_field" :disabled="manualSpec.chart_type === 'metric_card' || manualSpec.chart_type === 'table' || manualSpec.chart_type === 'pie'">
-                    <option :value="null">—</option>
-                    <option v-for="field in seriesFields" :key="field.name" :value="field.name">{{ field.name }}</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Aggregation</span>
-                  <select v-model="manualSpec.encoding.aggregation" :disabled="manualSpec.chart_type === 'table'">
-                    <option value="sum">sum</option>
-                    <option value="avg">avg</option>
-                    <option value="count">count</option>
-                    <option value="count_distinct">count distinct</option>
-                    <option value="min">min</option>
-                    <option value="max">max</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Sort</span>
-                  <select v-model="manualSpec.encoding.sort" :disabled="manualSpec.chart_type === 'metric_card' || manualSpec.chart_type === 'table'">
-                    <option value="x_asc">X asc</option>
-                    <option value="x_desc">X desc</option>
-                    <option value="y_desc">Y desc</option>
-                    <option value="y_asc">Y asc</option>
-                    <option value="none">No sort</option>
-                  </select>
-                </label>
-
-                <label>
-                  <span>Limit</span>
-                  <input v-model.number="manualSpec.encoding.category_limit" min="1" max="500" type="number" />
-                </label>
-
-                <label>
-                  <span>Value format</span>
-                  <select v-model="manualSpec.encoding.value_format">
-                    <option :value="null">Auto</option>
-                    <option value="compact">Compact</option>
-                    <option value="integer">Integer</option>
-                    <option value="currency">Currency</option>
-                    <option value="percent">Percent</option>
-                  </select>
-                </label>
-
-                <label class="bi-studio__wide">
-                  <span>Variant</span>
-                  <select v-model="manualSpec.variant">
-                    <option :value="null">Default</option>
-                    <option value="stacked">Stacked</option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="bi-studio__builder-actions">
-                <button class="wbtn wbtn--ghost" type="button" :disabled="previewing" @click="previewManualSpec">
-                  {{ previewing ? 'Строю…' : 'Preview' }}
-                </button>
-                <button class="wbtn wbtn--primary" type="button" :disabled="savingChart" @click="saveChart">
-                  {{ savingChart ? 'Сохраняю…' : 'Save chart' }}
-                </button>
-              </div>
-            </section>
-          </div>
+            <WidgetResultTable
+              :columns="datasetColumns"
+              :rows="activeDataset.preview_rows"
+              :truncated="activeDataset.row_count > activeDataset.preview_rows.length"
+            />
+          </section>
 
           <section class="bi-studio__panel bi-studio__preview-panel">
             <div class="bi-studio__panel-head">
               <div>
-                <p class="bi-studio__eyebrow">Live preview</p>
+                <p class="bi-studio__eyebrow">Chart preview</p>
                 <h3>{{ preview?.chart_spec.title ?? manualSpec.title }}</h3>
               </div>
               <span v-if="preview" class="bi-studio__pill">{{ preview.execution_time_ms }} ms · {{ preview.row_count }} rows</span>
@@ -246,7 +212,7 @@
 
             <div v-if="previewing" class="bi-studio__state">Строю preview…</div>
             <div v-else-if="!preview" class="bi-studio__empty-preview">
-              Выберите рекомендацию или нажмите Preview.
+              Выберите визуальный вариант и нажмите Preview.
             </div>
             <WidgetResultTable
               v-else-if="preview.chart_spec.chart_type === 'table'"
@@ -261,6 +227,61 @@
               <summary>Compiled SQL</summary>
               <pre>{{ preview.sql }}</pre>
             </details>
+          </section>
+        </section>
+
+        <section class="bi-studio__bottom-grid">
+          <section class="bi-studio__panel bi-studio__panel--dataset">
+            <div class="bi-studio__panel-head">
+              <div>
+                <p class="bi-studio__eyebrow">Dataset schema</p>
+                <h3>Поля и роли</h3>
+              </div>
+              <span class="bi-studio__pill">{{ activeDataset.source_type }}</span>
+            </div>
+
+            <div class="bi-studio__field-grid">
+              <article v-for="field in activeDataset.fields" :key="field.name" class="bi-studio__field-card">
+                <strong>{{ field.name }}</strong>
+                <div class="bi-studio__chips">
+                  <span>{{ field.semantic_role }}</span>
+                  <span>{{ field.data_type }}</span>
+                  <span v-if="field.default_aggregation">{{ field.default_aggregation }}</span>
+                </div>
+                <small v-if="field.sample_values.length">{{ field.sample_values.slice(0, 3).join(', ') }}</small>
+              </article>
+            </div>
+          </section>
+
+          <section class="bi-studio__panel">
+            <div class="bi-studio__panel-head">
+              <div>
+                <p class="bi-studio__eyebrow">Auto chart suggestions</p>
+                <h3>Рекомендации</h3>
+              </div>
+              <button class="wbtn wbtn--ghost wbtn--sm" type="button" :disabled="recommending" @click="loadRecommendations">
+                {{ recommending ? '…' : 'Обновить' }}
+              </button>
+            </div>
+
+            <div v-if="!recommendations.length" class="bi-studio__state bi-studio__state--compact">
+              Рекомендаций пока нет.
+            </div>
+            <div v-else class="bi-studio__recommendations">
+              <button
+                v-for="recommendation in recommendations"
+                :key="recommendation.title + recommendation.chart_spec.chart_type + (recommendation.chart_spec.variant ?? '')"
+                class="bi-studio__recommendation"
+                type="button"
+                @click="applyRecommendation(recommendation)"
+              >
+                <span>
+                  <strong>{{ recommendation.title }}</strong>
+                  <small>{{ recommendation.reason }}</small>
+                </span>
+                <b>{{ Math.round(recommendation.score * 100) }}%</b>
+              </button>
+            </div>
           </section>
         </section>
       </template>
@@ -283,7 +304,6 @@ import WidgetResultTable from '@/components/widgets/WidgetResultTable.vue';
 import { buildChartCellContentFromSpec } from '@/utils/chartPreview';
 import type {
   ApiBiChartSpec,
-  ApiBiFieldRead,
   ApiChartPreviewResponse,
   ApiChartRecommendationRead,
   ApiChatChartSpec,
@@ -292,7 +312,32 @@ import type {
 } from '@/api/types';
 import type { ChartCellContent } from '@/types/app';
 
+type VisualPresetKey =
+  | 'table'
+  | 'metric_card'
+  | 'line'
+  | 'area'
+  | 'bar'
+  | 'horizontal_bar'
+  | 'stacked_bar'
+  | 'stacked_area'
+  | 'pie'
+  | 'donut';
+
 const router = useRouter();
+
+const visualizationOptions: Array<{ key: VisualPresetKey; label: string; description: string }> = [
+  { key: 'table', label: 'Table', description: 'Raw rows for drill-through and QA' },
+  { key: 'metric_card', label: 'KPI card', description: 'Single headline metric' },
+  { key: 'line', label: 'Line', description: 'Trend over time or ordered categories' },
+  { key: 'area', label: 'Area', description: 'Trend with volume emphasis' },
+  { key: 'bar', label: 'Bar', description: 'Category comparison' },
+  { key: 'horizontal_bar', label: 'Horizontal bar', description: 'Ranking with long labels' },
+  { key: 'stacked_bar', label: 'Stacked bar', description: 'Breakdown inside each category' },
+  { key: 'stacked_area', label: 'Stacked area', description: 'Accumulated trend by segment' },
+  { key: 'pie', label: 'Pie', description: 'Small segment distribution' },
+  { key: 'donut', label: 'Donut', description: 'Compact share breakdown' },
+];
 
 const datasets = ref<ApiDatasetRead[]>([]);
 const activeDatasetId = ref('');
@@ -310,6 +355,13 @@ const notice = ref<string | null>(null);
 
 const manualSpec = ref<ApiBiChartSpec>(emptySpec());
 
+const datasetColumns = computed(() =>
+  (activeDataset.value?.columns_schema ?? []).map((column) => ({
+    name: String(column.name ?? column['name'] ?? ''),
+    type: String(column.type ?? column['type'] ?? 'unknown'),
+  })).filter((column) => column.name),
+);
+
 const xFields = computed(() => {
   const fields = activeDataset.value?.fields ?? [];
   return fields.filter((field) => field.semantic_role === 'dimension' || field.semantic_role === 'time');
@@ -324,6 +376,19 @@ const yFields = computed(() => {
 const seriesFields = computed(() => {
   const fields = activeDataset.value?.fields ?? [];
   return fields.filter((field) => field.semantic_role === 'dimension' && field.name !== manualSpec.value.encoding.x_field);
+});
+
+const isTableChart = computed(() => manualSpec.value.chart_type === 'table');
+const isMetricChart = computed(() => manualSpec.value.chart_type === 'metric_card');
+const supportsSeriesField = computed(() => !isTableChart.value && !isMetricChart.value && manualSpec.value.chart_type !== 'pie');
+
+const selectedVisualPreset = computed<VisualPresetKey>({
+  get() {
+    return detectVisualPreset(manualSpec.value);
+  },
+  set(next) {
+    applyVisualPreset(next);
+  },
 });
 
 const adaptedExecution = computed<ApiChatExecutionRead | null>(() => {
@@ -390,6 +455,69 @@ function buildDefaultSpec(dataset: ApiDatasetRead): ApiBiChartSpec {
   spec.encoding.sort = time ? 'x_asc' : 'y_desc';
   spec.encoding.value_format = guessValueFormat(measure?.name ?? '');
   return spec;
+}
+
+function detectVisualPreset(spec: ApiBiChartSpec): VisualPresetKey {
+  if (spec.chart_type === 'table') return 'table';
+  if (spec.chart_type === 'metric_card') return 'metric_card';
+  if (spec.chart_type === 'pie' && spec.variant === 'donut') return 'donut';
+  if (spec.chart_type === 'pie') return 'pie';
+  if (spec.chart_type === 'area' && spec.variant === 'stacked') return 'stacked_area';
+  if (spec.chart_type === 'area') return 'area';
+  if (spec.chart_type === 'bar' && spec.variant === 'horizontal') return 'horizontal_bar';
+  if (spec.chart_type === 'bar' && spec.variant === 'stacked') return 'stacked_bar';
+  if (spec.chart_type === 'bar') return 'bar';
+  return 'line';
+}
+
+function applyVisualPreset(preset: VisualPresetKey) {
+  const next: ApiBiChartSpec = JSON.parse(JSON.stringify(manualSpec.value));
+  next.options = { ...(next.options ?? {}) };
+
+  if (preset === 'table') {
+    next.chart_type = 'table';
+    next.variant = null;
+    next.encoding.aggregation = 'none';
+    next.encoding.series_field = null;
+  } else if (preset === 'metric_card') {
+    next.chart_type = 'metric_card';
+    next.variant = null;
+    next.encoding.x_field = null;
+    next.encoding.series_field = null;
+    next.encoding.sort = null;
+    next.encoding.category_limit = 1;
+  } else if (preset === 'line') {
+    next.chart_type = 'line';
+    next.variant = null;
+  } else if (preset === 'area') {
+    next.chart_type = 'area';
+    next.variant = null;
+  } else if (preset === 'bar') {
+    next.chart_type = 'bar';
+    next.variant = null;
+  } else if (preset === 'horizontal_bar') {
+    next.chart_type = 'bar';
+    next.variant = 'horizontal';
+  } else if (preset === 'stacked_bar') {
+    next.chart_type = 'bar';
+    next.variant = 'stacked';
+  } else if (preset === 'stacked_area') {
+    next.chart_type = 'area';
+    next.variant = 'stacked';
+  } else if (preset === 'pie') {
+    next.chart_type = 'pie';
+    next.variant = null;
+    next.encoding.series_field = null;
+  } else if (preset === 'donut') {
+    next.chart_type = 'pie';
+    next.variant = 'donut';
+    next.encoding.series_field = null;
+  }
+
+  if (next.chart_type !== 'table' && next.encoding.aggregation === 'none') {
+    next.encoding.aggregation = 'sum';
+  }
+  manualSpec.value = next;
 }
 
 function guessValueFormat(fieldName: string) {
@@ -498,7 +626,7 @@ async function createQuickDashboard() {
   try {
     const response = await api.createQuickDashboard(activeDataset.value.id, {
       title: `BI dashboard: ${activeDataset.value.name}`,
-      max_widgets: 4,
+      max_widgets: 6,
     });
     void router.push(`/dashboards/${response.dashboard.id}`);
   } catch (e) {
@@ -606,7 +734,8 @@ onMounted(() => {
 }
 
 .bi-studio__dataset-card,
-.bi-studio__recommendation {
+.bi-studio__recommendation,
+.bi-studio__visual-card {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -620,18 +749,21 @@ onMounted(() => {
   text-align: left;
 }
 
-.bi-studio__dataset-card--active {
+.bi-studio__dataset-card--active,
+.bi-studio__visual-card--active {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
 
-.bi-studio__dataset-title {
+.bi-studio__dataset-title,
+.bi-studio__visual-card strong {
   font-weight: 700;
 }
 
 .bi-studio__dataset-meta,
 .bi-studio__recommendation small,
-.bi-studio__field-card small {
+.bi-studio__field-card small,
+.bi-studio__visual-card small {
   color: var(--muted-2);
   font-size: 0.76rem;
 }
@@ -653,10 +785,11 @@ onMounted(() => {
   background: var(--surface);
 }
 
-.bi-studio__panel--dataset {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.bi-studio__visual-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .bi-studio__field-grid {
@@ -696,17 +829,16 @@ onMounted(() => {
   font-size: 0.7rem;
 }
 
-.bi-studio__main-grid {
+.bi-studio__content-grid,
+.bi-studio__bottom-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
   gap: 18px;
   align-items: start;
 }
 
-.bi-studio__left-column {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.bi-studio__data-panel :deep(.widget-table__scroll) {
+  max-height: 560px;
 }
 
 .bi-studio__recommendation {
@@ -726,7 +858,7 @@ onMounted(() => {
 
 .bi-studio__form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -758,71 +890,64 @@ onMounted(() => {
   margin-top: 14px;
 }
 
-.bi-studio__preview-panel {
-  min-height: 520px;
-}
-
 .bi-studio__preview-panel :deep(.chart-cell__plot),
 .bi-studio__preview-panel :deep(.chart-cell__metric) {
-  min-height: 380px;
-}
-
-.bi-studio__empty-preview,
-.bi-studio__empty-screen {
-  min-height: 320px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  padding: 24px;
+  min-height: 420px;
+  height: 420px;
 }
 
 .bi-studio__sql-details {
   margin-top: 14px;
+}
+
+.bi-studio__sql-details summary {
+  cursor: pointer;
   color: var(--muted-2);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 
 .bi-studio__sql-details pre {
-  overflow: auto;
+  margin: 10px 0 0;
   padding: 12px;
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: var(--canvas);
   color: var(--ink);
-}
-
-.bi-studio__icon-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--canvas);
-  color: var(--ink);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  overflow: auto;
 }
 
 .bi-studio__error,
 .bi-studio__notice {
   margin: 0;
   padding: 10px 12px;
-  border-radius: var(--radius);
-  font-size: 0.84rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
 }
 
 .bi-studio__error {
-  color: var(--danger);
-  background: rgba(255, 118, 118, 0.1);
-  border: 1px solid rgba(255, 118, 118, 0.25);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.08);
+  color: #ffb4b4;
 }
 
 .bi-studio__notice {
-  color: var(--success);
-  background: rgba(90, 200, 138, 0.08);
-  border: 1px solid rgba(90, 200, 138, 0.2);
+  border: 1px solid rgba(77, 208, 141, 0.28);
+  background: rgba(77, 208, 141, 0.08);
+  color: #9ee1b8;
 }
 
-.bi-studio__state--compact {
-  min-height: auto;
+.bi-studio__empty-screen {
+  display: grid;
+  gap: 10px;
+  place-items: start;
+}
+
+@media (max-width: 1320px) {
+  .bi-studio__visual-grid,
+  .bi-studio__form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1100px) {
@@ -831,12 +956,14 @@ onMounted(() => {
   }
 
   .bi-studio__datasets {
-    border-right: 0;
+    border-right: none;
     border-bottom: 1px solid var(--line);
-    max-height: 320px;
   }
 
-  .bi-studio__main-grid {
+  .bi-studio__content-grid,
+  .bi-studio__bottom-grid,
+  .bi-studio__visual-grid,
+  .bi-studio__form-grid {
     grid-template-columns: 1fr;
   }
 }
