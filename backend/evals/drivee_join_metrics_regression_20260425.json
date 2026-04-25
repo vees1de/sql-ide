@@ -1,0 +1,361 @@
+{
+  "suite_name": "drivee_join_metrics_regression_20260425",
+  "database_id": "133e760289864a49a2d59082ca672753",
+  "query_mode": "thinking",
+  "llm_model_alias": "gpt120",
+  "cases": [
+    {
+      "id": "city_day_orders_drivers_total_rides",
+      "title": "Orders, active drivers and total rides by city and day",
+      "tags": ["drivee", "join", "driver_detail", "incity"],
+      "steps": [
+        {
+          "user": "Покажи по каждому городу и дню, сколько было заказов и сколько водителей их выполняли, а также сколько всего поездок у этих водителей.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "driver_id",
+                "city_id",
+                "count(",
+                "distinct",
+                "rides_count"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["drivers_count", "driver_count", "distinct_drivers"],
+                ["rides_count_sum", "total_rides", "rides_sum", "sum_rides_count"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_orders_online_time",
+      "title": "Orders and total online time by city and day",
+      "tags": ["drivee", "join", "online_time"],
+      "steps": [
+        {
+          "user": "Хочу видеть по дням и городам, сколько заказов было сделано и сколько времени водители суммарно были онлайн.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "online_time_sum_seconds",
+                "group by"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["online_time_sum_seconds", "total_online_time", "online_seconds_sum", "sum_online_time_sum_seconds"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_avg_rides_per_active_driver",
+      "title": "Average rides per active driver by city and day",
+      "tags": ["drivee", "join", "avg"],
+      "steps": [
+        {
+          "user": "Покажи по каждому городу среднее количество поездок на одного водителя среди тех, кто выполнял заказы в этот день.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "rides_count",
+                "distinct",
+                "/"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["avg_rides_per_driver", "rides_per_driver_avg", "average_rides_per_driver"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_orders_and_driver_acceptance_share",
+      "title": "Orders and share of drivers who accepted orders",
+      "tags": ["drivee", "join", "share", "accepted"],
+      "steps": [
+        {
+          "user": "По каждому дню и городу покажи количество заказов и долю водителей, которые приняли заказы.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "orders_cnt_accepted",
+                "/"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["accepted_driver_share", "driver_acceptance_share", "share_accepted_drivers"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_orders_per_driver",
+      "title": "Orders per driver by city and day",
+      "tags": ["drivee", "join", "orders_per_driver"],
+      "steps": [
+        {
+          "user": "Покажи по городам и дням, сколько заказов пришлось на одного водителя.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "count(",
+                "distinct",
+                "/"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_per_driver", "avg_orders_per_driver", "order_per_driver"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_orders_and_avg_trip_duration",
+      "title": "Orders and average trip duration by city and day",
+      "tags": ["drivee", "join", "duration"],
+      "steps": [
+        {
+          "user": "Для каждого города и дня покажи общее количество заказов и среднее время поездки у водителей, которые их выполняли.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "avg(",
+                "duration_in_seconds"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["avg_duration_in_seconds", "avg_trip_duration", "average_trip_duration"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_orders_and_rides_time",
+      "title": "Orders and rides time by city and day",
+      "tags": ["drivee", "join", "rides_time"],
+      "steps": [
+        {
+          "user": "Хочу понять загрузку водителей: по каждому дню и городу покажи, сколько заказов было и сколько времени водители провели в поездках.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "rides_time_sum_seconds"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["rides_time_sum_seconds", "total_rides_time", "trip_time_sum_seconds"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_orders_and_post_accept_cancels",
+      "title": "Orders and post-accept cancels by city and day",
+      "tags": ["drivee", "join", "cancel"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам, сколько заказов сделали водители и сколько у них было отмен после принятия заказа.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "client_cancel_after_accept"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["client_cancel_after_accept", "post_accept_cancels", "cancel_after_accept_sum"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_avg_orders_per_driver_and_online_time",
+      "title": "Average orders per driver and online time by city and day",
+      "tags": ["drivee", "join", "online_time", "orders_per_driver"],
+      "steps": [
+        {
+          "user": "По каждому городу и дню покажи среднее количество заказов на водителя и их общее онлайн-время.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "online_time_sum_seconds",
+                "/"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_per_driver", "avg_orders_per_driver", "average_orders_per_driver"],
+                ["online_time_sum_seconds", "total_online_time", "online_seconds_sum"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "city_day_driver_efficiency_orders_and_avg_rides",
+      "title": "Driver efficiency by city and day",
+      "tags": ["drivee", "join", "efficiency"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам эффективность водителей: сколько заказов они выполняли и сколько поездок в среднем приходилось на одного водителя.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": [
+                "join",
+                "rides_count",
+                "distinct",
+                "/"
+              ]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["date", "day", "event_date", "dt"],
+                ["orders_count", "order_count", "cnt_orders", "count_order_id"],
+                ["avg_rides_per_driver", "rides_per_driver_avg", "average_rides_per_driver"]
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

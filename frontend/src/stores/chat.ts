@@ -53,6 +53,7 @@ export const useChatStore = defineStore('chat', () => {
   const currentSession = computed(
     () => sessions.value.find((session) => session.id === activeSessionId.value) ?? null
   );
+  const interactionLocked = computed(() => generating.value);
 
   function setStatus(value: string) {
     statusLabel.value = value;
@@ -674,6 +675,7 @@ export const useChatStore = defineStore('chat', () => {
     flushSqlDraftSave,
     generating,
     initialize,
+    interactionLocked,
     loadingMessages,
     loadingSessions,
     loadDatabases,

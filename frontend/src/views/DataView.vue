@@ -729,6 +729,76 @@
             </div>
           </section>
 
+          <section class="data-view__panel" v-if="selectedDatabaseId">
+            <header class="data-view__head data-view__head--compact">
+              <div>
+                <p class="eyebrow">RAG</p>
+                <h2 class="just-center-row">
+                  Few-shot примеры
+                  <AppTooltip>
+                    Успешно выполненные запросы автоматически сохраняются как примеры и подставляются в контекст LLM при похожих вопросах. Можно также добавить вручную.
+                  </AppTooltip>
+                </h2>
+              </div>
+              <button
+                class="app-button app-button--ghost"
+                type="button"
+                :disabled="isLoadingExamples"
+                @click="loadExamples"
+              >
+                {{ isLoadingExamples ? "Загрузка…" : "Обновить" }}
+              </button>
+            </header>
+
+            <form class="data-view__create data-view__create--examples" @submit.prevent="addExample">
+              <input
+                v-model="exampleDraft.prompt"
+                type="text"
+                placeholder="Пользовательский вопрос (промпт)"
+                required
+              />
+              <textarea
+                v-model="exampleDraft.sql"
+                rows="2"
+                placeholder="SQL-запрос"
+                required
+              ></textarea>
+              <button
+                class="app-button"
+                type="submit"
+                :disabled="isAddingExample"
+              >
+                {{ isAddingExample ? "Добавление…" : "Добавить пример" }}
+              </button>
+            </form>
+
+            <article v-if="examplesFeedback" class="data-view__notice" :class="`data-view__notice--${inferNoticeTone(examplesFeedback)}`">
+              {{ examplesFeedback }}
+            </article>
+
+            <div v-if="!examples.length" class="data-view__empty">
+              Примеров пока нет. Они добавляются автоматически после успешных запросов.
+            </div>
+            <div v-else class="data-view__examples-list">
+              <article v-for="ex in examples" :key="ex.id" class="data-view__example-card">
+                <div class="data-view__example-meta">
+                  <span class="pill pill--ghost">{{ ex.source }}</span>
+                  <span class="data-view__example-score">score {{ ex.quality_score.toFixed(1) }}</span>
+                  <span class="data-view__example-uses">использован {{ ex.use_count }}×</span>
+                </div>
+                <p class="data-view__example-prompt">{{ ex.prompt }}</p>
+                <pre class="data-view__example-sql"><code>{{ ex.sql }}</code></pre>
+                <button
+                  class="app-button app-button--link app-button--tiny"
+                  type="button"
+                  @click="removeExample(ex.id)"
+                >
+                  Удалить
+                </button>
+              </article>
+            </div>
+          </section>
+
           <section class="data-view__panel" v-if="erdGraph?.nodes.length">
             <header class="data-view__head data-view__head--compact">
               <div>
@@ -972,6 +1042,7 @@ import { computed, onMounted, reactive, ref, watch, type Directive } from "vue";
 import VChart from "vue-echarts";
 
 import { api } from "@/api/client";
+import { examplesApi, type ApiQueryExample } from "@/api/chat";
 import AddDatabaseModal from "@/components/layout/AddDatabaseModal.vue";
 import SemanticActivationModal from "@/components/layout/SemanticActivationModal.vue";
 import ChatSidebar from "@/components/chat/ChatSidebar.vue";
@@ -1034,6 +1105,11 @@ const showGraphSemantic = ref(true);
 const knowledgeFeedback = ref("");
 const dictionaryFeedback = ref("");
 const semanticFeedback = ref("");
+const examplesFeedback = ref("");
+const examples = ref<ApiQueryExample[]>([]);
+const isLoadingExamples = ref(false);
+const isAddingExample = ref(false);
+const exampleDraft = reactive({ prompt: "", sql: "" });
 const semanticAutoRefreshEnabled = ref(true);
 const semanticAutoRefreshKey = ref("");
 const SEMANTIC_AUTO_REFRESH_LS_KEY = "sql-ide.semantic-auto-refresh-enabled";
@@ -2291,6 +2367,49 @@ async function removeTerm(id: string) {
   await loadKnowledge();
 }
 
+async function loadExamples() {
+  if (!selectedDatabaseId.value) return;
+  isLoadingExamples.value = true;
+  try {
+    examples.value = await examplesApi.list(selectedDatabaseId.value);
+  } catch {
+    examplesFeedback.value = "Не удалось загрузить примеры";
+  } finally {
+    isLoadingExamples.value = false;
+  }
+}
+
+async function addExample() {
+  if (!selectedDatabaseId.value) return;
+  isAddingExample.value = true;
+  examplesFeedback.value = "";
+  try {
+    const created = await examplesApi.create(selectedDatabaseId.value, {
+      prompt: exampleDraft.prompt.trim(),
+      sql: exampleDraft.sql.trim(),
+      source: "manual",
+    });
+    examples.value = [created, ...examples.value];
+    exampleDraft.prompt = "";
+    exampleDraft.sql = "";
+    examplesFeedback.value = "Пример добавлен";
+  } catch {
+    examplesFeedback.value = "Не удалось добавить пример";
+  } finally {
+    isAddingExample.value = false;
+  }
+}
+
+async function removeExample(id: string) {
+  if (!selectedDatabaseId.value) return;
+  try {
+    await examplesApi.remove(selectedDatabaseId.value, id);
+    examples.value = examples.value.filter(e => e.id !== id);
+  } catch {
+    examplesFeedback.value = "Не удалось удалить пример";
+  }
+}
+
 function toggleTableExpand(tableKey: string) {
   const next = new Set(expandedTables.value);
   if (next.has(tableKey)) {
@@ -2362,6 +2481,7 @@ watch(selectedDatabaseId, async (value, previousValue) => {
     semanticDescription.value = selectedDatabase.value?.description ?? "";
   }
   await loadKnowledge();
+  void loadExamples();
 });
 
 watch(selectedTableId, async (value, previousValue) => {
@@ -3045,6 +3165,16 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   margin-bottom: 0.9rem;
 }
 
+.data-view__create--examples {
+  grid-template-columns: minmax(220px, 1.2fr) minmax(320px, 2fr) auto;
+  align-items: start;
+}
+
+.data-view__create--examples textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
 .data-view__table {
   width: 100%;
   border-collapse: collapse;
@@ -3074,6 +3204,66 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
     linear-gradient(var(--data-line), var(--data-line)) bottom / 100% 1px
       no-repeat,
     var(--data-surface-soft);
+}
+
+.data-view__examples-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.data-view__example-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--data-line);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 45%
+    ),
+    var(--data-surface-soft);
+}
+
+.data-view__example-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--data-muted-soft);
+  font-size: 0.82rem;
+}
+
+.data-view__example-score,
+.data-view__example-uses {
+  white-space: nowrap;
+}
+
+.data-view__example-prompt {
+  margin: 0;
+  color: var(--data-ink);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.data-view__example-sql {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--data-line);
+  background: color-mix(in srgb, var(--data-canvas) 82%, var(--data-surface));
+  color: var(--data-ink);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  overflow: auto;
+}
+
+.data-view__example-sql code {
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .data-view__sem-tables {
@@ -3381,7 +3571,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   .data-view__semantic-grid,
   .data-view__column-card,
   .data-view__relationship-card,
-  .data-view__create {
+  .data-view__create,
+  .data-view__create--examples {
     grid-template-columns: 1fr;
   }
 
@@ -3422,6 +3613,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   }
 
   .data-view__create,
+  .data-view__create--examples,
   .data-view__relationship-edit {
     grid-template-columns: 1fr;
   }

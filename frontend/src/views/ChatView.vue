@@ -1,10 +1,14 @@
 <template>
   <main class="chat-view">
-    <div class="chat-view__layout">
+    <div
+      class="chat-view__layout"
+      :class="{ 'chat-view__layout--locked': chat.interactionLocked }"
+    >
       <ChatSidebar
         :active-db-id="chat.activeDbId"
         :active-session-id="chat.activeSessionId"
         :databases="chat.databases"
+        :interaction-locked="chat.interactionLocked"
         :loading="chat.loadingSessions"
         mode="chat"
         :sessions="chat.sessions"
@@ -15,7 +19,11 @@
         @select-session="selectSession"
       />
 
-      <section class="chat-view__panels app-route-section" ref="panelsEl">
+      <section
+        class="chat-view__panels app-route-section"
+        :class="{ 'chat-view__panels--locked': chat.interactionLocked }"
+        ref="panelsEl"
+      >
         <template v-if="!panelSwapped">
           <div class="chat-view__center-area" ref="centerPanelEl">
             <template v-if="!centerPanelSwapped">
@@ -43,6 +51,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  :session-id="chat.activeSessionId"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -55,6 +64,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  :session-id="chat.activeSessionId"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -177,6 +187,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  :session-id="chat.activeSessionId"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -189,6 +200,7 @@
                   :view="chat.resultView"
                   :sql-text="chat.sqlDraft"
                   :database-connection-id="chat.activeDbId"
+                  :session-id="chat.activeSessionId"
                   @change-view="chat.setResultMode"
                 />
               </section>
@@ -388,22 +400,37 @@ onMounted(() => {
 });
 
 function selectDatabase(databaseId: string) {
+  if (chat.interactionLocked) {
+    return;
+  }
   void chat.selectDatabase(databaseId);
 }
 
 function selectSession(sessionId: string) {
+  if (chat.interactionLocked) {
+    return;
+  }
   void chat.selectSession(sessionId);
 }
 
 function createSession(databaseId?: string) {
+  if (chat.interactionLocked) {
+    return;
+  }
   void chat.createSession(databaseId);
 }
 
 function renameSession(sessionId: string, title: string) {
+  if (chat.interactionLocked) {
+    return;
+  }
   void chat.renameSession(sessionId, title);
 }
 
 function deleteSession(sessionId: string) {
+  if (chat.interactionLocked) {
+    return;
+  }
   void chat.deleteSession(sessionId);
 }
 
@@ -505,6 +532,11 @@ function prepareSql() {
   height: 100%;
 }
 
+.chat-view__layout--locked > :deep(.chat-sidebar) {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
 .chat-view__layout > :deep(.chat-sidebar) {
   width: var(--app-shell-sidebar-width);
   flex: 0 0 var(--app-shell-sidebar-width);
@@ -520,6 +552,11 @@ function prepareSql() {
   height: 100%;
   gap: 0;
   overflow: hidden;
+}
+
+.chat-view__panels--locked > :not(.chat-view__panel--chat) {
+  pointer-events: none;
+  opacity: 0.72;
 }
 
 .chat-view__panel {

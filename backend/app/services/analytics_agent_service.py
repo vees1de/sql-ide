@@ -43,7 +43,7 @@ from app.schemas.query import (
     ValidationPayload,
 )
 from app.services.analytics import AnalyticsExecutionService
-from app.services.clarification_resolver import apply_answers
+from app.services.clarification_resolver import apply_answers, merge_with_previous_intent
 from app.services.chart_data_adapter import ChartDataAdapter
 from app.services.chart_decision_service import ChartDecisionService
 from app.services.dashboard_recommendation_service import DashboardRecommendationService
@@ -175,7 +175,8 @@ class AnalyticsAgentService:
         allowed_tables = list(fallback_allowed_tables or [table.name for table in schema.tables])
         previous_intent = self._resolve_previous_intent(db, context)
 
-        intent = self.intent_agent.run(normalized_query, previous_intent=previous_intent)
+        parsed_intent = self.intent_agent.run(normalized_query, previous_intent=previous_intent)
+        intent = merge_with_previous_intent(parsed_intent, previous_intent)
         intent = self._apply_context(intent, context)
 
         if answers:
@@ -236,7 +237,7 @@ class AnalyticsAgentService:
                     state="CLARIFYING",
                 )
 
-        if self._needs_clarification(intent, schema, skip_confidence_check=bool(answers)):
+        if self._needs_clarification(intent, schema, skip_confidence_check=bool(answers), skip_metric_check=bool(answers)):
             return AnalyticsPlan(
                 intent=intent,
                 semantic=None,
@@ -510,6 +511,7 @@ class AnalyticsAgentService:
         schema: SchemaMetadataResponse,
         *,
         skip_confidence_check: bool = False,
+        skip_metric_check: bool = False,
     ) -> bool:
         if intent.clarification_question:
             return True
@@ -517,7 +519,7 @@ class AnalyticsAgentService:
             return True
         if not skip_confidence_check and intent.confidence < self.clarification_threshold:
             return True
-        if not intent.metric:
+        if not skip_metric_check and not intent.metric:
             return True
         if not intent.dimensions and not intent.date_range:
             return True
@@ -1130,6 +1132,9 @@ ORDER BY completion_rate DESC, conversion_rate DESC, avg_minutes_to_accept ASC, 
                 "completed",
             )
         )
+
+    def should_skip_explicit_time_range(self, prompt: str, schema: SchemaMetadataResponse) -> bool:
+        return self._is_drivee_train_schema(schema) and self._is_drivee_template_candidate(prompt, schema)
 
     def _template_prompt(self, intent: IntentPayload, previous_intent: IntentPayload | None) -> str:
         if intent.follow_up and previous_intent is not None:

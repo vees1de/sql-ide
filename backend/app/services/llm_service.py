@@ -349,6 +349,7 @@ class LLMService:
         temperature: float = 0.1,
         model: str | None = None,
         schema_toolbox: "LLMSchemaReconToolbox | None" = None,
+        few_shot_examples: list[dict] | None = None,
     ) -> LLMQueryPlan | None:
         target_model = model or settings.llm_model
         if not self._configured_for_model(target_model):
@@ -474,6 +475,7 @@ class LLMService:
             f"{self._schema_tool_guidance(enabled=bool(schema_toolbox))}"
             f"{self._alias_contract_guidance()}"
             f"{self._semantic_catalog_guidance(enabled=semantic_catalog is not None)}"
+            f"{self._few_shot_guidance(enabled=bool(few_shot_examples))}"
             "{"
             '"state":"CLARIFYING|SQL_DRAFTING|SQL_READY|ERROR",'
             '"assistant_message":"string",'
@@ -514,6 +516,7 @@ class LLMService:
                 "history_text": history_text,
                 "alias_contract": self._alias_contract_reference(),
                 "available_tools": self._tool_names(schema_toolbox),
+                "few_shot_examples": few_shot_examples or [],
                 "user_prompt": prompt,
             },
             ensure_ascii=False,
@@ -1270,6 +1273,17 @@ class LLMService:
             "25. TIME ANCHOR — for temporal filters and time bucketing, prefer each table's main_date_column over guessing another timestamp.\n"
             "26. TABLE ROLES — lookup and bridge tables are helper tables, not the main FROM source for aggregate analytics.\n"
             "27. JOIN PATHS — when semantic_catalog exposes join_paths for the selected tables, follow them instead of inventing a shorter join.\n"
+        )
+
+    @staticmethod
+    def _few_shot_guidance(*, enabled: bool) -> str:
+        if not enabled:
+            return ""
+        return (
+            "FEW-SHOT EXAMPLES — the user_prompt JSON includes a 'few_shot_examples' list of "
+            "previously successful {prompt, sql} pairs from this same database. "
+            "Use them as reference patterns for table names, join paths, and aggregation idioms. "
+            "Adapt (do not copy verbatim) to match the current request.\n"
         )
 
     def _alias_contract_reference(self) -> dict[str, Any]:

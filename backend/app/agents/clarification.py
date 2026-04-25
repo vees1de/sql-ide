@@ -218,18 +218,28 @@ class ClarificationAgent:
             ),
         ]
 
+    # Column name fragments that look numeric but are not business metrics.
+    _NON_METRIC_FRAGMENTS = frozenset({"offset", "hours", "seconds", "minutes", "latitude", "longitude", "lat", "lon", "lng", "ordinal", "position", "rank", "index"})
+
     def _metric_options_from_schema(
         self, schema: SchemaMetadataResponse | None
     ) -> list[ClarificationOptionData]:
         if not schema:
             return []
         results: list[ClarificationOptionData] = []
+        seen_labels: set[str] = set()
         for table in schema.tables:
             metric_cols = [c.name for c in table.columns if self._looks_like_metric_column(c)][:4]
             for col in metric_cols:
-                if col.lower().endswith("_id") or col.lower() == "id":
+                col_lower = col.lower()
+                if col_lower.endswith("_id") or col_lower == "id":
+                    continue
+                if any(frag in col_lower for frag in self._NON_METRIC_FRAGMENTS):
                     continue
                 label = self._label_metric_column(col)
+                if label in seen_labels:
+                    continue
+                seen_labels.add(label)
                 results.append(ClarificationOptionData(
                     id=f"metric:{table.name}.{col}",
                     label=label,

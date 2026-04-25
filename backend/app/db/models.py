@@ -548,6 +548,8 @@ class QueryExecutionModel(Base):
     dataset_id = Column(String(32), nullable=True, unique=True, index=True)
     chart_recommendation_json = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
+    user_edited_sql = Column(Text, nullable=True)
+    feedback = Column(String(32), nullable=True)  # "good" | "bad" | None
     created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
 
     session = relationship("ChatSessionModel", back_populates="executions")
@@ -689,3 +691,23 @@ class DashboardScheduleModel(Base):
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
     dashboard = relationship("DashboardModel", back_populates="schedule")
+
+
+# ---------------------------------------------------------------------------
+# RAG few-shot examples
+# ---------------------------------------------------------------------------
+
+class QueryExampleModel(Base):
+    __tablename__ = "query_examples"
+
+    id = Column(String(32), primary_key=True, default=generate_id)
+    database_id = Column(String(32), ForeignKey("database_connections.id", ondelete="CASCADE"), nullable=False, index=True)
+    prompt = Column(Text, nullable=False)
+    sql = Column(Text, nullable=False)
+    source = Column(String(16), nullable=False, default="auto")  # "auto" | "manual" | "edited"
+    tokens_json = Column(JSON, nullable=True)   # pre-computed TF-IDF token list
+    quality_score = Column(Float, nullable=False, default=1.0)
+    use_count = Column(Integer, nullable=False, default=0)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow, index=True)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

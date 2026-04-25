@@ -9,6 +9,8 @@ import DashboardsListView from '@/views/DashboardsListView.vue';
 import DashboardBuilderView from '@/views/DashboardBuilderView.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import BIStudioView from '@/views/BIStudioView.vue';
+import { useChatStore } from '@/stores/chat';
+import { pinia } from '@/stores/pinia';
 
 type ViewTransitionScope = 'page' | 'section';
 
@@ -141,5 +143,14 @@ const rawReplace = router.replace.bind(router);
 
 router.push = wrapNavigationMethod(rawPush) as typeof router.push;
 router.replace = wrapNavigationMethod(rawReplace) as typeof router.replace;
+
+router.beforeEach((to, from) => {
+  if (from.name !== 'chat' || to.fullPath === from.fullPath) {
+    return true;
+  }
+
+  const chatStore = useChatStore(pinia);
+  return !chatStore.interactionLocked;
+});
 
 export default router;

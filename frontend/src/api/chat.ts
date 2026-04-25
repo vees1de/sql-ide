@@ -116,5 +116,46 @@ export const chatApi = {
         body: JSON.stringify(payload ?? {})
       }
     );
+  },
+
+  sendFeedback(sessionId: string, executionId: string, feedback: 'good' | 'bad', editedSql?: string) {
+    return request<void>(
+      `/api/chat/sessions/${sessionId}/executions/${executionId}/feedback`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ feedback, edited_sql: editedSql ?? null })
+      }
+    );
+  }
+};
+
+export interface ApiQueryExample {
+  id: string;
+  database_id: string;
+  prompt: string;
+  sql: string;
+  source: string;
+  quality_score: number;
+  use_count: number;
+  active: boolean;
+  created_at: string;
+}
+
+export const examplesApi = {
+  list(databaseId: string) {
+    return request<ApiQueryExample[]>(`/api/databases/${databaseId}/examples`);
+  },
+
+  create(databaseId: string, payload: { prompt: string; sql: string; source?: string; quality_score?: number }) {
+    return request<ApiQueryExample>(`/api/databases/${databaseId}/examples`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  remove(databaseId: string, exampleId: string) {
+    return request<void>(`/api/databases/${databaseId}/examples/${exampleId}`, {
+      method: 'DELETE'
+    });
   }
 };

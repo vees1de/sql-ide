@@ -1,0 +1,162 @@
+{
+  "suite_name": "drivee_join_easy_suite_20260425",
+  "database_id": "133e760289864a49a2d59082ca672753",
+  "query_mode": "thinking",
+  "llm_model_alias": "gpt120",
+  "cases": [
+    {
+      "id": "orders_and_rides_by_city_day",
+      "title": "Orders and rides by city and day",
+      "tags": ["drivee", "join", "easy"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам количество заказов и количество поездок водителей.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": ["join", "rides_count", "count("]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["day", "date"],
+                ["orders_count", "order_count", "total_orders"],
+                ["rides_count", "rides_count_sum", "total_rides"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "orders_and_online_time_by_city_day",
+      "title": "Orders and online time by city and day",
+      "tags": ["drivee", "join", "easy"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам количество заказов и общее онлайн-время водителей.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": ["join", "online_time_sum_seconds"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["day", "date"],
+                ["orders_count", "order_count", "total_orders"],
+                ["online_time_sum_seconds", "total_online_time", "total_online_seconds"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "orders_and_avg_duration_by_city_day",
+      "title": "Orders and avg trip duration by city and day",
+      "tags": ["drivee", "join", "easy"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам количество заказов и среднюю длительность поездки.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": ["join", "avg(", "duration_in_seconds"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["day", "date"],
+                ["orders_count", "order_count", "total_orders"],
+                ["avg_duration_in_seconds", "avg_trip_duration", "avg_duration"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "orders_per_driver_by_city_day",
+      "title": "Orders per driver by city and day",
+      "tags": ["drivee", "join", "easy"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам, сколько заказов приходится на одного водителя.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": ["join", "distinct", "/"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["day", "date"],
+                ["orders_per_driver", "avg_orders_per_driver"]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "orders_and_accept_cancels_by_city_day",
+      "title": "Orders and post-accept cancels by city and day",
+      "tags": ["drivee", "join", "easy"],
+      "steps": [
+        {
+          "user": "Покажи по дням и городам количество заказов и количество отмен после принятия заказа.",
+          "max_auto_clarifications": 2,
+          "expectations": {
+            "should_clarify": false,
+            "expected_state": "SQL_READY",
+            "required_actions": ["show_run_button", "show_sql"],
+            "sql": {
+              "must_parse": true,
+              "required_tables": ["incity", "driver_detail"],
+              "required_substrings": ["join", "client_cancel_after_accept"]
+            },
+            "execution": {
+              "should_succeed": true,
+              "min_row_count": 1,
+              "required_column_groups": [
+                ["city_id", "city"],
+                ["day", "date"],
+                ["orders_count", "order_count", "total_orders"],
+                ["client_cancel_after_accept", "cancel_after_accept_sum", "total_cancels_after_accept"]
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

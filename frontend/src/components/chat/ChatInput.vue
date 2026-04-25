@@ -165,7 +165,7 @@ function onInput(event: Event) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+  if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     submit();
   }
@@ -423,14 +423,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-input__mode {
-  height: 36px;
-  min-width: 112px;
-  padding: 0 12px 0 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 0.75rem;
+  display: none;
 }
 
 .chat-input__mode-label {

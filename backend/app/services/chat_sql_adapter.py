@@ -43,6 +43,7 @@ from app.services.schema_truth_guard import SchemaTruthGuard
 from app.services.dictionary_service import DictionaryService
 from app.services.analytics_agent_service import AnalyticsAgentService
 from app.services.semantic_catalog_service import SemanticCatalogService
+from app.services.example_service import ExampleService
 
 
 @dataclass
@@ -75,6 +76,7 @@ class ChatSqlAdapter:
         self.schema_recon_service = LLMSchemaReconService()
         self.semantic_catalog_service = SemanticCatalogService()
         self.schema_truth_guard = SchemaTruthGuard()
+        self.example_service = ExampleService()
 
     def generate_response(
         self,
@@ -243,6 +245,7 @@ class ChatSqlAdapter:
             llm_model_alias=normalized_model_alias,
             assistant_message=self._build_assistant_text(query_mode, complexity),
             actions=None if plan.sql else (plan_actions or None),
+            rag_example_candidate=bool(plan.sql),
         )
         assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
@@ -376,6 +379,7 @@ class ChatSqlAdapter:
             assistant_message=self._build_assistant_text(query_mode, complexity),
             actions=list(getattr(plan, "actions", []) or []) or None,
             answered_clarification_id=clarification_id,
+            rag_example_candidate=False,
         )
         assistant_text = payload.assistant_message or "SQL готов."
         return self._persist_result(
@@ -402,6 +406,7 @@ class ChatSqlAdapter:
         history_text: str,
         llm_model: str,
     ) -> LLMQueryPlan | None:
+        few_shot_examples = self.example_service.find_similar(db, database_connection_id, user_text, top_k=3)
         return self.llm_service.plan_query(
             prompt=user_text,
             schema=schema,
@@ -413,6 +418,7 @@ class ChatSqlAdapter:
             temperature=0.0,
             model=llm_model,
             schema_toolbox=self.schema_recon_service.build_toolbox(db, database_connection_id),
+            few_shot_examples=few_shot_examples or None,
         )
 
     def _from_plan(
@@ -459,6 +465,10 @@ class ChatSqlAdapter:
                 complexity=complexity,
                 llm_model_alias=llm_model_alias,
             )
+        # LLM may put the clarification question in plan.assistant_message rather than
+        # intent.clarification_question when it returns state="CLARIFYING" without SQL.
+        if not intent.clarification_question and plan.state == "CLARIFYING" and plan.assistant_message and not plan.sql:
+            intent = intent.model_copy(update={"clarification_question": plan.assistant_message})
         if intent.clarification_question and not plan.sql:
             if query_mode == "fast":
                 intent, mode_warnings = self._apply_fast_mode_defaults(intent, previous_intent)
@@ -561,6 +571,7 @@ class ChatSqlAdapter:
             llm_model_alias=llm_model_alias,
             assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
             actions=None if validation.sql else (list(getattr(plan, "actions", []) or []) or None),
+            rag_example_candidate=bool(validation.sql),
         )
         assistant_text = payload.assistant_message or self._build_assistant_text(query_mode, complexity)
         return self._persist_result(
@@ -662,6 +673,7 @@ class ChatSqlAdapter:
             mode_warnings=[],
             llm_model_alias=llm_model_alias,
             assistant_message=plan.assistant_message or self._build_assistant_text(query_mode, complexity),
+            rag_example_candidate=False,
         )
         assistant_message = self.chat_service.append_message(
             db,
@@ -1120,22 +1132,24 @@ class ChatSqlAdapter:
         if len(prompt) > 120:
             score += 1
         markers = (
-            "compare",
-            "vs",
-            "growth",
-            "trend",
-            "anomaly",
-            "cohort",
-            "retention",
-            "против",
-            "сравн",
-            "рост",
-            "динам",
-            "аномал",
-            "когорт",
+            "compare", "vs", "growth", "trend", "anomaly", "cohort", "retention",
+            "против", "сравн", "рост", "динам", "аномал", "когорт",
         )
         if any(marker in lowered for marker in markers):
             score += 2
+        # Multi-metric / ranking / join queries are complex even without comparison language.
+        complex_intent_markers = (
+            "топ-", "топ ", "top-", "top ", "топ10", "top10",
+            "рейтинг", "ranking",
+            "join", "объедин",
+            "процент отмен", "cancel rate",
+            "средн", "average", "avg",
+        )
+        if any(marker in lowered for marker in complex_intent_markers):
+            score += 2
+        # Multiple metrics in one query (e.g. "X и Y и Z")
+        if lowered.count(" и ") >= 2 or lowered.count(" and ") >= 2:
+            score += 1
         if any(token in lowered for token in (" and ", " и ", " against ", " между ", "по сравнению")):
             score += 1
         if previous_intent and previous_intent.follow_up:
@@ -1166,6 +1180,7 @@ class ChatSqlAdapter:
         llm_model_alias: str | None = None,
         assistant_message: str | None = None,
         answered_clarification_id: str | None = None,
+        rag_example_candidate: bool = False,
     ) -> StructuredPayload:
         semantic_warnings = list(getattr(semantic, "warnings", []) or [])
         tables_used = self._derive_table_usage(semantic) if semantic is not None else []
@@ -1227,6 +1242,7 @@ class ChatSqlAdapter:
             complexity=complexity,
             mode_suggestion=mode_suggestion,
             mode_suggestion_reason=mode_suggestion_reason,
+            rag_example_candidate=rag_example_candidate and answered_clarification_id is None and state == "SQL_READY",
         )
 
     def _build_debug_trace(
@@ -1445,11 +1461,20 @@ class ChatSqlAdapter:
         if first_question in {"metric", "dimension", "time_range", "aggregation"}:
             return first_question
         ambiguities = {item.lower() for item in (intent.ambiguities or [])}
-        if "metric" in ambiguities or intent.metric is None:
-            return "metric"
-        if "time_range" in ambiguities or intent.date_range is None:
+        # Explicit ambiguity tags always win over inferred ones — checking them first
+        # prevents intent.metric=None from masking a genuine time_range ambiguity.
+        if "time_range" in ambiguities:
             return "time_range"
-        if "dimension" in ambiguities or not intent.dimensions:
+        if "metric" in ambiguities:
+            return "metric"
+        if "dimension" in ambiguities:
+            return "dimension"
+        # Fall back to inferring from intent state
+        if intent.metric is None:
+            return "metric"
+        if intent.date_range is None:
+            return "time_range"
+        if not intent.dimensions:
             return "dimension"
         return "other"
 

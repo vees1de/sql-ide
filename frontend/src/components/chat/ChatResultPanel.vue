@@ -24,6 +24,30 @@
         <span v-if="execution" class="chat-result-panel__summary">{{
           summary
         }}</span>
+        <div v-if="execution && !execution.error_message" class="chat-result-panel__feedback">
+          <button
+            class="chat-result-panel__feedback-btn"
+            :class="{ 'chat-result-panel__feedback-btn--active': feedbackSent === 'good' }"
+            type="button"
+            title="Хороший результат"
+            @click="sendFeedback('good')"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 7.5h1.8V12H2V7.5ZM4.8 7 7.2 2c.9 0 1.6.7 1.6 1.6V5h2.8c.6 0 1 .5.9 1.1L11.8 10c-.1.5-.6.9-1.1.9H4.8V7Z" fill="currentColor"/>
+            </svg>
+          </button>
+          <button
+            class="chat-result-panel__feedback-btn chat-result-panel__feedback-btn--bad"
+            :class="{ 'chat-result-panel__feedback-btn--active': feedbackSent === 'bad' }"
+            type="button"
+            title="Плохой результат"
+            @click="sendFeedback('bad')"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M12 6.5h-1.8V2H12v4.5ZM9.2 7 6.8 12c-.9 0-1.6-.7-1.6-1.6V9H2.4C1.8 9 1.4 8.5 1.5 7.9L2.2 4c.1-.5.6-.9 1.1-.9h5.9V7Z" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
         <button
           v-if="execution && view === 'chart' && !execution.error_message"
           class="chat-result-panel__toggle-btn"
@@ -154,6 +178,7 @@ import ChartBuilderModal from "@/components/chat/ChartBuilderModal.vue";
 import ChatResultTable from "@/components/chat/ChatResultTable.vue";
 import SaveReportModal from "@/components/widgets/SaveReportModal.vue";
 import { useChatStore } from "@/stores/chat";
+import { chatApi } from "@/api/chat";
 import {
   buildChartCellContentFromRecommendation,
   buildChartCellContentFromSpec,
@@ -164,6 +189,7 @@ const props = defineProps<{
   view: "table" | "chart";
   sqlText?: string | null;
   databaseConnectionId?: string | null;
+  sessionId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -172,6 +198,17 @@ const emit = defineEmits<{
 
 const chat = useChatStore();
 const showSaveModal = ref(false);
+const feedbackSent = ref<'good' | 'bad' | null>(null);
+
+async function sendFeedback(value: 'good' | 'bad') {
+  if (!props.execution || !props.sessionId) return;
+  feedbackSent.value = value;
+  try {
+    await chatApi.sendFeedback(props.sessionId, props.execution.id, value);
+  } catch {
+    feedbackSent.value = null;
+  }
+}
 const showInterpretation = ref(false);
 const showChartHeader = ref(true);
 const showBuilder = ref(false);
@@ -288,6 +325,7 @@ watch(
     showInterpretation.value = false;
     showChartHeader.value = true;
     showBuilder.value = false;
+    feedbackSent.value = null;
   },
 );
 </script>
@@ -425,6 +463,43 @@ watch(
   color: var(--ink);
   font-size: 0.72rem;
   font-weight: 600;
+}
+
+.chat-result-panel__feedback {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.chat-result-panel__feedback-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+
+  &:hover {
+    color: var(--ink-strong);
+    border-color: rgba(112, 59, 247, 0.45);
+    background: rgba(112, 59, 247, 0.1);
+  }
+
+  &--active {
+    color: #a0f0a0;
+    border-color: rgba(80, 200, 80, 0.6);
+    background: rgba(80, 200, 80, 0.12);
+  }
+
+  &--bad.chat-result-panel__feedback-btn--active {
+    color: #ffb3b3;
+    border-color: rgba(255, 80, 80, 0.6);
+    background: rgba(255, 80, 80, 0.12);
+  }
 }
 
 .chat-result-panel__empty,

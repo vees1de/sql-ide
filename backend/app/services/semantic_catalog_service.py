@@ -405,6 +405,24 @@ class SemanticCatalogService:
                 column.description_manual = item.business_description.strip()
 
         for item in relationship_descriptions:
+            from_table_model = (
+                db.query(DatabaseKnowledgeTableModel)
+                .filter(
+                    DatabaseKnowledgeTableModel.database_id == database_id,
+                    DatabaseKnowledgeTableModel.table_name == item.from_table.strip(),
+                )
+                .first()
+            )
+            to_table_model = (
+                db.query(DatabaseKnowledgeTableModel)
+                .filter(
+                    DatabaseKnowledgeTableModel.database_id == database_id,
+                    DatabaseKnowledgeTableModel.table_name == item.to_table.strip(),
+                )
+                .first()
+            )
+            from_schema = from_table_model.schema_name if from_table_model is not None else "public"
+            to_schema = to_table_model.schema_name if to_table_model is not None else "public"
             relationship = (
                 db.query(DatabaseKnowledgeRelationshipModel)
                 .filter(
@@ -418,6 +436,24 @@ class SemanticCatalogService:
             )
             if relationship is not None:
                 relationship.description_manual = item.business_meaning.strip()
+                relationship.from_schema_name = from_schema
+                relationship.to_schema_name = to_schema
+            else:
+                db.add(
+                    DatabaseKnowledgeRelationshipModel(
+                        database_id=database_id,
+                        from_schema_name=from_schema,
+                        from_table_name=item.from_table.strip(),
+                        from_column_name=item.from_column.strip(),
+                        to_schema_name=to_schema,
+                        to_table_name=item.to_table.strip(),
+                        to_column_name=item.to_column.strip(),
+                        relation_type="manual",
+                        description_manual=item.business_meaning.strip(),
+                        confidence=1.0,
+                        approved=True,
+                    )
+                )
 
         db.commit()
 
@@ -1695,6 +1731,27 @@ class SemanticCatalogService:
                         }
                     )
                 relationships.append(relationship)
+
+        # Also build relationships from manually-defined records (e.g., CSV/DuckDB without FK constraints)
+        built_keys = {
+            self._relationship_key(r.from_table, r.from_column, r.to_table, r.to_column)
+            for r in relationships
+        }
+        for rel_key, physical_rel in physical_relationships.items():
+            if rel_key not in built_keys and physical_rel.from_table_name == table_name:
+                relationships.append(
+                    SemanticRelationship(
+                        from_table=physical_rel.from_table_name,
+                        from_column=physical_rel.from_column_name,
+                        to_table=physical_rel.to_table_name,
+                        to_column=physical_rel.to_column_name,
+                        relationship_type="many-to-one",
+                        join_type="inner",
+                        business_meaning=str(physical_rel.description_manual or ""),
+                        join_priority="medium",
+                        confidence=float(physical_rel.confidence or 0.9),
+                    )
+                )
 
         row_count = physical.row_count if physical is not None and physical.row_count is not None else self._safe_row_count(engine, schema_name, table_name)
         inferred_table_role = self._infer_table_role(table_name, columns, relationships, row_count)

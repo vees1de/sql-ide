@@ -210,6 +210,7 @@ class StructuredPayload(BaseModel):
     complexity: Literal["simple", "complex"] = "simple"
     mode_suggestion: QueryMode | None = None
     mode_suggestion_reason: str | None = None
+    rag_example_candidate: bool = False
 
 
 class ChatSessionCreate(BaseModel):

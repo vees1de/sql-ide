@@ -13,6 +13,7 @@ from app.core.config import normalize_llm_model_alias, resolve_llm_model_from_al
 from app.agents.validation import SQLValidationAgent
 from app.core.config import settings
 from app.db.models import ChatMessageModel, ChatSessionModel, DatabaseConnectionModel, DatasetModel, QueryExecutionModel
+from app.services.example_service import ExampleService
 from app.schemas.chat import ChartRecommendation
 from app.schemas.query import IntentPayload
 from app.services.ai_chart_suggestion_service import AIChartSuggestionService
@@ -39,6 +40,7 @@ class ChatExecutionService:
         self.llm_service = LLMService()
         self.schema_recon_service = LLMSchemaReconService()
         self.semantic_catalog_service = SemanticCatalogService()
+        self.example_service = ExampleService()
 
     def execute(self, db: Session, session_id: str, sql: str) -> QueryExecutionModel:
         session = self._get_session(db, session_id)
@@ -183,6 +185,21 @@ class ChatExecutionService:
                 execution.dataset_id = dataset.id
                 db.commit()
                 db.refresh(execution)
+                # Auto-save only direct, successful SQL drafts to avoid polluting RAG
+                # with repaired or clarification-derived queries.
+                if row_count > 0 and self._should_store_rag_example(session.messages, attempted_sql, validation.sql):
+                    user_prompt = self._latest_user_prompt(session.messages)
+                    if user_prompt and session.database_connection_id:
+                        try:
+                            self.example_service.save_example(
+                                db,
+                                session.database_connection_id,
+                                user_prompt,
+                                validation.sql,
+                                source="auto",
+                            )
+                        except Exception:  # noqa: BLE001
+                            pass
                 return execution
             except Exception as exc:  # noqa: BLE001
                 execution_time_ms = int((time.perf_counter() - started_at) * 1000)
@@ -369,6 +386,28 @@ class ChatExecutionService:
             if message.role == "user" and str(message.text or "").strip():
                 return str(message.text).strip()
         return ""
+
+    def _should_store_rag_example(
+        self,
+        messages: list[ChatMessageModel],
+        attempted_sql: str,
+        executed_sql: str,
+    ) -> bool:
+        payload = self._latest_assistant_payload(messages)
+        if not payload or not bool(payload.get("rag_example_candidate")):
+            return False
+        draft_sql = str(payload.get("sql") or "").strip()
+        if not draft_sql:
+            return False
+        if self._normalize_sql_text(draft_sql) != self._normalize_sql_text(executed_sql):
+            return False
+        if self._normalize_sql_text(attempted_sql) != self._normalize_sql_text(executed_sql):
+            return False
+        return True
+
+    @staticmethod
+    def _normalize_sql_text(sql: str) -> str:
+        return " ".join(str(sql or "").split()).strip().lower()
 
     def _build_history_text(self, messages: list[ChatMessageModel]) -> str:
         recent_messages = messages[-6:]

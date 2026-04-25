@@ -803,6 +803,7 @@ const props = defineProps<{
   sessions: ApiChatSessionRead[];
   activeDbId: string;
   activeSessionId: string;
+  interactionLocked?: boolean;
   loading: boolean;
   mode?: "chat" | "database" | "dashboards";
   dashboards?: ApiDashboardRead[];
@@ -1102,6 +1103,9 @@ function isRouteActive(key: "chat" | "dashboards" | "bi" | "data") {
 }
 
 function toggleSidebarRail() {
+  if (props.interactionLocked) {
+    return;
+  }
   isCollapsed.value = !isCollapsed.value;
 }
 
@@ -1110,6 +1114,9 @@ function isOpen(id: string) {
 }
 
 function toggle(id: string) {
+  if (props.interactionLocked) {
+    return;
+  }
   if (isDatabaseMode.value) {
     selectDatabase(id);
     return;
@@ -1121,10 +1128,16 @@ function toggle(id: string) {
 }
 
 function selectDatabase(id: string) {
+  if (props.interactionLocked) {
+    return;
+  }
   emit("select-database", id);
 }
 
 function selectSession(sessionId: string) {
+  if (props.interactionLocked) {
+    return;
+  }
   if (!sessionId || sessionId === props.activeSessionId) {
     return;
   }
@@ -1137,6 +1150,9 @@ function isDashboardExpanded(id: string) {
 }
 
 function toggleDashboardExpand(id: string) {
+  if (props.interactionLocked) {
+    return;
+  }
   const next = new Set(expandedDashboardIds.value);
   if (next.has(id)) {
     next.delete(id);
@@ -1352,6 +1368,9 @@ function folderMetaText(database: TreeDatabase) {
 }
 
 function rename(session: ApiChatSessionRead) {
+  if (props.interactionLocked) {
+    return;
+  }
   const title = window.prompt("Новое название чата", session.title)?.trim();
   if (title) {
     emit("rename-session", session.id, title);
@@ -1359,12 +1378,18 @@ function rename(session: ApiChatSessionRead) {
 }
 
 function removeSession(session: ApiChatSessionRead) {
+  if (props.interactionLocked) {
+    return;
+  }
   if (window.confirm(`Удалить чат «${session.title}»?`)) {
     emit("delete-session", session.id);
   }
 }
 
 function renameDatabase(database: ApiDatabaseDescriptor) {
+  if (props.interactionLocked) {
+    return;
+  }
   const title = window.prompt("Новое название базы", database.name)?.trim();
   if (title) {
     emit("rename-database", database.id, title);
@@ -1372,6 +1397,9 @@ function renameDatabase(database: ApiDatabaseDescriptor) {
 }
 
 function remove(database: ApiDatabaseDescriptor) {
+  if (props.interactionLocked) {
+    return;
+  }
   emit("delete-database", database.id);
 }
 
