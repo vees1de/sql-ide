@@ -18,7 +18,7 @@
           :aria-expanded="!isCollapsed"
           @click="toggleSidebarRail"
         >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          <img src="../../assets//togglesidebar.svg" alt="" />
         </button>
       </div>
 
@@ -32,7 +32,11 @@
           :title="item.label"
           :aria-label="item.label"
         >
-          <span class="chat-sidebar__nav-icon" aria-hidden="true">
+          <span
+            class="chat-sidebar__nav-icon"
+            aria-hidden="true"
+            v-if="isCollapsed"
+          >
             <svg
               v-if="item.key === 'chat'"
               viewBox="0 0 24 24"
@@ -44,7 +48,9 @@
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+              <path
+                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+              />
             </svg>
             <svg
               v-else-if="item.key === 'dashboards'"
@@ -179,20 +185,49 @@
                 :key="item.dashboard.id"
                 class="chat-sidebar__dashboard-group"
               >
-                <div class="chat-sidebar__dashboard-head">
+                <div
+                  class="chat-sidebar__db-row chat-sidebar__dashboard-link"
+                  :class="{
+                    'chat-sidebar__db-row--active': isDashboardRouteActive(
+                      item.dashboard.id,
+                    ),
+                    'chat-sidebar__dashboard-link--expanded':
+                      isDashboardExpanded(item.dashboard.id),
+                  }"
+                >
+                  <button
+                    class="chat-sidebar__dashboard-toggle"
+                    :class="{
+                      'chat-sidebar__dashboard-toggle--open':
+                        isDashboardExpanded(item.dashboard.id),
+                    }"
+                    type="button"
+                    :aria-expanded="isDashboardExpanded(item.dashboard.id)"
+                    :aria-label="
+                      isDashboardExpanded(item.dashboard.id)
+                        ? 'Свернуть виджеты'
+                        : 'Показать виджеты'
+                    "
+                    @click.stop="toggleDashboardExpand(item.dashboard.id)"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="9 6 15 12 9 18" />
+                    </svg>
+                  </button>
+
                   <RouterLink
                     :to="`/dashboards/${item.dashboard.id}`"
-                    class="chat-sidebar__db-row chat-sidebar__dashboard-link"
-                    :class="{
-                      'chat-sidebar__db-row--active': isDashboardRouteActive(
-                        item.dashboard.id,
-                      ),
-                    }"
+                    class="chat-sidebar__dashboard-main"
                   >
-                    <span class="chat-sidebar__db-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
-                    </span>
-
                     <span class="chat-sidebar__db-text">
                       <span class="chat-sidebar__db-name">{{
                         dashboardTitle(item.dashboard)
@@ -223,24 +258,6 @@
                       </span>
                     </span>
                   </RouterLink>
-
-                  <button
-                    class="chat-sidebar__dashboard-toggle"
-                    :class="{
-                      'chat-sidebar__dashboard-toggle--open':
-                        isDashboardExpanded(item.dashboard.id),
-                    }"
-                    type="button"
-                    :aria-expanded="isDashboardExpanded(item.dashboard.id)"
-                    :aria-label="
-                      isDashboardExpanded(item.dashboard.id)
-                        ? 'Свернуть виджеты'
-                        : 'Показать виджеты'
-                    "
-                    @click="toggleDashboardExpand(item.dashboard.id)"
-                  >
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-                  </button>
                 </div>
 
                 <div
@@ -277,16 +294,9 @@
                         ),
                       }"
                     >
-                      <span class="chat-sidebar__db-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15V9"/><path d="M12 15V7"/><path d="M16 15v-4"/></svg>
-                      </span>
-
                       <span class="chat-sidebar__db-text">
                         <span class="chat-sidebar__db-name">{{
                           dashboardWidgetTitle(widget)
-                        }}</span>
-                        <span class="chat-sidebar__db-sub">{{
-                          dashboardWidgetSubtitle(widget)
                         }}</span>
                       </span>
 
@@ -398,7 +408,20 @@
                 @keydown.space.prevent="selectDatabase(database.id)"
               >
                 <span class="chat-sidebar__db-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="15"
+                    height="15"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <ellipse cx="12" cy="5" rx="8" ry="3" />
+                    <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+                    <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                  </svg>
                 </span>
 
                 <span class="chat-sidebar__db-text">
@@ -480,10 +503,34 @@
                       'chat-sidebar__folder-chevron--open': isOpen(database.id),
                     }"
                   >
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="9 6 15 12 9 18" />
+                    </svg>
                   </span>
                   <span class="chat-sidebar__folder-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="15"
+                      height="15"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <ellipse cx="12" cy="5" rx="8" ry="3" />
+                      <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+                      <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                    </svg>
                   </span>
                   <span class="chat-sidebar__folder-name">{{
                     database.name
@@ -506,7 +553,18 @@
                     @click="$emit('create-session', database.id)"
                   >
                     <span class="chat-sidebar__session-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="13"
+                        height="13"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
                     </span>
                     <span class="chat-sidebar__session-text">
                       <span class="chat-sidebar__session-title">Новый чат</span>
@@ -542,7 +600,20 @@
                         class="chat-sidebar__session-icon"
                         aria-hidden="true"
                       >
-                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="13"
+                          height="13"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path
+                            d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+                          />
+                        </svg>
                       </span>
 
                       <span class="chat-sidebar__session-text">
@@ -587,7 +658,18 @@
             type="button"
             @click="$emit('add-database')"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
             Добавить базу данных
           </button>
 
@@ -674,17 +756,21 @@
         title="Профиль"
         aria-label="Профиль"
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <svg
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
         <span class="chat-sidebar__footer-label">Профиль</span>
         Профиль
-      </button>
-      <button
-        class="chat-sidebar__footer-btn"
-        type="button"
-        title="Источники"
-        aria-label="Источники"
-      >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.4 1.05V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8.6 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.05-.4H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .4-1.05V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15.4 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.37.15.7.36 1 .6.3.25.66.4 1.05.4H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg>
       </button>
     </footer>
   </aside>
@@ -709,7 +795,7 @@ type DashboardTreeItem = {
 };
 
 const SIDEBAR_COLLAPSED_LS_KEY = "app-chat-sidebar-collapsed";
-const SIDEBAR_WIDTH_EXPANDED = "180px";
+const SIDEBAR_WIDTH_EXPANDED = "200px";
 const SIDEBAR_WIDTH_COLLAPSED = "56px";
 
 const props = defineProps<{
@@ -1301,7 +1387,34 @@ function formatTime(value: string) {
 
 <style scoped lang="scss">
 .chat-sidebar {
-  height: 100%;
+  --chat-sidebar-tree-surface: #262626;
+  --chat-sidebar-tree-surface-hover: color-mix(
+    in srgb,
+    var(--chat-sidebar-tree-surface) 88%,
+    var(--ink-strong)
+  );
+  --chat-sidebar-tree-surface-active: color-mix(
+    in srgb,
+    var(--accent) 16%,
+    var(--chat-sidebar-tree-surface)
+  );
+  --chat-sidebar-tree-border-active: color-mix(
+    in srgb,
+    var(--accent) 30%,
+    var(--line)
+  );
+  --chat-sidebar-tree-well: color-mix(
+    in srgb,
+    var(--chat-sidebar-tree-surface) 72%,
+    black
+  );
+  position: sticky;
+  top: var(--app-shell-gap);
+  align-self: start;
+  max-height: calc(100vh - (var(--app-shell-gap) * 2));
+  max-height: calc(100dvh - (var(--app-shell-gap) * 2));
+  height: min(100%, calc(100vh - (var(--app-shell-gap) * 2)));
+  height: min(100%, calc(100dvh - (var(--app-shell-gap) * 2)));
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1362,9 +1475,8 @@ function formatTime(value: string) {
   flex: 0 0 auto;
   display: inline-grid;
   place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  background: transparent;
   color: var(--muted);
   transition:
     background 180ms ease,
@@ -1374,11 +1486,9 @@ function formatTime(value: string) {
 
 .chat-sidebar__rail-toggle:hover {
   color: var(--ink-strong);
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
 }
 
-.chat-sidebar__rail-toggle svg {
+.chat-sidebar__rail-toggle img {
   transition: transform 220ms ease;
 }
 
@@ -1395,7 +1505,7 @@ function formatTime(value: string) {
   gap: 10px;
   padding: 6px 12px;
   font-size: 1rem;
-  line-height: 1.1;
+  line-height: 1;
   transition:
     background 180ms ease,
     border-color 180ms ease,
@@ -1408,6 +1518,7 @@ function formatTime(value: string) {
 
 .chat-sidebar__nav-link--active {
   color: var(--ink);
+  font-size: 1.1rem;
 }
 
 .chat-sidebar__nav-icon {
@@ -1488,7 +1599,7 @@ function formatTime(value: string) {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  line-height: 1.1;
+  line-height: 1;
   white-space: nowrap;
   transition:
     background 180ms ease,
@@ -1546,27 +1657,49 @@ function formatTime(value: string) {
 .chat-sidebar__dashboard-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.chat-sidebar__dashboard-head {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
+  gap: 4px;
 }
 
 .chat-sidebar__dashboard-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.62rem 0.68rem 0.62rem 0.56rem;
+}
+
+.chat-sidebar__dashboard-link--expanded {
+  padding-left: 0.46rem;
+}
+
+.chat-sidebar__dashboard-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex: 1 1 auto;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.chat-sidebar__dashboard-main .chat-sidebar__db-meta {
+  margin-left: auto;
+  justify-content: flex-end;
+  align-self: center;
+}
+
+.chat-sidebar__dashboard-main:focus-visible {
+  outline: 2px solid rgba(112, 59, 247, 0.55);
+  outline-offset: 2px;
+  border-radius: 10px;
 }
 
 .chat-sidebar__dashboard-toggle {
-  width: 34px;
-  flex: 0 0 34px;
-  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  display: grid;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   transition:
@@ -1578,7 +1711,7 @@ function formatTime(value: string) {
 .chat-sidebar__dashboard-toggle:hover {
   color: var(--ink-strong);
   border-color: var(--line);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__dashboard-toggle svg {
@@ -1593,7 +1726,7 @@ function formatTime(value: string) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding-left: 18px;
+  padding-left: 10px;
 }
 
 .chat-sidebar__dashboard-widgets {
@@ -1606,6 +1739,7 @@ function formatTime(value: string) {
   padding: 0.55rem 0.7rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   font-size: 0.76rem;
 }
@@ -1618,27 +1752,28 @@ function formatTime(value: string) {
     "icon meta actions";
   column-gap: 10px;
   row-gap: 4px;
-  align-items: start;
+  align-items: center;
   width: 100%;
   padding: 0.7rem 0.75rem;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--chat-sidebar-tree-surface);
   color: var(--ink);
   text-align: left;
   transition:
     background 140ms ease,
     border-color 140ms ease,
     transform 140ms ease;
+  text-decoration: none;
 }
 
 .chat-sidebar__db-row:hover:not(.chat-sidebar__db-row--active) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__db-row--active {
-  border-color: rgba(112, 59, 247, 0.28);
-  background: rgba(112, 59, 247, 0.1);
+  border-color: var(--chat-sidebar-tree-border-active);
+  background: var(--chat-sidebar-tree-surface-active);
 }
 
 .chat-sidebar__db-row:focus-visible {
@@ -1742,16 +1877,16 @@ function formatTime(value: string) {
 .chat-sidebar__folder {
   display: flex;
   flex-direction: column;
-  border: 1px solid #262626;
+  border: 1px solid var(--chat-sidebar-tree-surface);
   border-radius: 12px;
   overflow: hidden;
-  background: #262626;
+  background: var(--chat-sidebar-tree-surface);
   min-height: 0;
 }
 
 .chat-sidebar__folder--active {
-  border-color: #2a1f3d;
-  background: #262626;
+  border-color: var(--chat-sidebar-tree-border-active);
+  background: var(--chat-sidebar-tree-surface);
 }
 
 .chat-sidebar__folder-head {
@@ -1762,7 +1897,7 @@ function formatTime(value: string) {
   width: 100%;
   padding: 0.55rem 0.6rem;
   border: none;
-  background: #262626;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--ink);
   text-align: left;
   font-size: 0.84rem;
@@ -1770,12 +1905,12 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__folder--active .chat-sidebar__folder-head {
-  background: #2a1f3d;
+  background: var(--chat-sidebar-tree-surface-active);
 }
 
 .chat-sidebar__folder:not(.chat-sidebar__folder--active)
   .chat-sidebar__folder-head:hover {
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__folder-chevron {
@@ -1820,12 +1955,12 @@ function formatTime(value: string) {
   display: flex;
   flex-direction: column;
   align-self: stretch;
-  width: min(100%, 180px);
-  max-width: 180px;
+  width: min(100%, 200px);
+  max-width: 200px;
   gap: 6px;
   min-height: 0;
-  padding: 0 0.45rem 0.55rem 0.55rem;
-  background: #1a1a1a;
+  padding: 0.5rem 0.45rem 0.55rem 0.55rem;
+  background: var(--chat-sidebar-tree-well);
   box-sizing: border-box;
 }
 
@@ -1840,7 +1975,7 @@ function formatTime(value: string) {
   padding: 0.5rem 0.55rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   font-size: 0.74rem;
   line-height: 1.3;
@@ -1862,7 +1997,7 @@ function formatTime(value: string) {
   padding: 0.42rem 0.45rem;
   border: none;
   border-radius: 8px;
-  background: #262626;
+  background: var(--chat-sidebar-tree-surface);
   text-align: left;
   color: var(--ink);
   transition:
@@ -1873,16 +2008,16 @@ function formatTime(value: string) {
 }
 
 .chat-sidebar__session:hover:not(.chat-sidebar__session--active) {
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface-hover);
 }
 
 .chat-sidebar__session--active {
-  background: #2a1f3d;
+  background: var(--chat-sidebar-tree-surface-active);
   color: var(--ink-strong);
 }
 
 .chat-sidebar__session--create {
-  background: #1a1a1a;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -1973,6 +2108,7 @@ function formatTime(value: string) {
   border: 1px dashed var(--line);
   border-radius: 10px;
   padding: 10px;
+  background: var(--chat-sidebar-tree-surface);
   color: var(--muted);
   font-size: 0.78rem;
 }
@@ -2010,7 +2146,7 @@ function formatTime(value: string) {
   justify-content: center;
   gap: 6px;
   padding: 0 10px;
-  line-height: 1.1;
+  line-height: 1;
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
@@ -2043,7 +2179,7 @@ function formatTime(value: string) {
   background: rgba(112, 59, 247, 0.32);
 }
 
-.chat-sidebar--collapsed .chat-sidebar__rail-toggle svg {
+.chat-sidebar--collapsed .chat-sidebar__rail-toggle img {
   transform: rotate(180deg);
 }
 
@@ -2133,6 +2269,15 @@ function formatTime(value: string) {
 .chat-sidebar-panel-leave-to {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+@media (max-width: 1100px) {
+  .chat-sidebar {
+    position: static;
+    top: auto;
+    max-height: none;
+    height: auto;
+  }
 }
 
 @media (max-width: 940px) {

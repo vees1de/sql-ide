@@ -52,8 +52,8 @@
 
 .app-tooltip__content {
   position: absolute;
-  top: 50%;
-  left: calc(100% + 0.65rem);
+  top: calc(100% + 0.65rem);
+  left: 50%;
   z-index: 20;
   min-width: 220px;
   max-width: 320px;
@@ -68,7 +68,7 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transform: translateY(-50%) translateX(-6px);
+  transform: translateX(-50%) translateY(-6px);
   transition:
     opacity 0.18s ease,
     visibility 0.18s ease,
@@ -78,20 +78,20 @@
 .app-tooltip__content::before {
   content: "";
   position: absolute;
-  top: 50%;
-  left: -0.35rem;
+  top: -0.35rem;
+  left: 50%;
   width: 0.7rem;
   height: 0.7rem;
+  border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
   background: rgba(18, 20, 27, 0.98);
-  transform: translateY(-50%) rotate(45deg);
+  transform: translateX(-50%) rotate(45deg);
 }
 
 .app-tooltip:hover .app-tooltip__content,
 .app-tooltip:focus-within .app-tooltip__content {
   opacity: 1;
   visibility: visible;
-  transform: translateY(-50%) translateX(0);
+  transform: translateX(-50%) translateY(0);
 }
 </style>

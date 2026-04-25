@@ -16,7 +16,7 @@
         </header>
 
         <div class="sql-explain-modal__body">
-          <section class="sql-explain-modal__summary">
+          <section class="sql-explain-modal__panel sql-explain-modal__summary">
             <div class="sql-explain-modal__section-head">
               <strong>Кратко</strong>
               <span v-if="explanation" class="sql-explain-modal__badge">
@@ -65,7 +65,7 @@
             </p>
           </section>
 
-          <section class="sql-explain-modal__source">
+          <section class="sql-explain-modal__panel sql-explain-modal__source">
             <div class="sql-explain-modal__section-head">
               <strong>Исходный SQL</strong>
               <span class="sql-explain-modal__badge">{{ sqlLines.length }} строк</span>
@@ -84,10 +84,10 @@
         </div>
 
         <footer class="sql-explain-modal__footer">
-          <button v-if="error" class="sql-explain-modal__btn sql-explain-modal__btn--ghost" type="button" @click="$emit('retry')">
+          <button v-if="error" class="app-button app-button--ghost" type="button" @click="$emit('retry')">
             Повторить
           </button>
-          <button class="sql-explain-modal__btn sql-explain-modal__btn--primary" type="button" @click="$emit('close')">
+          <button class="app-button" type="button" @click="$emit('close')">
             Закрыть
           </button>
         </footer>
@@ -129,8 +129,8 @@ const sqlLines = computed(() =>
   position: fixed;
   inset: 0;
   z-index: 1100;
-  background: rgba(6, 10, 18, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(5, 7, 12, 0.68);
+  backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -143,11 +143,10 @@ const sqlLines = computed(() =>
   flex-direction: column;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background:
-    radial-gradient(circle at top right, rgba(112, 59, 247, 0.18), transparent 36%),
-    linear-gradient(180deg, rgba(14, 18, 30, 0.98), rgba(9, 12, 20, 0.98));
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line-strong);
+  background: var(--canvas);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.38);
+  color: var(--ink);
 }
 
 .sql-explain-modal__header,
@@ -160,20 +159,17 @@ const sqlLines = computed(() =>
 }
 
 .sql-explain-modal__header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--line);
 }
 
 .sql-explain-modal__footer {
   justify-content: flex-end;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--line);
 }
 
 .sql-explain-modal__eyebrow {
   margin: 0 0 4px;
-  color: rgba(255, 255, 255, 0.52);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: var(--muted-2);
 }
 
 .sql-explain-modal__header h2 {
@@ -184,37 +180,51 @@ const sqlLines = computed(() =>
 
 .sql-explain-modal__subtitle {
   margin: 6px 0 0;
-  color: var(--muted);
+  color: var(--muted-2);
   font-size: 0.86rem;
+  line-height: 1.5;
 }
 
 .sql-explain-modal__close {
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--ink-strong);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted-2);
   font-size: 1.2rem;
   line-height: 1;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.sql-explain-modal__close:hover {
+  border-color: var(--line-strong);
+  background: #2a1f3d;
+  color: var(--ink-strong);
 }
 
 .sql-explain-modal__body {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+  gap: 18px;
   padding: 18px 20px;
   overflow: hidden;
 }
 
-.sql-explain-modal__summary,
-.sql-explain-modal__source {
+.sql-explain-modal__panel {
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
   overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
 }
 
 .sql-explain-modal__section-head {
@@ -235,18 +245,18 @@ const sqlLines = computed(() =>
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(112, 59, 247, 0.6);
-  background: rgba(112, 59, 247, 0.14);
-  color: #e7ddff;
+  border: 1px solid rgba(112, 59, 247, 0.26);
+  background: #2a1f3d;
+  color: var(--ink-strong);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .sql-explain-modal__badge--muted {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--muted);
+  border-color: var(--line);
+  background: var(--canvas);
+  color: var(--muted-2);
 }
 
 .sql-explain-modal__message,
@@ -259,19 +269,19 @@ const sqlLines = computed(() =>
 }
 
 .sql-explain-modal__message--error {
-  color: #ffb3b3;
+  color: var(--danger);
 }
 
 .sql-explain-modal__warnings {
   padding: 12px 14px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 184, 77, 0.2);
-  background: rgba(255, 184, 77, 0.08);
+  border: 1px solid rgba(216, 184, 92, 0.24);
+  background: rgba(216, 184, 92, 0.08);
 }
 
 .sql-explain-modal__warnings-title {
   margin: 0 0 8px;
-  color: #ffd79a;
+  color: var(--warning);
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -280,7 +290,7 @@ const sqlLines = computed(() =>
 .sql-explain-modal__warnings ul {
   margin: 0;
   padding-left: 18px;
-  color: #ffe7bd;
+  color: var(--ink);
 }
 
 .sql-explain-modal__blocks {
@@ -293,9 +303,9 @@ const sqlLines = computed(() =>
 
 .sql-explain-modal__block {
   padding: 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
 }
 
 .sql-explain-modal__block-head {
@@ -308,7 +318,7 @@ const sqlLines = computed(() =>
 
 .sql-explain-modal__block-kind {
   margin: 0 0 3px;
-  color: rgba(255, 255, 255, 0.56);
+  color: var(--muted-2);
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -325,9 +335,9 @@ const sqlLines = computed(() =>
   padding: 12px;
   border-radius: 14px;
   overflow: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(2, 6, 12, 0.7);
-  color: #d7e6ff;
+  border: 1px solid var(--line);
+  background: #1a1a1a;
+  color: #f3f3f3;
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -337,8 +347,8 @@ const sqlLines = computed(() =>
   overflow: auto;
   padding: 14px;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(2, 6, 12, 0.7);
+  border: 1px solid var(--line);
+  background: #1a1a1a;
 }
 
 .sql-explain-modal__source-line {
@@ -350,7 +360,7 @@ const sqlLines = computed(() =>
 }
 
 .sql-explain-modal__line-no {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
   user-select: none;
@@ -359,42 +369,9 @@ const sqlLines = computed(() =>
 .sql-explain-modal__line-code {
   white-space: pre-wrap;
   word-break: break-word;
-  color: #dbe7ff;
+  color: var(--ink);
   font-size: 0.8rem;
   line-height: 1.45;
-}
-
-.sql-explain-modal__btn {
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  font-size: 0.84rem;
-  transition:
-    background 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease;
-}
-
-.sql-explain-modal__btn--ghost {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--ink);
-}
-
-.sql-explain-modal__btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ink-strong);
-}
-
-.sql-explain-modal__btn--primary {
-  border-color: rgba(112, 59, 247, 0.8);
-  background: rgba(112, 59, 247, 0.25);
-  color: var(--ink-strong);
-}
-
-.sql-explain-modal__btn--primary:hover {
-  background: rgba(112, 59, 247, 0.34);
 }
 
 @media (max-width: 980px) {

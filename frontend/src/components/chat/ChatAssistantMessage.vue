@@ -1,27 +1,18 @@
 <template>
   <article class="chat-assistant-message">
-    <header class="chat-assistant-message__header">
-      <span class="chat-assistant-message__state" :class="`chat-assistant-message__state--${stateClass}`">
-        {{ stateLabel }}
-      </span>
-    </header>
+    <p v-if="primaryText" class="chat-assistant-message__text">{{ primaryText }}</p>
 
-    <p class="chat-assistant-message__text">{{ displayText }}</p>
-
-    <section v-if="clarificationQuestion" class="chat-assistant-message__clarification">
-      <p class="chat-assistant-message__clarification-text">{{ clarificationQuestion }}</p>
-      <div v-if="clarificationOptions.length" class="chat-assistant-message__chips">
-        <button
-          v-for="option in clarificationOptions"
-          :key="option.id"
-          class="chat-assistant-message__btn"
-          type="button"
-          @click="emitClarification(option.id)"
-        >
-          {{ option.label }}
-        </button>
-      </div>
-    </section>
+    <div v-if="clarificationOptions.length" class="chat-assistant-message__chips">
+      <button
+        v-for="option in clarificationOptions"
+        :key="option.id"
+        class="chat-assistant-message__btn"
+        type="button"
+        @click="emitClarification(option.id)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
 
     <section
       v-if="visibleActions.length || (payload?.mode_suggestion && payload.mode_suggestion_reason)"
@@ -35,7 +26,21 @@
         type="button"
         @click="handleAction(action.type)"
       >
-        <svg v-if="action.type === 'create_sql'" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <svg
+          v-if="action.type === 'create_sql'"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M7 2.5v9M2.5 7h9"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+          />
+        </svg>
       </button>
 
       <button
@@ -102,35 +107,22 @@ watch(
 
 const displayText = computed(() => payload.value?.assistant_message || props.message.text);
 
-const stateLabel = computed(() => {
-  switch (payload.value?.state) {
-    case 'CLARIFYING':
-      return 'Нужно уточнение';
-    case 'SQL_READY':
-      return 'SQL готов';
-    case 'ERROR':
-      return 'Ошибка';
-    default:
-      return 'Подготовка';
-  }
-});
-
-const stateClass = computed(() => {
-  switch (payload.value?.state) {
-    case 'CLARIFYING':
-      return 'clarifying';
-    case 'SQL_READY':
-      return 'ready';
-    case 'ERROR':
-      return 'error';
-    default:
-      return 'drafting';
-  }
-});
-
 const clarificationQuestion = computed(
   () => payload.value?.clarification?.question || payload.value?.clarification_question || null
 );
+
+const primaryText = computed(() => {
+  const messageText = displayText.value?.trim() ?? '';
+  const questionText = clarificationQuestion.value?.trim() ?? '';
+
+  if (!questionText) {
+    return messageText;
+  }
+  if (!messageText || messageText === questionText) {
+    return questionText;
+  }
+  return `${messageText}\n\n${questionText}`;
+});
 
 const clarificationId = computed(
   () => payload.value?.clarification?.clarification_id || 'clarification:pending'
@@ -214,48 +206,7 @@ function handleAction(type: ApiChatAction['type']) {
   gap: 10px;
 }
 
-.chat-assistant-message__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.chat-assistant-message__state {
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-.chat-assistant-message__state--clarifying {
-  border-color: rgba(255, 184, 77, 0.55);
-  background: rgba(255, 184, 77, 0.12);
-  color: #ffd79a;
-}
-
-.chat-assistant-message__state--ready {
-  border-color: rgba(67, 176, 42, 0.55);
-  background: rgba(67, 176, 42, 0.14);
-  color: #c4f0b8;
-}
-
-.chat-assistant-message__state--error {
-  border-color: rgba(255, 107, 107, 0.55);
-  background: rgba(255, 107, 107, 0.14);
-  color: #ffb3b3;
-}
-
-.chat-assistant-message__state--drafting {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.chat-assistant-message__text,
-.chat-assistant-message__clarification-text {
+.chat-assistant-message__text {
   margin: 0;
   color: var(--ink);
   font-size: 0.84rem;
@@ -263,16 +214,12 @@ function handleAction(type: ApiChatAction['type']) {
   white-space: pre-wrap;
 }
 
-.chat-assistant-message__clarification {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  display: grid;
+.chat-assistant-message__chips {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.chat-assistant-message__chips,
 .chat-assistant-message__actions {
   display: none;
 }
@@ -309,5 +256,4 @@ function handleAction(type: ApiChatAction['type']) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
 </style>

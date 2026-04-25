@@ -10,7 +10,11 @@
             перед сборкой семантического каталога.
           </p>
         </div>
-        <button class="semantic-modal__close" type="button" @click="emit('close')">
+        <button
+          class="semantic-modal__close"
+          type="button"
+          @click="emit('close')"
+        >
           ×
         </button>
       </header>
@@ -58,7 +62,11 @@
         </label>
 
         <footer class="semantic-modal__footer">
-          <button class="app-button app-button--ghost" type="button" @click="emit('close')">
+          <button
+            class="app-button app-button--ghost"
+            type="button"
+            @click="emit('close')"
+          >
             Отмена
           </button>
           <button class="app-button" type="submit" :disabled="submitting">
@@ -94,12 +102,14 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   close: [];
-  submit: [payload: {
-    databaseDescription: string;
-    tableDescriptionsText: string;
-    relationshipDescriptionsText: string;
-    columnDescriptionsText: string;
-  }];
+  submit: [
+    payload: {
+      databaseDescription: string;
+      tableDescriptionsText: string;
+      relationshipDescriptionsText: string;
+      columnDescriptionsText: string;
+    },
+  ];
 }>();
 
 const state = reactive({
@@ -127,7 +137,12 @@ watch(
 );
 
 watch(
-  () => [props.databaseDescription, props.tableDescriptionsText, props.relationshipDescriptionsText, props.columnDescriptionsText],
+  () => [
+    props.databaseDescription,
+    props.tableDescriptionsText,
+    props.relationshipDescriptionsText,
+    props.columnDescriptionsText,
+  ],
   () => {
     if (props.open) {
       syncFromProps();
@@ -164,7 +179,11 @@ function submit() {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(47, 75, 255, 0.12), transparent 28%),
+    radial-gradient(
+      circle at top right,
+      rgba(47, 75, 255, 0.12),
+      transparent 28%
+    ),
     linear-gradient(180deg, rgba(13, 18, 28, 0.98), rgba(10, 14, 22, 0.98));
   box-shadow: 0 32px 120px rgba(0, 0, 0, 0.45);
   color: #edf2ff;
@@ -188,7 +207,7 @@ function submit() {
 .semantic-modal__header h2 {
   margin: 0;
   font-size: 28px;
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .semantic-modal__lead {

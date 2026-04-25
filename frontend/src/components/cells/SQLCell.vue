@@ -13,10 +13,18 @@
           aria-label="Запустить SQL"
           @click="$emit('run')"
         >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M4.5 3.3v7.4L10.8 7 4.5 3.3Z" fill="currentColor"/></svg>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path d="M4.5 3.3v7.4L10.8 7 4.5 3.3Z" fill="currentColor" />
+          </svg>
           <span>Запустить</span>
         </button>
-        <button
+        <!-- <button
           v-if="showToggleSqlButton"
           class="sql-cell__action-btn"
           type="button"
@@ -32,8 +40,20 @@
             fill="none"
             aria-hidden="true"
           >
-            <path d="M1.6 7s1.9-3.3 5.4-3.3S12.4 7 12.4 7 10.5 10.3 7 10.3 1.6 7 1.6 7Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="7" cy="7" r="1.45" stroke="currentColor" stroke-width="1.2"/>
+            <path
+              d="M1.6 7s1.9-3.3 5.4-3.3S12.4 7 12.4 7 10.5 10.3 7 10.3 1.6 7 1.6 7Z"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle
+              cx="7"
+              cy="7"
+              r="1.45"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
           </svg>
           <svg
             v-else
@@ -43,12 +63,28 @@
             fill="none"
             aria-hidden="true"
           >
-            <path d="M1.6 7s1.9-3.3 5.4-3.3c.9 0 1.7.2 2.4.6M12.4 7s-1.9 3.3-5.4 3.3c-.9 0-1.7-.2-2.4-.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M2.3 2.3 11.7 11.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            <path d="M6.1 6.1a1.45 1.45 0 0 0 1.8 1.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path
+              d="M1.6 7s1.9-3.3 5.4-3.3c.9 0 1.7.2 2.4.6M12.4 7s-1.9 3.3-5.4 3.3c-.9 0-1.7-.2-2.4-.6"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M2.3 2.3 11.7 11.7"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M6.1 6.1a1.45 1.45 0 0 0 1.8 1.8"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            />
           </svg>
-        </button>
-        <button
+        </button> -->
+        <!-- <button
           v-if="showExplainButton"
           class="sql-cell__action-btn sql-cell__action-btn--explain"
           type="button"
@@ -57,10 +93,12 @@
           title="Объяснить SQL"
           @click="$emit('explain')"
         >
-          <span class="sql-cell__help-tooltip">ИИ объяснит, почему выбраны таблицы и колонки</span>
+          <span class="sql-cell__help-tooltip"
+            >ИИ объяснит, почему выбраны таблицы и колонки</span
+          >
           ?
-        </button>
-        <button
+        </button> -->
+        <!-- <button
           v-if="showCopyButton"
           class="sql-cell__action-btn"
           type="button"
@@ -73,7 +111,7 @@
             <path d="M2.5 4v6.7c0 .8.6 1.4 1.4 1.4h5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
             <path d="M6.2 5h3.5M6.2 7h3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
           </svg>
-        </button>
+        </button> -->
       </div>
     </div>
 
@@ -92,8 +130,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { SqlCellContent } from '@/types/app';
+import { computed } from "vue";
+import type { SqlCellContent } from "@/types/app";
 
 const props = defineProps<{
   content: SqlCellContent;
@@ -106,27 +144,35 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  (event: 'explain'): void;
-  (event: 'copy'): void;
-  (event: 'toggle-sql'): void;
-  (event: 'run'): void;
+  (event: "explain"): void;
+  (event: "copy"): void;
+  (event: "toggle-sql"): void;
+  (event: "run"): void;
 }>();
 
 function escapeHtml(value: string) {
   return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
-const hasHeader = computed(() => Boolean(props.content.explanation || props.showExplainButton || props.showCopyButton || props.showToggleSqlButton || props.showRunButton));
+const hasHeader = computed(() =>
+  Boolean(
+    props.content.explanation ||
+    props.showExplainButton ||
+    props.showCopyButton ||
+    props.showToggleSqlButton ||
+    props.showRunButton,
+  ),
+);
 
 const highlightedSql = computed(() => {
-  const escaped = escapeHtml(props.content.sql ?? '');
+  const escaped = escapeHtml(props.content.sql ?? "");
   return escaped
     .replace(
       /\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|WITH|AS|LEFT JOIN|RIGHT JOIN|INNER JOIN|FULL JOIN|JOIN|ON|AND|OR|CASE|WHEN|THEN|ELSE|END|UNION|ALL|DESC|ASC)\b/gi,
-      '<span class="sql-keyword">$1</span>'
+      '<span class="sql-keyword">$1</span>',
     )
     .replace(/('[^']*')/g, '<span class="sql-string">$1</span>')
     .replace(/\b(\d+(\.\d+)?)\b/g, '<span class="sql-number">$1</span>');
@@ -165,7 +211,11 @@ const highlightedSql = computed(() => {
   padding: 0 12px 0 9px;
   border-radius: 999px;
   border: 1px solid rgba(112, 59, 247, 0.7);
-  background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));
+  background: linear-gradient(
+    180deg,
+    rgba(112, 59, 247, 0.34),
+    rgba(112, 59, 247, 0.2)
+  );
   color: #efe9ff;
   font-size: 0.76rem;
   font-weight: 600;
@@ -177,7 +227,11 @@ const highlightedSql = computed(() => {
 
   &:hover:not(:disabled) {
     border-color: rgba(164, 126, 255, 0.92);
-    background: linear-gradient(180deg, rgba(112, 59, 247, 0.46), rgba(112, 59, 247, 0.3));
+    background: linear-gradient(
+      180deg,
+      rgba(112, 59, 247, 0.46),
+      rgba(112, 59, 247, 0.3)
+    );
     box-shadow: 0 4px 16px rgba(112, 59, 247, 0.28);
   }
 
@@ -218,7 +272,11 @@ const highlightedSql = computed(() => {
 
 .sql-cell__action-btn--explain {
   border-color: rgba(112, 59, 247, 0.7);
-  background: linear-gradient(180deg, rgba(112, 59, 247, 0.34), rgba(112, 59, 247, 0.2));
+  background: linear-gradient(
+    180deg,
+    rgba(112, 59, 247, 0.34),
+    rgba(112, 59, 247, 0.2)
+  );
   color: #efe9ff;
   box-shadow: 0 8px 24px rgba(112, 59, 247, 0.18);
   animation: sql-cell-float 3.2s ease-in-out infinite;
@@ -227,7 +285,11 @@ const highlightedSql = computed(() => {
 .sql-cell__action-btn--explain:hover:not(:disabled),
 .sql-cell__action-btn--explain:focus-visible:not(:disabled) {
   border-color: rgba(164, 126, 255, 0.92);
-  background: linear-gradient(180deg, rgba(112, 59, 247, 0.42), rgba(112, 59, 247, 0.26));
+  background: linear-gradient(
+    180deg,
+    rgba(112, 59, 247, 0.42),
+    rgba(112, 59, 247, 0.26)
+  );
 }
 
 .sql-cell__action-btn:disabled {
@@ -296,5 +358,4 @@ pre {
 :deep(.sql-number) {
   color: #8ab4f8;
 }
-
 </style>

@@ -72,7 +72,7 @@
             <header class="data-view__head">
               <div class="data-view__head-copy">
                 <p class="eyebrow">Слой знаний о БД</p>
-                <h1>
+                <h1 class="just-center-row">
                   Центр управления данными
                   <AppTooltip>
                     Здесь команда запускает парсинг БД, следит за запусками
@@ -81,11 +81,6 @@
                     словарь.</AppTooltip
                   >
                 </h1>
-                <p class="data-view__lead">
-                  Верхний уровень вынесен в отдельную панель, а рабочая часть
-                  страницы оставлена для knowledge layer, схемы и semantic
-                  metadata.
-                </p>
               </div>
             </header>
 
@@ -158,7 +153,7 @@
             <header class="data-view__head">
               <div>
                 <p class="eyebrow">Слой знаний о БД</p>
-                <h2>
+                <h2 class="just-center-row">
                   Семантический слой и метаданные
                   <AppTooltip>
                     Здесь хранится всё, что влияет на понимание базы: описание
@@ -363,41 +358,51 @@
             </div>
 
             <div class="data-view__knowledge">
-              <div class="data-view__tables" aria-label="Сканированная схема">
-                <div
-                  v-if="!knowledgeSummary.tables.length"
-                  class="data-view__empty"
-                >
-                  База подключена, но слой знаний ещё не заполнен.
+              <section class="data-view__subpanel data-view__subpanel--panel">
+                <header class="data-view__subhead">
+                  <h3>Сканированная схема</h3>
+                  <p>
+                    Выберите таблицу, чтобы открыть отдельный редактор ниже.
+                  </p>
+                </header>
+                <div class="data-view__tables" aria-label="Сканированная схема">
+                  <div
+                    v-if="!knowledgeSummary.tables.length"
+                    class="data-view__empty"
+                  >
+                    База подключена, но слой знаний ещё не заполнен.
+                  </div>
+                  <button
+                    v-for="table in knowledgeSummary.tables"
+                    :key="table.id"
+                    type="button"
+                    class="data-view__table-pill"
+                    :class="{ 'is-active': selectedTableId === table.id }"
+                    @click="selectedTableId = table.id"
+                  >
+                    <strong
+                      >{{ table.schema_name }}.{{ table.table_name }}</strong
+                    >
+                    <span
+                      >{{ table.column_count }} кол. · PK
+                      {{ table.primary_key.join(", ") || "нет" }}</span
+                    >
+                    <small
+                      >{{ table.row_count ?? "—" }} строк ·
+                      {{ translateTableObjectType(table.object_type) }}</small
+                    >
+                  </button>
                 </div>
-                <button
-                  v-for="table in knowledgeSummary.tables"
-                  :key="table.id"
-                  type="button"
-                  class="data-view__table-pill"
-                  :class="{ 'is-active': selectedTableId === table.id }"
-                  @click="selectedTableId = table.id"
-                >
-                  <strong
-                    >{{ table.schema_name }}.{{ table.table_name }}</strong
-                  >
-                  <span
-                    >{{ table.column_count }} кол. · PK
-                    {{ table.primary_key.join(", ") || "нет" }}</span
-                  >
-                  <small
-                    >{{ table.row_count ?? "—" }} строк ·
-                    {{ translateTableObjectType(table.object_type) }}</small
-                  >
-                </button>
-              </div>
+              </section>
 
-              <div class="data-view__detail">
+              <section
+                class="data-view__detail data-view__subpanel data-view__subpanel--panel data-view__detail-panel editor-of-table"
+              >
                 <div v-if="selectedTable" class="data-view__detail-body">
                   <header class="data-view__head data-view__head--compact">
                     <div>
                       <p class="eyebrow">Редактор таблицы</p>
-                      <h2>
+                      <h2 class="just-center-row">
                         {{ selectedTable.schema_name }}.{{
                           selectedTable.table_name
                         }}
@@ -578,29 +583,30 @@
                                   : "обязательно"
                               }}</span
                             >
-                            <small
-                              >примеры:
-                              {{
-                                column.sample_values.join(", ") || "—"
-                              }}</small
-                            >
                           </div>
                           <div class="data-view__column-edit">
-                            <input
-                              v-model="getColumnDraft(column).semanticLabel"
-                              type="text"
-                              placeholder="семантическая метка"
-                            />
-                            <input
-                              v-model="getColumnDraft(column).synonyms"
-                              type="text"
-                              placeholder="синонимы через запятую"
-                            />
-                            <input
-                              v-model="getColumnDraft(column).sensitivity"
-                              type="text"
-                              placeholder="чувствительность"
-                            />
+                            <div class="data-view__column-edit-grid">
+                              <input
+                                v-model="getColumnDraft(column).semanticLabel"
+                                type="text"
+                                placeholder="семантическая метка"
+                              />
+                              <input
+                                v-model="getColumnDraft(column).synonyms"
+                                type="text"
+                                placeholder="синонимы через запятую"
+                              />
+                              <input
+                                v-model="getColumnDraft(column).sensitivity"
+                                type="text"
+                                placeholder="чувствительность"
+                              />
+                            </div>
+                            <textarea
+                              v-model="getColumnDraft(column).description"
+                              rows="2"
+                              placeholder="описание колонки"
+                            ></textarea>
                             <label class="data-view__check">
                               <input
                                 v-model="getColumnDraft(column).hiddenForLlm"
@@ -608,18 +614,15 @@
                               />
                               <span>Скрыть от LLM</span>
                             </label>
-                            <textarea
-                              v-model="getColumnDraft(column).description"
-                              rows="2"
-                              placeholder="описание колонки"
-                            ></textarea>
-                            <button
-                              class="app-button app-button--tiny"
-                              type="button"
-                              @click="saveColumn(column.id)"
-                            >
-                              Сохранить колонку
-                            </button>
+                            <div class="data-view__column-actions">
+                              <button
+                                class="app-button app-button--tiny"
+                                type="button"
+                                @click="saveColumn(column.id)"
+                              >
+                                Сохранить колонку
+                              </button>
+                            </div>
                           </div>
                         </article>
                       </div>
@@ -722,7 +725,7 @@
                   Выберите таблицу в блоке выше, чтобы редактировать семантику и
                   связи.
                 </div>
-              </div>
+              </section>
             </div>
           </section>
 
@@ -730,7 +733,7 @@
             <header class="data-view__head data-view__head--compact">
               <div>
                 <p class="eyebrow">ERD</p>
-                <h2>
+                <h2 class="just-center-row">
                   Граф связей
                   <AppTooltip>
                     Физический FK-граф по последнему снимку
@@ -777,190 +780,190 @@
       @close="closeSemanticActivationModal"
       @submit="submitSemanticActivation"
     />
-    <div
-      v-if="showSemanticLayerModal && semanticCatalog"
-      class="data-view__semantic-modal-root"
-      @click.self="closeSemanticLayerModal"
-    >
+    <Teleport to="body">
       <div
-        class="data-view__semantic-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="semantic-layer-title"
+        v-if="showSemanticLayerModal && semanticCatalog"
+        class="data-view__semantic-modal-root"
+        @click.self="closeSemanticLayerModal"
       >
-        <header class="data-view__semantic-modal-head">
-          <div class="data-view__semantic-modal-title">
-            <p class="eyebrow">LLM-прослойка</p>
-            <h2 id="semantic-layer-title">Semantic layer</h2>
-            <p class="data-view__semantic-modal-meta">
-              {{ selectedDatabase?.name ?? "Текущая база" }} ·
-              {{ semanticCatalog.dialect }}
-            </p>
-          </div>
-          <button
-            class="data-view__modal-close"
-            type="button"
-            aria-label="Закрыть"
-            @click="closeSemanticLayerModal"
-          >
-            ✕
-          </button>
-        </header>
-
-        <div class="data-view__semantic-modal-body">
-          <div v-if="semanticNotices.length" class="data-view__notice-list">
-            <article
-              v-for="notice in semanticNotices"
-              :key="`${notice.key}-modal`"
-              class="data-view__notice"
-              :class="`data-view__notice--${notice.tone}`"
-            >
-              {{ notice.text }}
-            </article>
-          </div>
-
-          <div class="data-view__semantic-grid">
-            <article class="data-view__semantic-stat">
-              <span>Таблицы</span>
-              <strong>{{ semanticCatalog.tables.length }}</strong>
-            </article>
-            <article class="data-view__semantic-stat">
-              <span>Связи</span>
-              <strong>{{ semanticCatalog.relationships.length }}</strong>
-            </article>
-            <article class="data-view__semantic-stat">
-              <span>Маршруты JOIN</span>
-              <strong>{{ semanticCatalog.join_paths.length }}</strong>
-            </article>
-            <article class="data-view__semantic-stat">
-              <span>Диалект</span>
-              <strong>{{ semanticCatalog.dialect }}</strong>
-            </article>
-          </div>
-
-          <section class="data-view__subpanel data-view__subpanel--panel">
-            <header class="data-view__subhead">
-              <h3>Граф связей для LLM</h3>
-              <p>Итоговые join-рёбра, которые получит агент.</p>
-            </header>
-            <div
-              v-if="semanticCatalog.relationship_graph.length"
-              class="data-view__graph-list"
-            >
-              <article
-                v-for="edge in semanticCatalog.relationship_graph"
-                :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
-                class="data-view__graph-card"
-              >
-                <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
-                <strong>{{ edge.on }}</strong>
-              </article>
-            </div>
-            <div v-else class="data-view__empty">Рёбра графа отсутствуют.</div>
-          </section>
-
-          <section class="data-view__subpanel data-view__subpanel--panel">
-            <header class="data-view__subhead">
-              <h3>Каталог таблиц и колонок</h3>
-              <p>
-                Разворачиваемый preview semantic layer без отдельной секции в
-                основном полотне.
+        <div
+          class="data-view__semantic-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="semantic-layer-title"
+        >
+          <header class="data-view__semantic-modal-head">
+            <div class="data-view__semantic-modal-title">
+              <p class="eyebrow">LLM-прослойка</p>
+              <h2 id="semantic-layer-title">Semantic layer</h2>
+              <p class="data-view__semantic-modal-meta">
+                {{ selectedDatabase?.name ?? "Текущая база" }} ·
+                {{ semanticCatalog.dialect }}
               </p>
-            </header>
-
-            <div
-              v-if="semanticCatalog.tables.length"
-              class="data-view__sem-tables"
+            </div>
+            <button
+              class="data-view__modal-close"
+              type="button"
+              aria-label="Закрыть"
+              @click="closeSemanticLayerModal"
             >
-              <article
-                v-for="table in semanticCatalog.tables"
-                :key="semanticTableKey(table)"
-                class="data-view__sem-table"
-              >
-                <header class="data-view__sem-table-head">
-                  <button
-                    class="data-view__sem-expand"
-                    type="button"
-                    @click="toggleTableExpand(semanticTableKey(table))"
-                  >
-                    {{
-                      expandedTables.has(semanticTableKey(table)) ? "−" : "+"
-                    }}
-                  </button>
-                  <div class="data-view__sem-table-meta">
-                    <strong
-                      >{{ table.schema_name }}.{{ table.table_name }}</strong
-                    >
-                    <span>{{
-                      table.label || translateTableRole(table.table_role)
-                    }}</span>
-                    <small>{{
-                      table.business_description ||
-                      "Описание для semantic layer пока не заполнено."
-                    }}</small>
-                  </div>
-                  <div class="data-view__sem-table-counts">
-                    {{ table.columns.length }} колонок ·
-                    {{ table.relationships.length }} связей
-                  </div>
-                </header>
+              ✕
+            </button>
+          </header>
 
-                <div
-                  v-if="expandedTables.has(semanticTableKey(table))"
-                  class="data-view__sem-columns"
-                >
-                  <article
-                    v-for="column in table.columns"
-                    :key="`${semanticTableKey(table)}-${column.column_name}`"
-                    class="data-view__sem-col"
-                  >
-                    <div class="data-view__sem-col-head">
-                      <strong class="data-view__sem-col-name">{{
-                        column.column_name
-                      }}</strong>
-                      <span class="data-view__sem-col-label">{{
-                        column.label ||
-                        column.business_description ||
-                        "Без семантической метки"
-                      }}</span>
-                      <span class="data-view__sem-col-type">{{
-                        column.value_type || column.data_type
-                      }}</span>
-                      <span
-                        v-if="column.is_pk"
-                        class="data-view__sem-badge data-view__sem-badge--pk"
-                      >
-                        PK
-                      </span>
-                      <span
-                        v-if="column.is_fk"
-                        class="data-view__sem-badge data-view__sem-badge--fk"
-                      >
-                        FK
-                      </span>
-                    </div>
-                    <small class="data-view__sem-col-note">
-                      {{
-                        column.synonyms.length
-                          ? `Синонимы: ${column.synonyms.join(", ")}`
-                          : column.example_values.length
-                            ? `Примеры: ${column.example_values
-                                .slice(0, 3)
-                                .join(", ")}`
-                            : "Дополнительные подсказки для колонки пока не заданы."
-                      }}
-                    </small>
-                  </article>
-                </div>
+          <div class="data-view__semantic-modal-body">
+            <div v-if="semanticNotices.length" class="data-view__notice-list">
+              <article
+                v-for="notice in semanticNotices"
+                :key="`${notice.key}-modal`"
+                class="data-view__notice"
+                :class="`data-view__notice--${notice.tone}`"
+              >
+                {{ notice.text }}
               </article>
             </div>
-            <div v-else class="data-view__empty">
-              Semantic layer ещё не содержит таблиц.
+
+            <div class="data-view__semantic-grid">
+              <article class="data-view__semantic-stat">
+                <span>Таблицы</span>
+                <strong>{{ semanticCatalog.tables.length }}</strong>
+              </article>
+              <article class="data-view__semantic-stat">
+                <span>Связи</span>
+                <strong>{{ semanticCatalog.relationships.length }}</strong>
+              </article>
+              <article class="data-view__semantic-stat">
+                <span>Маршруты JOIN</span>
+                <strong>{{ semanticCatalog.join_paths.length }}</strong>
+              </article>
+              <article class="data-view__semantic-stat">
+                <span>Диалект</span>
+                <strong>{{ semanticCatalog.dialect }}</strong>
+              </article>
             </div>
-          </section>
+
+            <section class="data-view__subpanel data-view__subpanel--panel">
+              <header class="data-view__subhead">
+                <h3>Граф связей для LLM</h3>
+                <p>Итоговые join-рёбра, которые получит агент.</p>
+              </header>
+              <div
+                v-if="semanticCatalog.relationship_graph.length"
+                class="data-view__graph-list"
+              >
+                <article
+                  v-for="edge in semanticCatalog.relationship_graph"
+                  :key="`${edge.from_table}-${edge.to_table}-${edge.on}`"
+                  class="data-view__graph-card"
+                >
+                  <span>{{ edge.from_table }} → {{ edge.to_table }}</span>
+                  <strong>{{ edge.on }}</strong>
+                </article>
+              </div>
+              <div v-else class="data-view__empty">
+                Рёбра графа отсутствуют.
+              </div>
+            </section>
+
+            <section class="data-view__subpanel data-view__subpanel--panel">
+              <header class="data-view__subhead">
+                <h3>Каталог таблиц и колонок</h3>
+                <p>
+                  Разворачиваемый preview semantic layer без отдельной секции в
+                  основном полотне.
+                </p>
+              </header>
+
+              <div
+                v-if="semanticCatalog.tables.length"
+                class="data-view__sem-tables"
+              >
+                <article
+                  v-for="table in semanticCatalog.tables"
+                  :key="semanticTableKey(table)"
+                  class="data-view__sem-table"
+                >
+                  <header class="data-view__sem-table-head">
+                    <button
+                      class="data-view__sem-expand"
+                      type="button"
+                      @click="toggleTableExpand(semanticTableKey(table))"
+                    >
+                      {{
+                        expandedTables.has(semanticTableKey(table)) ? "−" : "+"
+                      }}
+                    </button>
+                    <div class="data-view__sem-table-meta">
+                      <strong
+                        >{{ table.schema_name }}.{{ table.table_name }}</strong
+                      >
+                      <span>{{
+                        table.label || translateTableRole(table.table_role)
+                      }}</span>
+                      <small>{{
+                        table.business_description ||
+                        "Описание для semantic layer пока не заполнено."
+                      }}</small>
+                    </div>
+                    <div class="data-view__sem-table-counts">
+                      {{ table.columns.length }} колонок ·
+                      {{ table.relationships.length }} связей
+                    </div>
+                  </header>
+
+                  <div
+                    v-if="expandedTables.has(semanticTableKey(table))"
+                    class="data-view__sem-columns"
+                  >
+                    <article
+                      v-for="column in table.columns"
+                      :key="`${semanticTableKey(table)}-${column.column_name}`"
+                      class="data-view__sem-col"
+                    >
+                      <div class="data-view__sem-col-head">
+                        <strong class="data-view__sem-col-name">{{
+                          column.column_name
+                        }}</strong>
+                        <span class="data-view__sem-col-label">{{
+                          column.label ||
+                          column.business_description ||
+                          "Без семантической метки"
+                        }}</span>
+                        <span class="data-view__sem-col-type">{{
+                          column.value_type || column.data_type
+                        }}</span>
+                        <span
+                          v-if="column.is_pk"
+                          class="data-view__sem-badge data-view__sem-badge--pk"
+                        >
+                          PK
+                        </span>
+                        <span
+                          v-if="column.is_fk"
+                          class="data-view__sem-badge data-view__sem-badge--fk"
+                        >
+                          FK
+                        </span>
+                      </div>
+                      <small class="data-view__sem-col-note">
+                        {{
+                          column.synonyms.length
+                            ? `Синонимы: ${column.synonyms.join(", ")}`
+                            : "Дополнительные подсказки для колонки пока не заданы."
+                        }}
+                      </small>
+                    </article>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="data-view__empty">
+                Semantic layer ещё не содержит таблиц.
+              </div>
+            </section>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </main>
 </template>
 
@@ -1173,11 +1176,14 @@ const semanticNotices = computed<ViewNotice[]>(() => {
   const notices: ViewNotice[] = [];
 
   if (semanticFeedback.value) {
-    notices.push({
-      key: "semantic-feedback",
-      text: semanticFeedback.value,
-      tone: inferNoticeTone(semanticFeedback.value),
-    });
+    const tone = inferNoticeTone(semanticFeedback.value);
+    if (tone !== "success") {
+      notices.push({
+        key: "semantic-feedback",
+        text: semanticFeedback.value,
+        tone,
+      });
+    }
   }
 
   if (semanticFactGrainWarnings.value.length) {
@@ -2402,6 +2408,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 .content-wrapper {
   display: grid;
   gap: 16px;
+  min-width: 0;
+  width: 100%;
   padding: 12px;
   border-radius: 16px;
   background-color: var(--canvas);
@@ -2427,20 +2435,25 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-shell__content {
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .data-view {
   --data-surface: var(--bg);
   --data-surface-strong: var(--canvas);
-  --data-accent: #2a1f3d;
-  --data-accent-strong: #2a1f3d;
-  --data-line: rgba(255, 255, 255, 0.18);
-  --data-line-strong: rgba(255, 255, 255, 0.28);
-  --data-muted: rgba(255, 255, 255, 0.88);
-  --data-muted-soft: rgba(255, 255, 255, 0.72);
+  --data-surface-soft: var(--canvas);
+  --data-accent: color-mix(in srgb, var(--accent) 14%, var(--canvas));
+  --data-accent-strong: color-mix(in srgb, var(--accent) 12%, var(--canvas));
+  --data-line: var(--line);
+  --data-line-strong: var(--line-strong);
+  --data-muted: var(--muted);
+  --data-muted-soft: var(--muted-2);
   --data-field-height: calc(1.45em + 1.3rem + 2px);
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -2449,7 +2462,6 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__toolbar,
 .data-view__panel {
-  border: 1px solid var(--data-line);
   border-radius: var(--radius-lg);
   background: var(--data-surface);
   padding: 1.1rem 1.15rem;
@@ -2478,7 +2490,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   width: 260px;
   height: 260px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(42, 31, 61, 0.58), transparent 72%);
+
   pointer-events: none;
 }
 
@@ -2563,12 +2575,14 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 .data-view__column-edit input,
 .data-view__column-edit textarea,
 .data-view__relationship-edit input {
-  width: 100%;
-  border: 1px solid var(--data-line);
+  border: none;
   border-radius: 10px;
   padding: 0.65rem 0.75rem;
-  background: var(--data-surface-strong);
+  background: var(--bg);
   color: var(--ink);
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .data-view__form-grid textarea,
@@ -2586,7 +2600,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 .data-view__relationship-edit input:focus,
 .data-view__semantic-description textarea:focus {
   outline: none;
-  border-color: var(--data-line-strong);
+  background: var(--bg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 .data-view__notice-list {
@@ -2602,24 +2617,23 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   flex: 1 1 240px;
   margin: 0;
   padding: 0.8rem 0.95rem;
-  border: 1px solid var(--data-line);
   border-radius: 12px;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
   color: var(--ink-strong);
   font-size: 0.84rem;
   line-height: 1.45;
 }
 
 .data-view__notice--success {
-  background: #34264c;
+  background: color-mix(in srgb, var(--success) 16%, var(--data-surface-soft));
 }
 
 .data-view__notice--warning {
-  background: #52421f;
+  background: color-mix(in srgb, var(--warning) 16%, var(--data-surface-soft));
 }
 
 .data-view__notice--danger {
-  background: #4f2b31;
+  background: color-mix(in srgb, var(--danger) 16%, var(--data-surface-soft));
 }
 
 .data-view__stats {
@@ -2630,10 +2644,9 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__stat {
-  border: 1px solid var(--data-line);
   border-radius: 14px;
   padding: 0.85rem;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
 }
 
 .data-view__stat span,
@@ -2655,10 +2668,9 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__scan-card {
-  border: 1px solid var(--data-line);
   border-radius: 12px;
   padding: 0.8rem;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -2700,15 +2712,15 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   flex: 1 1 300px;
   max-width: calc(33.333% - 0.5rem);
   text-align: left;
-  border: 1px solid var(--data-line);
   border-radius: 12px;
   padding: 0.9rem;
   min-height: 116px;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 0.35rem;
+  transition: background 180ms ease;
 }
 
 .data-view__table-pill strong,
@@ -2724,13 +2736,21 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__table-pill.is-active {
-  border-color: var(--data-line-strong);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
-  background: var(--data-accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--data-surface-soft));
 }
 
 .data-view__detail {
   min-width: 0;
+}
+
+.data-view__detail-panel {
+  min-height: 360px;
+}
+
+.data-view__detail-panel > .data-view__empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
 }
 
 .data-view__detail-body,
@@ -2781,9 +2801,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   margin: 0;
   max-width: 420px;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--data-line);
   border-radius: 14px;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
   color: var(--data-muted);
   font-size: 0.8rem;
   line-height: 1.55;
@@ -2795,7 +2814,6 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__subpanel--panel {
-  border: 1px solid var(--data-line);
   border-radius: 16px;
   padding: 1rem;
   background: var(--data-surface-strong);
@@ -2834,14 +2852,18 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 .data-view__column-card {
   flex: 1 1 calc((100% - 1.4rem) / 3);
   min-width: 280px;
+  border-radius: 12px;
+  padding: 0.95rem;
+  background: var(--data-surface-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
 }
 
-.data-view__column-card,
 .data-view__relationship-card {
-  border: 1px solid var(--data-line);
   border-radius: 12px;
   padding: 0.8rem;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
   display: grid;
   grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   gap: 0.75rem;
@@ -2851,7 +2873,32 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 .data-view__relationship-card > div:first-child {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+}
+
+.data-view__column-meta {
+  gap: 0.35rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.data-view__column-meta strong {
+  color: var(--ink-strong);
+  font-size: 0.92rem;
+}
+
+.data-view__column-edit {
+  gap: 0.65rem;
+}
+
+.data-view__column-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.55rem;
+}
+
+.data-view__column-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .data-view__column-meta span,
@@ -2870,9 +2917,9 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__check {
-  display: inline-flex;
+  display: flex;
   gap: 0.4rem;
-  align-items: center;
+  align-items: flex-end;
   font-size: 0.78rem;
   color: var(--data-muted);
 }
@@ -2880,9 +2927,7 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 .data-view__erd {
   width: 100%;
   height: 480px;
-  border: 1px solid var(--data-line);
   border-radius: 16px;
-  background: linear-gradient(180deg, #312547 0%, #2a1f3d 100%);
 }
 
 .data-view__graph-controls {
@@ -2905,9 +2950,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   align-items: center;
   gap: 0.4rem;
   padding: 0.45rem 0.65rem;
-  border: 1px solid var(--data-line);
   border-radius: 999px;
-  background: var(--data-accent);
+  background: var(--data-surface-soft);
   color: var(--data-muted);
   font-size: 0.8rem;
 }
@@ -2934,10 +2978,9 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__graph-card {
-  border: 1px solid var(--data-line);
   border-radius: 12px;
   padding: 0.75rem;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
 }
 
 .data-view__graph-card span,
@@ -2966,19 +3009,21 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__semantic-description textarea {
   width: 100%;
-  border: 1px solid var(--data-line);
+  border: none;
   border-radius: 12px;
   padding: 0.75rem 0.8rem;
-  background: var(--data-surface-strong);
+  background: var(--bg);
   color: var(--ink);
   resize: vertical;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .data-view__semantic-stat {
-  border: 1px solid var(--data-line);
   border-radius: 12px;
   padding: 0.8rem;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
 }
 
 .data-view__semantic-stat span {
@@ -3023,9 +3068,12 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   padding: 1rem;
   color: var(--data-muted);
   text-align: center;
-  border: 1px dashed var(--data-line);
   border-radius: 12px;
-  background: var(--data-surface-strong);
+  background:
+    linear-gradient(var(--data-line), var(--data-line)) top / 100% 1px no-repeat,
+    linear-gradient(var(--data-line), var(--data-line)) bottom / 100% 1px
+      no-repeat,
+    var(--data-surface-soft);
 }
 
 .data-view__sem-tables {
@@ -3035,9 +3083,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 }
 
 .data-view__sem-table {
-  border: 1px solid var(--data-line);
   border-radius: 12px;
-  background: var(--data-surface-strong);
+  background: var(--data-surface-soft);
   overflow: hidden;
 }
 
@@ -3054,9 +3101,8 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid var(--data-line);
   border-radius: 10px;
-  background: transparent;
+  background: var(--canvas);
   color: var(--ink-strong);
   font-size: 0.9rem;
   cursor: pointer;
@@ -3098,7 +3144,6 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__sem-col {
   padding: 0.65rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   background: var(--data-accent-strong);
   display: flex;
@@ -3143,46 +3188,49 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   font-size: 0.68rem;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--data-surface-soft);
+  color: var(--ink-strong);
   white-space: nowrap;
 }
 
 .data-view__sem-badge--pk {
-  background: rgba(244, 194, 107, 0.18);
-  color: #f6d392;
-  border-color: rgba(244, 194, 107, 0.34);
+  background: color-mix(in srgb, var(--warning) 16%, var(--data-surface-soft));
+  color: color-mix(in srgb, var(--warning) 72%, white);
 }
 
 .data-view__sem-badge--fk {
-  background: rgba(129, 201, 149, 0.18);
-  color: #9ed8af;
-  border-color: rgba(129, 201, 149, 0.34);
+  background: color-mix(in srgb, var(--success) 16%, var(--data-surface-soft));
+  color: color-mix(in srgb, var(--success) 72%, white);
 }
 
 .data-view__semantic-modal-root {
   position: fixed;
   inset: 0;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  z-index: 80;
+  display: grid;
+  place-items: center;
   padding: 24px;
-  background: rgba(12, 12, 12, 0.62);
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
   backdrop-filter: blur(10px);
 }
 
 .data-view__semantic-modal {
-  width: min(1200px, 100%);
-  max-height: min(92vh, 960px);
+  width: min(1200px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--data-line);
-  border-radius: 24px;
-  background: var(--data-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-strong);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 88px
+    ),
+    var(--surface);
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-hover);
+  color: var(--ink);
 }
 
 .data-view__semantic-modal-head {
@@ -3191,12 +3239,21 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   justify-content: space-between;
   gap: 1rem;
   padding: 1.25rem 1.35rem;
-  border-bottom: 1px solid var(--data-line);
-  background: var(--data-surface);
+  border-bottom: 1px solid var(--line-strong);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 32%
+    ),
+    var(--bg-elev);
 }
 
 .data-view__semantic-modal-title {
   min-width: 0;
+  padding-inline-start: 0.95rem;
+  border-inline-start: 1px solid
+    color-mix(in srgb, var(--accent) 42%, var(--line));
 }
 
 .data-view__semantic-modal-title h2 {
@@ -3207,27 +3264,100 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
 
 .data-view__semantic-modal-meta {
   margin: 0.2rem 0 0;
-  color: var(--data-muted-soft);
+  color: var(--muted-2);
   font-size: 0.84rem;
 }
 
 .data-view__semantic-modal-body {
+  min-height: 0;
   overflow: auto;
-  padding: 1.25rem;
+  padding: 1.1rem 1.25rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.9rem;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-2) 78%, transparent),
+      transparent 128px
+    ),
+    var(--surface);
+}
+
+.data-view__semantic-modal-body > * + * {
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+}
+
+.data-view__semantic-modal .data-view__subpanel {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.data-view__semantic-modal .data-view__subpanel--panel,
+.data-view__semantic-modal .data-view__semantic-stat,
+.data-view__semantic-modal .data-view__graph-card,
+.data-view__semantic-modal .data-view__sem-table {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+}
+
+.data-view__semantic-modal .data-view__subpanel--panel::before,
+.data-view__semantic-modal .data-view__semantic-stat::before,
+.data-view__semantic-modal .data-view__graph-card::before,
+.data-view__semantic-modal .data-view__sem-table::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 58%, transparent),
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+.data-view__semantic-modal .data-view__sem-table-head {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 10%, transparent),
+      transparent 40%
+    ),
+    transparent;
+}
+
+.data-view__semantic-modal .data-view__sem-columns {
+  background: color-mix(in srgb, var(--canvas) 84%, var(--bg-elev));
+}
+
+.data-view__semantic-modal .data-view__sem-col {
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
 }
 
 .data-view__modal-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--data-line);
-  border-radius: 12px;
-  background: var(--data-accent);
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted-2);
+  font-size: 1.2rem;
+  line-height: 1;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.data-view__modal-close:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
   color: var(--ink-strong);
 }
 
@@ -3303,5 +3433,11 @@ watch(semanticAutoRefreshEnabled, (enabled) => {
   .data-view__semantic-modal-body {
     padding: 1rem;
   }
+}
+
+.just-center-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>

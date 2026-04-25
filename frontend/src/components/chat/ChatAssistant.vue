@@ -475,7 +475,7 @@ function warnings(message: ApiChatMessageRead) {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--muted);
+  color: var(--muted-2);
   font-size: 0.78rem;
   cursor: pointer;
 }
@@ -490,18 +490,19 @@ function warnings(message: ApiChatMessageRead) {
   gap: 1px;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  background: #1a1a1a;
 }
 
 .r-block {
   display: grid;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.025);
+  background: #262626;
 }
 
 .r-block + .r-block {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--line);
 }
 
 .r-block--meta {
@@ -522,7 +523,7 @@ function warnings(message: ApiChatMessageRead) {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: var(--muted);
+  color: var(--muted-2);
   font-size: 0.69rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -534,7 +535,7 @@ function warnings(message: ApiChatMessageRead) {
   font-size: 0.69rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--muted-2);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -599,7 +600,7 @@ function warnings(message: ApiChatMessageRead) {
 
 .r-table-reason {
   font-size: 0.78rem;
-  color: var(--muted);
+  color: var(--muted-2);
   line-height: 1.4;
 }
 
@@ -634,14 +635,14 @@ function warnings(message: ApiChatMessageRead) {
 
 .r-col-source {
   font-size: 0.68rem;
-  color: var(--muted);
+  color: var(--muted-2);
   margin-left: auto;
 }
 
 .r-col-note {
   margin: 0;
   font-size: 0.74rem;
-  color: var(--muted);
+  color: var(--muted-2);
   line-height: 1.4;
 
   em {
@@ -671,7 +672,7 @@ function warnings(message: ApiChatMessageRead) {
 }
 
 .r-term-arrow {
-  color: var(--muted);
+  color: var(--muted-2);
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -685,7 +686,7 @@ function warnings(message: ApiChatMessageRead) {
 
 .r-term-note {
   font-size: 0.72rem;
-  color: var(--muted);
+  color: var(--muted-2);
 }
 
 /* confidence */

@@ -1,10 +1,7 @@
 <template>
   <section class="chat-sql-editor">
     <div class="chat-sql-editor__toolbar">
-      <div style="display: flex; gap: 16px">
-        <span class="chat-sql-editor__status" :class="statusClass">{{
-          statusLabel
-        }}</span>
+      <div style="display: flex; gap: 16px; align-items: center">
         <button
           class="chat-sql-editor__help"
           type="button"
@@ -135,8 +132,8 @@ async function copy() {
 }
 
 .chat-sql-editor__help {
-  width: 36px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   border: 1px solid rgba(112, 59, 247, 0.7);
   background: linear-gradient(
@@ -207,12 +204,12 @@ async function copy() {
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   font-size: 0.76rem;
   color: var(--muted);
-  line-height: 1.1;
+  line-height: 1;
 }
 
 .chat-sql-editor__status--info {
@@ -256,7 +253,7 @@ async function copy() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 1.1;
+  line-height: 1;
   transition:
     background 180ms ease,
     border-color 180ms ease,
